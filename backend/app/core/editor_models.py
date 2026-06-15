@@ -4,7 +4,7 @@ Mirrors frontend types and routes.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -81,7 +81,7 @@ class ComponentPreview(BaseModel):
 
 # ── Design Document Schemas ───────────────────────────────────────────────────
 
-ParamValue = Union[str, float, int]
+ParamValue = Union[str, float, int, bool, Dict[str, Any]]
 
 
 class Placement(BaseModel):
