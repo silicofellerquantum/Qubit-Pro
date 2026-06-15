@@ -2,7 +2,7 @@ import { type RefObject, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Undo2, Redo2, MousePointer2, Hand, Code2, Maximize,
-  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson,
+  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -145,6 +145,20 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
               </Button>
             </TooltipTrigger>
             <TooltipContent>Fit all components into view (F)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={state.showMiniMap ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => dispatch({ type: "TOGGLE_MINIMAP" })}
+                className={cn("h-8 gap-1.5 text-[11px]", state.showMiniMap && "bg-primary/10 text-primary hover:bg-primary/15")}
+              >
+                <Map className="h-3.5 w-3.5" /> <span className="hidden md:inline">Top View</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{state.showMiniMap ? "Hide Top View" : "Show Top View"}</TooltipContent>
           </Tooltip>
 
           <Separator orientation="vertical" className="h-6" />

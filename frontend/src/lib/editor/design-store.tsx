@@ -63,6 +63,7 @@ export interface EditorState {
   showRulers: boolean;
   showComponentIds: boolean;
   showHUD: boolean;
+  showMiniMap: boolean;
   past: Snapshot[];
   future: Snapshot[];
   rev: number;
@@ -103,6 +104,7 @@ export type EditorAction =
   | { type: "TOGGLE_RULERS" }
   | { type: "TOGGLE_COMPONENT_IDS" }
   | { type: "TOGGLE_HUD" }
+  | { type: "TOGGLE_MINIMAP" }
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "LOAD"; doc: DesignDocument };
@@ -139,6 +141,12 @@ export const initialEditorState: EditorState = {
   showRulers: true,
   showComponentIds: false,
   showHUD: true,
+  showMiniMap: (() => {
+    try {
+      const saved = localStorage.getItem("editor_minimap_visible");
+      return saved === null ? false : saved === "true";
+    } catch { return false; }
+  })(),
   past: [],
   future: [],
   rev: 0,
@@ -372,6 +380,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, showComponentIds: !state.showComponentIds };
     case "TOGGLE_HUD":
       return { ...state, showHUD: !state.showHUD };
+    case "TOGGLE_MINIMAP": {
+      const next = !state.showMiniMap;
+      try { localStorage.setItem("editor_minimap_visible", String(next)); } catch { /* ignore */ }
+      return { ...state, showMiniMap: next };
+    }
     case "UNDO": {
       if (state.past.length === 0) return state;
       const prev = state.past[state.past.length - 1];

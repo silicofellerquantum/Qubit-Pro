@@ -8,7 +8,7 @@ import {
   useImperativeHandle,
 } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Minus, Hand, MousePointer2 } from "lucide-react";
+import { Plus, Minus, Hand, MousePointer2, X } from "lucide-react";
 import { prefixForCategory, type EditorState, type Selection, isSelected, getSingleSelection } from "@/lib/editor/design-store";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import {
@@ -1194,7 +1194,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         cx={cx}
         cy={cy}
         scale={scale}
+        visible={state.showMiniMap}
         onPan={(x, y) => dispatch({ type: "PAN", x, y })}
+        onClose={() => dispatch({ type: "TOGGLE_MINIMAP" })}
       />
 
       {/* Global Dimension Indicator & Selection HUD */}
@@ -1778,7 +1780,9 @@ function MiniMap({
   cx,
   cy,
   scale,
+  visible,
   onPan,
+  onClose,
 }: {
   placements: Placement[];
   connections: Connection[];
@@ -1787,7 +1791,9 @@ function MiniMap({
   cx: number;
   cy: number;
   scale: number;
+  visible: boolean;
   onPan: (x: number, y: number) => void;
+  onClose: () => void;
 }) {
   const W = 160;
   const H = 100;
@@ -1795,6 +1801,11 @@ function MiniMap({
   const mapScale = Math.min((W - PAD * 2) / CHIP_W_MM, (H - PAD * 2) / CHIP_H_MM);
   const ox = (W - CHIP_W_MM * mapScale) / 2;
   const oy = (H - CHIP_H_MM * mapScale) / 2;
+
+  // Draggable panel position
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   const w2m = (wx: number, wy: number) => ({
     mx: ox + (wx + CHIP_HALF_W) * mapScale,
@@ -1811,7 +1822,7 @@ function MiniMap({
   const b = w2m(visRight, visBottom);
   const selSet = new Set(selection.filter((s) => s.kind === "placement").map((s) => s.id));
 
-  const onClick = (e: React.MouseEvent<SVGSVGElement>) => {
+  const onSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
@@ -1820,71 +1831,134 @@ function MiniMap({
     onPan(-wx * MM_TO_PX * scale + size.w / 2, -wy * MM_TO_PX * scale + size.h / 2);
   };
 
+  const onDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only drag from the header bar, not the SVG
+    if ((e.target as HTMLElement).closest("svg, button")) return;
+    e.preventDefault();
+    const panel = panelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    dragState.current = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top };
+
+    const onMove = (me: MouseEvent) => {
+      if (!dragState.current) return;
+      const dx = me.clientX - dragState.current.startX;
+      const dy = me.clientY - dragState.current.startY;
+      setPos({ left: dragState.current.origLeft + dx, top: dragState.current.origTop + dy });
+    };
+    const onUp = () => {
+      dragState.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const panelStyle: React.CSSProperties = pos
+    ? { position: "fixed", left: pos.left, top: pos.top, right: "auto", bottom: "auto" }
+    : { position: "absolute", top: 12, right: 12 };
+
   return (
     <div
-      className="absolute top-3 right-3 rounded-lg border border-border bg-card/95 p-1 shadow-sm backdrop-blur"
-      style={{ width: W, height: H }}
+      ref={panelRef}
+      onMouseDown={onDragStart}
+      style={{
+        ...panelStyle,
+        width: W + 2,       // +2 for border
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateX(0) scale(1)" : "translateX(24px) scale(0.95)",
+        pointerEvents: visible ? "auto" : "none",
+        transition: "opacity 220ms ease, transform 220ms ease",
+        zIndex: 50,
+        borderRadius: 8,
+        border: "1px solid var(--border)",
+        background: "var(--card)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+        backdropFilter: "blur(8px)",
+        cursor: "grab",
+        userSelect: "none",
+      }}
+      aria-hidden={!visible}
     >
-      <svg width={W} height={H} className="block cursor-pointer" role="img" aria-label="Mini-map overview" onClick={onClick}>
-        {/* Chip bounds */}
-        <rect
-          x={ox}
-          y={oy}
-          width={CHIP_W_MM * mapScale}
-          height={CHIP_H_MM * mapScale}
-          fill="var(--muted)"
-          stroke="var(--border)"
-          strokeWidth={1}
-          rx={2}
-        />
-        {/* Connections */}
-        {connections.map((c) => {
-          const a = placements.find((p) => p.id === c.from.placementId);
-          const b = placements.find((p) => p.id === c.to.placementId);
-          if (!a || !b) return null;
-          const pa = w2m(a.x, a.y);
-          const pb = w2m(b.x, b.y);
-          return (
-            <line
-              key={c.id}
-              x1={pa.mx}
-              y1={pa.my}
-              x2={pb.mx}
-              y2={pb.my}
-              stroke="var(--border)"
-              strokeWidth={0.5}
-              opacity={0.5}
-            />
-          );
-        })}
-        {/* Placements */}
-        {placements.map((p) => {
-          const { mx, my } = w2m(p.x, p.y);
-          const isSel = selSet.has(p.id);
-          return (
-            <circle
-              key={p.id}
-              cx={mx}
-              cy={my}
-              r={isSel ? 2.5 : 1.5}
-              fill={isSel ? "var(--primary)" : "var(--foreground)"}
-              opacity={isSel ? 1 : 0.5}
-            />
-          );
-        })}
-        {/* Viewport rectangle */}
-        <rect
-          x={Math.min(a.mx, b.mx)}
-          y={Math.min(a.my, b.my)}
-          width={Math.abs(b.mx - a.mx)}
-          height={Math.abs(b.my - a.my)}
-          fill="none"
-          stroke="var(--primary)"
-          strokeWidth={1}
-          opacity={0.6}
-          pointerEvents="none"
-        />
-      </svg>
+      {/* Drag handle / header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "3px 4px 2px 7px",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.03em", lineHeight: 1.4 }}>
+          TOP VIEW
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 18, height: 18, borderRadius: 4, border: "none",
+            background: "transparent", cursor: "pointer", color: "var(--muted-foreground)",
+            transition: "background 150ms",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "var(--destructive)/10")}
+          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          title="Close Top View"
+          aria-label="Close Top View panel"
+        >
+          <X style={{ width: 10, height: 10 }} />
+        </button>
+      </div>
+
+      {/* SVG map */}
+      <div style={{ padding: 2 }}>
+        <svg
+          width={W}
+          height={H}
+          style={{ display: "block", cursor: "crosshair" }}
+          role="img"
+          aria-label="Mini-map overview"
+          onClick={onSvgClick}
+          onMouseDown={e => e.stopPropagation()}  // prevent drag when clicking map
+        >
+          {/* Chip bounds */}
+          <rect
+            x={ox} y={oy}
+            width={CHIP_W_MM * mapScale} height={CHIP_H_MM * mapScale}
+            fill="var(--muted)" stroke="var(--border)" strokeWidth={1} rx={2}
+          />
+          {/* Connections */}
+          {connections.map((c) => {
+            const pa_ = placements.find((p) => p.id === c.from.placementId);
+            const pb_ = placements.find((p) => p.id === c.to.placementId);
+            if (!pa_ || !pb_) return null;
+            const pa = w2m(pa_.x, pa_.y);
+            const pb = w2m(pb_.x, pb_.y);
+            return (
+              <line key={c.id} x1={pa.mx} y1={pa.my} x2={pb.mx} y2={pb.my}
+                stroke="var(--border)" strokeWidth={0.5} opacity={0.5} />
+            );
+          })}
+          {/* Placements */}
+          {placements.map((p) => {
+            const { mx, my } = w2m(p.x, p.y);
+            const isSel = selSet.has(p.id);
+            return (
+              <circle key={p.id} cx={mx} cy={my} r={isSel ? 2.5 : 1.5}
+                fill={isSel ? "var(--primary)" : "var(--foreground)"}
+                opacity={isSel ? 1 : 0.5} />
+            );
+          })}
+          {/* Viewport rectangle */}
+          <rect
+            x={Math.min(a.mx, b.mx)} y={Math.min(a.my, b.my)}
+            width={Math.abs(b.mx - a.mx)} height={Math.abs(b.my - a.my)}
+            fill="none" stroke="var(--primary)" strokeWidth={1} opacity={0.6}
+            pointerEvents="none"
+          />
+        </svg>
+      </div>
     </div>
   );
 }
