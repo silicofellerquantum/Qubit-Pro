@@ -1,0 +1,4375 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "SILICOFELLER Quantum Studio API",
+        "description": "AI-augmented quantum hardware EDA platform — V2. DesignGraph → Constraints → Placement → Routing → DRC → Qiskit Metal → Tapeout.",
+        "version": "2.0.0"
+    },
+    "paths": {
+        "/health": {
+            "get": {
+                "tags": [
+                    "generate"
+                ],
+                "summary": "Health",
+                "operationId": "health_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HealthResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/generate": {
+            "post": {
+                "tags": [
+                    "generate"
+                ],
+                "summary": "Generate",
+                "operationId": "generate_generate_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GenerateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Generate Generate Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/generate/metal-code": {
+            "post": {
+                "tags": [
+                    "physics"
+                ],
+                "summary": "Generate Metal Code",
+                "description": "Generate runnable Qiskit Metal Python from Quantum Editor JSON.",
+                "operationId": "generate_metal_code_api_generate_metal_code_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MetalCodeRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Generate Metal Code Api Generate Metal Code Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/generate/frequency-plan": {
+            "post": {
+                "tags": [
+                    "physics"
+                ],
+                "summary": "Frequency Plan",
+                "description": "Standalone IBM-style frequency planning.\nReturns qubit A/B groups, EJ/EC, resonator band 6.3–7.2 GHz, λ/4 lengths,\ncollision warnings.",
+                "operationId": "frequency_plan_api_generate_frequency_plan_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FrequencyPlanRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Frequency Plan Api Generate Frequency Plan Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/generate/placement": {
+            "post": {
+                "tags": [
+                    "physics"
+                ],
+                "summary": "Placement",
+                "description": "Graph-solver physical placement for a given topology.\nUses Kamada-Kawai layout (falls back to deterministic grid).",
+                "operationId": "placement_api_generate_placement_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PlacementRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Placement Api Generate Placement Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/generate/drc": {
+            "post": {
+                "tags": [
+                    "physics"
+                ],
+                "summary": "Drc Check",
+                "description": "Run 7-rule DRC: spacing, CPW dimensions, frequency collision,\nresonator uniqueness, dispersive detuning, feedline clearance,\ngeometry overlap pre-check.",
+                "operationId": "drc_check_api_generate_drc_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/app__routers__generate__DRCRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Drc Check Api Generate Drc Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/generate/netlist": {
+            "post": {
+                "tags": [
+                    "physics"
+                ],
+                "summary": "Netlist",
+                "description": "Build the chip connectivity netlist (qubits, resonators, coupling edges).",
+                "operationId": "netlist_api_generate_netlist_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NetlistRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Netlist Api Generate Netlist Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/generate/em-simulation": {
+            "post": {
+                "tags": [
+                    "physics"
+                ],
+                "summary": "Em Simulation",
+                "description": "Phase 9 stub: EM simulation parameters.\nReturns simulation targets for HFSS / Sonnet / OpenEMS.\nFull integration requires Ansys HFSS or Sonnet licence + renderer.",
+                "operationId": "em_simulation_api_generate_em_simulation_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EMSimRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Em Simulation Api Generate Em Simulation Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/register": {
+            "post": {
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register",
+                "operationId": "register_api_auth_register_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/token": {
+            "post": {
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login",
+                "operationId": "login_api_auth_token_post",
+                "requestBody": {
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Body_login_api_auth_token_post"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/me": {
+            "get": {
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get Me",
+                "operationId": "get_me_api_auth_me_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/projects": {
+            "get": {
+                "tags": [
+                    "projects"
+                ],
+                "summary": "List Projects",
+                "operationId": "list_projects_api_projects_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "additionalProperties": true,
+                                        "type": "object"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Projects Api Projects Get"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Create Project",
+                "operationId": "create_project_api_projects_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ProjectCreate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Create Project Api Projects Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/projects/{project_id}": {
+            "get": {
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Get Project",
+                "operationId": "get_project_api_projects__project_id__get",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "title": "Response Get Project Api Projects  Project Id  Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Update Project",
+                "operationId": "update_project_api_projects__project_id__patch",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ProjectUpdate"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "title": "Response Update Project Api Projects  Project Id  Patch"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Delete Project",
+                "operationId": "delete_project_api_projects__project_id__delete",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/save-design": {
+            "post": {
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Save Design",
+                "description": "Save a GenerateResponse payload to a project.",
+                "operationId": "save_design_api_projects__project_id__save_design_post",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": true,
+                                "title": "Body"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "title": "Response Save Design Api Projects  Project Id  Save Design Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/projects/{project_id}/versions": {
+            "post": {
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Create Version",
+                "operationId": "create_version_api_projects__project_id__versions_post",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "additionalProperties": true,
+                                "title": "Body"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "title": "Response Create Version Api Projects  Project Id  Versions Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "projects"
+                ],
+                "summary": "List Versions",
+                "operationId": "list_versions_api_projects__project_id__versions_get",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    },
+                                    "title": "Response List Versions Api Projects  Project Id  Versions Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/qclang/status": {
+            "get": {
+                "tags": [
+                    "qclang"
+                ],
+                "summary": "Qlang Status",
+                "description": "Return QChipLang compiler availability and dialect support.",
+                "operationId": "qlang_status_api_qclang_status_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Qlang Status Api Qclang Status Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/qclang/examples": {
+            "get": {
+                "tags": [
+                    "qclang"
+                ],
+                "summary": "Get Examples",
+                "description": "Return built-in .qcl example files.",
+                "operationId": "get_examples_api_qclang_examples_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Get Examples Api Qclang Examples Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/qclang/parse": {
+            "post": {
+                "tags": [
+                    "qclang"
+                ],
+                "summary": "Parse Qclang",
+                "description": "Parse QCLang source and return AST + validation errors.",
+                "operationId": "parse_qclang_api_qclang_parse_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ParseRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Parse Qclang Api Qclang Parse Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/qclang/compile": {
+            "post": {
+                "tags": [
+                    "qclang"
+                ],
+                "summary": "Compile Qclang",
+                "description": "Parse, validate, and compile QCLang source.\n\nAuto-detects dialect:\n  • .qcl (chip{} braces) → full QChipLang compiler → supports qiskit_metal | json_ir | spice\n  • .qc  (chip…end)       → simple compiler → qiskit_metal only\n\nReturns GenerateResponse-compatible result.",
+                "operationId": "compile_qclang_api_qclang_compile_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CompileRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Compile Qclang Api Qclang Compile Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/qclang/save": {
+            "post": {
+                "tags": [
+                    "qclang"
+                ],
+                "summary": "Save Qclang",
+                "description": "Parse + save a QCLang file to a project.",
+                "operationId": "save_qclang_api_qclang_save_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ParseRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Save Qclang Api Qclang Save Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/qclang/templates": {
+            "get": {
+                "tags": [
+                    "qclang"
+                ],
+                "summary": "Get Templates",
+                "description": "Return built-in QCLang template snippets (both .qc and .qcl dialects).",
+                "operationId": "get_templates_api_qclang_templates_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "additionalProperties": {
+                                            "type": "string"
+                                        },
+                                        "type": "object"
+                                    },
+                                    "type": "array",
+                                    "title": "Response Get Templates Api Qclang Templates Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/simulations": {
+            "get": {
+                "tags": [
+                    "simulations"
+                ],
+                "summary": "List Simulations",
+                "operationId": "list_simulations_api_simulations_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "additionalProperties": true,
+                                        "type": "object"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Simulations Api Simulations Get"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "simulations"
+                ],
+                "summary": "Create Simulation",
+                "operationId": "create_simulation_api_simulations_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SimulationCreate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Create Simulation Api Simulations Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/simulations/{sim_id}/run": {
+            "post": {
+                "tags": [
+                    "simulations"
+                ],
+                "summary": "Run Simulation",
+                "description": "Run a simulation analytically (physics engine).\nIn production this would dispatch to Palace/scqubits workers.",
+                "operationId": "run_simulation_api_simulations__sim_id__run_post",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "sim_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Sim Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "title": "Response Run Simulation Api Simulations  Sim Id  Run Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/simulations/{sim_id}": {
+            "get": {
+                "tags": [
+                    "simulations"
+                ],
+                "summary": "Get Simulation",
+                "operationId": "get_simulation_api_simulations__sim_id__get",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "sim_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Sim Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "title": "Response Get Simulation Api Simulations  Sim Id  Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/verification/run": {
+            "post": {
+                "tags": [
+                    "verification"
+                ],
+                "summary": "Run Verification Endpoint",
+                "operationId": "run_verification_endpoint_api_verification_run_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/VerifyRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Run Verification Endpoint Api Verification Run Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/verification/project/{project_id}": {
+            "get": {
+                "tags": [
+                    "verification"
+                ],
+                "summary": "Get Project Reports",
+                "operationId": "get_project_reports_api_verification_project__project_id__get",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    },
+                                    "title": "Response Get Project Reports Api Verification Project  Project Id  Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/verification/check": {
+            "post": {
+                "tags": [
+                    "verification"
+                ],
+                "summary": "Quick Check",
+                "description": "Run verification on a raw payload without saving.",
+                "operationId": "quick_check_api_verification_check_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "additionalProperties": true,
+                                "type": "object",
+                                "title": "Payload"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Quick Check Api Verification Check Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tapeout/generate": {
+            "post": {
+                "tags": [
+                    "tapeout"
+                ],
+                "summary": "Generate Tapeout",
+                "operationId": "generate_tapeout_api_tapeout_generate_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TapeoutRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Generate Tapeout Api Tapeout Generate Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/tapeout/{package_id}/gds": {
+            "get": {
+                "tags": [
+                    "tapeout"
+                ],
+                "summary": "Download Gds",
+                "operationId": "download_gds_api_tapeout__package_id__gds_get",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "package_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Package Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tapeout/project/{project_id}": {
+            "get": {
+                "tags": [
+                    "tapeout"
+                ],
+                "summary": "List Tapeouts",
+                "operationId": "list_tapeouts_api_tapeout_project__project_id__get",
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "project_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Project Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    },
+                                    "title": "Response List Tapeouts Api Tapeout Project  Project Id  Get"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/materials": {
+            "get": {
+                "tags": [
+                    "materials"
+                ],
+                "summary": "List Materials",
+                "description": "Return all materials organised by type.",
+                "operationId": "list_materials_api_materials_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response List Materials Api Materials Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/materials/substrates": {
+            "get": {
+                "tags": [
+                    "materials"
+                ],
+                "summary": "List Substrates",
+                "operationId": "list_substrates_api_materials_substrates_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "additionalProperties": true,
+                                        "type": "object"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Substrates Api Materials Substrates Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/materials/metals": {
+            "get": {
+                "tags": [
+                    "materials"
+                ],
+                "summary": "List Metals",
+                "operationId": "list_metals_api_materials_metals_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "additionalProperties": true,
+                                        "type": "object"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Metals Api Materials Metals Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/claude/chat": {
+            "post": {
+                "tags": [
+                    "claude"
+                ],
+                "summary": "Chat",
+                "operationId": "chat_api_claude_chat_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ClaudeRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    },
+                                    "type": "object",
+                                    "title": "Response Chat Api Claude Chat Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/design/generate": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "Generate Design",
+                "description": "Full V2 constraint-driven design pipeline.\n\nPipeline: Constraints → Graph → Validation → Frequency Plan\n          → Placement → Routing → DRC → Qiskit Metal Code → Exports",
+                "operationId": "generate_design_api_design_generate_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConstraintsRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Generate Design Api Design Generate Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/design/generate-from-graph": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "Generate From Graph",
+                "description": "Run the V2 pipeline from an existing graph JSON\n(e.g. drawn in the schematic editor).",
+                "operationId": "generate_from_graph_api_design_generate_from_graph_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GraphDesignRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Generate From Graph Api Design Generate From Graph Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/design/from-prompt": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "From Prompt",
+                "description": "NL prompt → DesignDocument via the Claude constrained-JSON + fallback ladder.\n\nUses the three-tier NL→graph pipeline:\n  1. Claude tool-call (forced DesignIntent JSON schema)\n  2. ML intent resolver fallback\n  3. Regex parse_prompt fallback\n\nReturns the full pipeline result including ``design`` (DesignDocument),\n``graph``, ``freq_plan``, ``drc``, ``code``, ``qclang``, and ``issues``\n(structured warnings from intent resolution and compilation).",
+                "operationId": "from_prompt_api_design_from_prompt_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FromPromptRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response From Prompt Api Design From Prompt Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "OAuth2PasswordBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/design/validate": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "Validate Graph",
+                "description": "Structural graph validation — fast, no physics computation.",
+                "operationId": "validate_graph_api_design_validate_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GraphDesignRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Validate Graph Api Design Validate Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/design/route": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "Route Placement",
+                "description": "Run routing on a placement dict (from /api/generate/placement).\nReturns coupler, resonator, and feedline route segments.",
+                "operationId": "route_placement_api_design_route_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RouteRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Route Placement Api Design Route Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/design/drc": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "Run Advanced Drc",
+                "description": "Run the advanced 4-domain DRC (geometry, frequency, fabrication, connectivity).",
+                "operationId": "run_advanced_drc_api_design_drc_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/app__routers__design__DRCRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Run Advanced Drc Api Design Drc Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/design/export": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "Export Design",
+                "description": "Export a design in a single format (json|qclang|gds|svg|dxf|pdf).",
+                "operationId": "export_design_api_design_export_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExportRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Export Design Api Design Export Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/design/export-all": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "Export All Formats",
+                "description": "Export design in all formats simultaneously.",
+                "operationId": "export_all_formats_api_design_export_all_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExportAllRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Export All Formats Api Design Export All Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/design/frequency-plan": {
+            "post": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "Frequency Plan From Constraints",
+                "description": "Constraint-driven frequency planning.\nRespects qubit_band, readout_band, and min-detuning constraints.",
+                "operationId": "frequency_plan_from_constraints_api_design_frequency_plan_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConstraintsRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response Frequency Plan From Constraints Api Design Frequency Plan Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/design/topologies": {
+            "get": {
+                "tags": [
+                    "design-v2"
+                ],
+                "summary": "List Topologies",
+                "description": "Return all supported chip topologies with metadata.",
+                "operationId": "list_topologies_api_design_topologies_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": true,
+                                    "type": "object",
+                                    "title": "Response List Topologies Api Design Topologies Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components": {
+            "get": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "List Components",
+                "operationId": "list_components_components_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ComponentSummary"
+                                    },
+                                    "type": "array",
+                                    "title": "Response List Components Components Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{component_id}": {
+            "get": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Get Component",
+                "operationId": "get_component_components__component_id__get",
+                "parameters": [
+                    {
+                        "name": "component_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Component Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ComponentSummary"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{component_id}/metadata": {
+            "get": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Get Metadata",
+                "operationId": "get_metadata_components__component_id__metadata_get",
+                "parameters": [
+                    {
+                        "name": "component_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Component Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ComponentMetadata"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{component_id}/pins": {
+            "get": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Get Pins",
+                "operationId": "get_pins_components__component_id__pins_get",
+                "parameters": [
+                    {
+                        "name": "component_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Component Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ComponentPins"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{component_id}/preview": {
+            "get": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Get Preview",
+                "operationId": "get_preview_components__component_id__preview_get",
+                "parameters": [
+                    {
+                        "name": "component_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Component Id"
+                        }
+                    },
+                    {
+                        "name": "params",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "URL-encoded JSON object",
+                            "title": "Params"
+                        },
+                        "description": "URL-encoded JSON object"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ComponentPreview"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/design/validate": {
+            "post": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Validate Design",
+                "operationId": "validate_design_design_validate_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DesignDocument-Input"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ValidationResult"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/design/render": {
+            "post": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Render Design",
+                "operationId": "render_design_design_render_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DesignDocument-Input"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/design/render-route": {
+            "post": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Render Route",
+                "operationId": "render_route_design_render_route_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RenderRouteRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/design/generate-code": {
+            "post": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Generate Code",
+                "operationId": "generate_code_design_generate_code_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DesignDocument-Input"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GeneratedCode"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/design/run-code": {
+            "post": {
+                "tags": [
+                    "bridge"
+                ],
+                "summary": "Run Code",
+                "operationId": "run_code_design_run_code_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RunCodeRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunCodeResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/frequency-plan": {
+            "post": {
+                "tags": [
+                    "legacy"
+                ],
+                "summary": "Frequency Plan",
+                "operationId": "frequency_plan_frequency_plan_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FreqPlanRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/drc": {
+            "post": {
+                "tags": [
+                    "legacy"
+                ],
+                "summary": "Drc",
+                "operationId": "drc_drc_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "additionalProperties": true,
+                                "type": "object",
+                                "title": "Body"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/netlist": {
+            "post": {
+                "tags": [
+                    "legacy"
+                ],
+                "summary": "Netlist",
+                "operationId": "netlist_netlist_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "additionalProperties": true,
+                                "type": "object",
+                                "title": "Body"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/placement": {
+            "post": {
+                "tags": [
+                    "legacy"
+                ],
+                "summary": "Placement",
+                "operationId": "placement_placement_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "additionalProperties": true,
+                                "type": "object",
+                                "title": "Body"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Body_login_api_auth_token_post": {
+                "properties": {
+                    "grant_type": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "pattern": "^password$"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Grant Type"
+                    },
+                    "username": {
+                        "type": "string",
+                        "title": "Username"
+                    },
+                    "password": {
+                        "type": "string",
+                        "format": "password",
+                        "title": "Password"
+                    },
+                    "scope": {
+                        "type": "string",
+                        "title": "Scope",
+                        "default": ""
+                    },
+                    "client_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Client Id"
+                    },
+                    "client_secret": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "format": "password",
+                        "title": "Client Secret"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "username",
+                    "password"
+                ],
+                "title": "Body_login_api_auth_token_post"
+            },
+            "ClaudeRequest": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "context_type": {
+                        "type": "string",
+                        "title": "Context Type",
+                        "default": "general"
+                    },
+                    "context_data": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Context Data"
+                    },
+                    "history": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "History"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "title": "ClaudeRequest"
+            },
+            "CompileRequest": {
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "title": "Source"
+                    },
+                    "target": {
+                        "type": "string",
+                        "title": "Target",
+                        "default": "qiskit_metal"
+                    },
+                    "target_freq_ghz": {
+                        "type": "number",
+                        "title": "Target Freq Ghz",
+                        "default": 5.0
+                    },
+                    "substrate": {
+                        "type": "string",
+                        "title": "Substrate",
+                        "default": "silicon"
+                    },
+                    "metal": {
+                        "type": "string",
+                        "title": "Metal",
+                        "default": "aluminum"
+                    },
+                    "chip_size_mm": {
+                        "type": "number",
+                        "title": "Chip Size Mm",
+                        "default": 10.0
+                    },
+                    "project_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Project Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "source"
+                ],
+                "title": "CompileRequest"
+            },
+            "ComponentMetadata": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "parameters": {
+                        "items": {
+                            "$ref": "#/components/schemas/ParameterSpec"
+                        },
+                        "type": "array",
+                        "title": "Parameters"
+                    },
+                    "supportedRouteComponents": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Supportedroutecomponents"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id"
+                ],
+                "title": "ComponentMetadata"
+            },
+            "ComponentPins": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "pins": {
+                        "items": {
+                            "$ref": "#/components/schemas/PinSpec"
+                        },
+                        "type": "array",
+                        "title": "Pins"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id"
+                ],
+                "title": "ComponentPins"
+            },
+            "ComponentPreview": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "svg": {
+                        "type": "string",
+                        "title": "Svg"
+                    },
+                    "viewBox": {
+                        "$ref": "#/components/schemas/ViewBox"
+                    },
+                    "units": {
+                        "type": "string",
+                        "enum": [
+                            "um",
+                            "mm"
+                        ],
+                        "title": "Units",
+                        "default": "um"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "svg",
+                    "viewBox"
+                ],
+                "title": "ComponentPreview"
+            },
+            "ComponentSummary": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "module": {
+                        "type": "string",
+                        "title": "Module"
+                    },
+                    "category": {
+                        "type": "string",
+                        "enum": [
+                            "qubits",
+                            "resonators",
+                            "couplers",
+                            "routes",
+                            "launchpads",
+                            "ground",
+                            "terminations",
+                            "other"
+                        ],
+                        "title": "Category"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "module",
+                    "category"
+                ],
+                "title": "ComponentSummary"
+            },
+            "Connection": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "from": {
+                        "$ref": "#/components/schemas/PinRef"
+                    },
+                    "to": {
+                        "$ref": "#/components/schemas/PinRef"
+                    },
+                    "routeComponentId": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Routecomponentid"
+                    },
+                    "routeOverrides": {
+                        "additionalProperties": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "number"
+                                },
+                                {
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "boolean"
+                                },
+                                {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                }
+                            ]
+                        },
+                        "type": "object",
+                        "title": "Routeoverrides"
+                    },
+                    "locked": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Locked"
+                    },
+                    "cachedSvg": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Cachedsvg"
+                    },
+                    "cachedGeometryHash": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Cachedgeometryhash"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "from",
+                    "to"
+                ],
+                "title": "Connection"
+            },
+            "ConstraintsRequest": {
+                "properties": {
+                    "qubit_count": {
+                        "type": "integer",
+                        "maximum": 256.0,
+                        "minimum": 1.0,
+                        "title": "Qubit Count",
+                        "default": 5
+                    },
+                    "chip_size_mm": {
+                        "type": "number",
+                        "maximum": 100.0,
+                        "minimum": 1.0,
+                        "title": "Chip Size Mm",
+                        "default": 10.0
+                    },
+                    "chip_width_mm": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "title": "Chip Width Mm",
+                        "default": 0.0
+                    },
+                    "chip_height_mm": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "title": "Chip Height Mm",
+                        "default": 0.0
+                    },
+                    "technology": {
+                        "type": "string",
+                        "title": "Technology",
+                        "default": "transmon"
+                    },
+                    "topology": {
+                        "type": "string",
+                        "title": "Topology",
+                        "default": "grid"
+                    },
+                    "substrate": {
+                        "type": "string",
+                        "title": "Substrate",
+                        "default": "silicon"
+                    },
+                    "metal": {
+                        "type": "string",
+                        "title": "Metal",
+                        "default": "aluminum"
+                    },
+                    "target_freq_ghz": {
+                        "type": "number",
+                        "maximum": 12.0,
+                        "minimum": 1.0,
+                        "title": "Target Freq Ghz",
+                        "default": 5.0
+                    },
+                    "scale": {
+                        "type": "number",
+                        "maximum": 5.0,
+                        "minimum": 0.1,
+                        "title": "Scale",
+                        "default": 1.0
+                    },
+                    "chip_name": {
+                        "type": "string",
+                        "title": "Chip Name",
+                        "default": "QuantumChip"
+                    },
+                    "fab": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Fab"
+                    },
+                    "freq": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Freq"
+                    }
+                },
+                "type": "object",
+                "title": "ConstraintsRequest"
+            },
+            "DesignDocument-Input": {
+                "properties": {
+                    "placements": {
+                        "items": {
+                            "$ref": "#/components/schemas/Placement"
+                        },
+                        "type": "array",
+                        "title": "Placements"
+                    },
+                    "connections": {
+                        "items": {
+                            "$ref": "#/components/schemas/Connection"
+                        },
+                        "type": "array",
+                        "title": "Connections"
+                    }
+                },
+                "type": "object",
+                "title": "DesignDocument"
+            },
+            "DesignDocument-Output": {
+                "properties": {
+                    "placements": {
+                        "items": {
+                            "$ref": "#/components/schemas/Placement"
+                        },
+                        "type": "array",
+                        "title": "Placements"
+                    },
+                    "connections": {
+                        "items": {
+                            "$ref": "#/components/schemas/Connection"
+                        },
+                        "type": "array",
+                        "title": "Connections"
+                    }
+                },
+                "type": "object",
+                "title": "DesignDocument"
+            },
+            "EMSimRequest": {
+                "properties": {
+                    "n": {
+                        "type": "integer",
+                        "maximum": 50.0,
+                        "minimum": 1.0,
+                        "title": "N",
+                        "default": 4
+                    },
+                    "topology": {
+                        "type": "string",
+                        "title": "Topology",
+                        "default": "grid"
+                    },
+                    "backend": {
+                        "type": "string",
+                        "title": "Backend",
+                        "default": "hfss"
+                    }
+                },
+                "type": "object",
+                "title": "EMSimRequest"
+            },
+            "ExportAllRequest": {
+                "properties": {
+                    "graph": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Graph"
+                    },
+                    "freq_plan": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Freq Plan"
+                    },
+                    "route_result": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Route Result"
+                    },
+                    "drc_report": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Drc Report"
+                    },
+                    "constraints": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Constraints"
+                    },
+                    "project_name": {
+                        "type": "string",
+                        "title": "Project Name",
+                        "default": "QuantumChip"
+                    },
+                    "version": {
+                        "type": "string",
+                        "title": "Version",
+                        "default": "v1.0"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "graph"
+                ],
+                "title": "ExportAllRequest"
+            },
+            "ExportRequest": {
+                "properties": {
+                    "graph": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Graph"
+                    },
+                    "format": {
+                        "type": "string",
+                        "title": "Format",
+                        "default": "json"
+                    },
+                    "freq_plan": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Freq Plan"
+                    },
+                    "drc_report": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Drc Report"
+                    },
+                    "constraints": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Constraints"
+                    },
+                    "project_name": {
+                        "type": "string",
+                        "title": "Project Name",
+                        "default": "QuantumChip"
+                    },
+                    "version": {
+                        "type": "string",
+                        "title": "Version",
+                        "default": "v1.0"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "graph"
+                ],
+                "title": "ExportRequest"
+            },
+            "FreqPlanRequest": {
+                "properties": {
+                    "num_qubits": {
+                        "type": "integer",
+                        "title": "Num Qubits"
+                    },
+                    "substrate": {
+                        "type": "string",
+                        "title": "Substrate",
+                        "default": "silicon"
+                    },
+                    "metal": {
+                        "type": "string",
+                        "title": "Metal",
+                        "default": "aluminum"
+                    },
+                    "target_freq_ghz": {
+                        "type": "number",
+                        "title": "Target Freq Ghz",
+                        "default": 5.0
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "num_qubits"
+                ],
+                "title": "FreqPlanRequest"
+            },
+            "FrequencyPlanRequest": {
+                "properties": {
+                    "n": {
+                        "type": "integer",
+                        "maximum": 50.0,
+                        "minimum": 1.0,
+                        "title": "N",
+                        "default": 4
+                    },
+                    "topology": {
+                        "type": "string",
+                        "title": "Topology",
+                        "default": "grid"
+                    },
+                    "substrate": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Substrate"
+                    }
+                },
+                "type": "object",
+                "title": "FrequencyPlanRequest"
+            },
+            "FromPromptRequest": {
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "title": "Prompt"
+                    },
+                    "substrate": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Substrate"
+                    },
+                    "metal": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Metal"
+                    },
+                    "max_qubits": {
+                        "type": "integer",
+                        "maximum": 256.0,
+                        "minimum": 1.0,
+                        "title": "Max Qubits",
+                        "default": 100
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "prompt"
+                ],
+                "title": "FromPromptRequest",
+                "description": "NL prompt → DesignDocument via the Claude constrained-JSON + fallback ladder."
+            },
+            "GenerateRequest": {
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "minLength": 2,
+                        "title": "Prompt"
+                    },
+                    "substrate": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Substrate"
+                    },
+                    "metal": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Metal"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "prompt"
+                ],
+                "title": "GenerateRequest"
+            },
+            "GeneratedCode": {
+                "properties": {
+                    "language": {
+                        "type": "string",
+                        "const": "python",
+                        "title": "Language",
+                        "default": "python"
+                    },
+                    "filename": {
+                        "type": "string",
+                        "title": "Filename",
+                        "default": "design.py"
+                    },
+                    "code": {
+                        "type": "string",
+                        "title": "Code"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "code"
+                ],
+                "title": "GeneratedCode"
+            },
+            "GraphDesignRequest": {
+                "properties": {
+                    "graph": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Graph"
+                    },
+                    "constraints": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Constraints"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "graph"
+                ],
+                "title": "GraphDesignRequest"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "HealthResponse": {
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "title": "Status"
+                    },
+                    "version": {
+                        "type": "string",
+                        "title": "Version"
+                    },
+                    "max_qubits": {
+                        "type": "integer",
+                        "title": "Max Qubits"
+                    },
+                    "qiskit_metal": {
+                        "type": "string",
+                        "title": "Qiskit Metal"
+                    },
+                    "metal_version": {
+                        "type": "string",
+                        "title": "Metal Version"
+                    },
+                    "ml_intent": {
+                        "type": "string",
+                        "title": "Ml Intent"
+                    },
+                    "gds_renderer": {
+                        "type": "string",
+                        "title": "Gds Renderer"
+                    },
+                    "pipeline": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Pipeline"
+                    },
+                    "physics_engine": {
+                        "type": "string",
+                        "title": "Physics Engine"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "status",
+                    "version",
+                    "max_qubits",
+                    "qiskit_metal",
+                    "metal_version",
+                    "ml_intent",
+                    "gds_renderer",
+                    "pipeline",
+                    "physics_engine"
+                ],
+                "title": "HealthResponse"
+            },
+            "MetalCodeRequest": {
+                "properties": {
+                    "components": {
+                        "items": {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        "type": "array",
+                        "title": "Components"
+                    },
+                    "connections": {
+                        "items": {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        "type": "array",
+                        "title": "Connections"
+                    },
+                    "variables": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Variables"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "components",
+                    "connections"
+                ],
+                "title": "MetalCodeRequest"
+            },
+            "NetlistRequest": {
+                "properties": {
+                    "n": {
+                        "type": "integer",
+                        "maximum": 50.0,
+                        "minimum": 1.0,
+                        "title": "N",
+                        "default": 4
+                    },
+                    "topology": {
+                        "type": "string",
+                        "title": "Topology",
+                        "default": "grid"
+                    }
+                },
+                "type": "object",
+                "title": "NetlistRequest"
+            },
+            "ParameterSpec": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "length",
+                            "string",
+                            "number",
+                            "bool",
+                            "enum"
+                        ],
+                        "title": "Type"
+                    },
+                    "unit": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Unit"
+                    },
+                    "default": {
+                        "type": "string",
+                        "title": "Default"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "options": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "string"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Options"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "type",
+                    "default"
+                ],
+                "title": "ParameterSpec"
+            },
+            "ParseRequest": {
+                "properties": {
+                    "source": {
+                        "type": "string",
+                        "title": "Source"
+                    },
+                    "project_id": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Project Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "source"
+                ],
+                "title": "ParseRequest"
+            },
+            "PinHint": {
+                "properties": {
+                    "x": {
+                        "type": "number",
+                        "title": "X"
+                    },
+                    "y": {
+                        "type": "number",
+                        "title": "Y"
+                    },
+                    "angle": {
+                        "type": "number",
+                        "title": "Angle"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "x",
+                    "y",
+                    "angle"
+                ],
+                "title": "PinHint"
+            },
+            "PinRef": {
+                "properties": {
+                    "placementId": {
+                        "type": "string",
+                        "title": "Placementid"
+                    },
+                    "pinName": {
+                        "type": "string",
+                        "title": "Pinname"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "placementId",
+                    "pinName"
+                ],
+                "title": "PinRef"
+            },
+            "PinSpec": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "direction": {
+                        "type": "string",
+                        "enum": [
+                            "in",
+                            "out",
+                            "io"
+                        ],
+                        "title": "Direction"
+                    },
+                    "hint": {
+                        "$ref": "#/components/schemas/PinHint"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "direction",
+                    "hint"
+                ],
+                "title": "PinSpec"
+            },
+            "Placement": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "componentId": {
+                        "type": "string",
+                        "title": "Componentid"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "x": {
+                        "type": "number",
+                        "title": "X"
+                    },
+                    "y": {
+                        "type": "number",
+                        "title": "Y"
+                    },
+                    "rotation": {
+                        "type": "number",
+                        "title": "Rotation",
+                        "default": 0.0
+                    },
+                    "params": {
+                        "additionalProperties": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "number"
+                                },
+                                {
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "boolean"
+                                },
+                                {
+                                    "additionalProperties": true,
+                                    "type": "object"
+                                }
+                            ]
+                        },
+                        "type": "object",
+                        "title": "Params"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "componentId",
+                    "name",
+                    "x",
+                    "y"
+                ],
+                "title": "Placement"
+            },
+            "PlacementRequest": {
+                "properties": {
+                    "n": {
+                        "type": "integer",
+                        "maximum": 50.0,
+                        "minimum": 1.0,
+                        "title": "N",
+                        "default": 4
+                    },
+                    "topology": {
+                        "type": "string",
+                        "title": "Topology",
+                        "default": "grid"
+                    },
+                    "scale": {
+                        "type": "number",
+                        "maximum": 5.0,
+                        "minimum": 0.1,
+                        "title": "Scale",
+                        "default": 1.0
+                    }
+                },
+                "type": "object",
+                "title": "PlacementRequest"
+            },
+            "ProjectCreate": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "description": {
+                        "type": "string",
+                        "title": "Description",
+                        "default": ""
+                    },
+                    "topology": {
+                        "type": "string",
+                        "title": "Topology",
+                        "default": "custom"
+                    },
+                    "num_qubits": {
+                        "type": "integer",
+                        "title": "Num Qubits",
+                        "default": 0
+                    },
+                    "target_frequency_ghz": {
+                        "type": "number",
+                        "title": "Target Frequency Ghz",
+                        "default": 5.0
+                    },
+                    "substrate_material": {
+                        "type": "string",
+                        "title": "Substrate Material",
+                        "default": "silicon"
+                    },
+                    "metal_layer": {
+                        "type": "string",
+                        "title": "Metal Layer",
+                        "default": "aluminum"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name"
+                ],
+                "title": "ProjectCreate"
+            },
+            "ProjectStatus": {
+                "type": "string",
+                "enum": [
+                    "draft",
+                    "in_progress",
+                    "review",
+                    "completed"
+                ],
+                "title": "ProjectStatus"
+            },
+            "ProjectUpdate": {
+                "properties": {
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    },
+                    "description": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Description"
+                    },
+                    "topology": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Topology"
+                    },
+                    "num_qubits": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Num Qubits"
+                    },
+                    "target_frequency_ghz": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Target Frequency Ghz"
+                    },
+                    "substrate_material": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Substrate Material"
+                    },
+                    "metal_layer": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Metal Layer"
+                    },
+                    "status": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ProjectStatus"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "design_payload": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Design Payload"
+                    }
+                },
+                "type": "object",
+                "title": "ProjectUpdate"
+            },
+            "RegisterRequest": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "title": "Email"
+                    },
+                    "password": {
+                        "type": "string",
+                        "title": "Password"
+                    },
+                    "organization": {
+                        "type": "string",
+                        "title": "Organization",
+                        "default": "Independent"
+                    },
+                    "role": {
+                        "$ref": "#/components/schemas/UserRole",
+                        "default": "engineer"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "email",
+                    "password"
+                ],
+                "title": "RegisterRequest"
+            },
+            "RenderRouteRequest": {
+                "properties": {
+                    "design": {
+                        "$ref": "#/components/schemas/DesignDocument-Input"
+                    },
+                    "connectionId": {
+                        "type": "string",
+                        "title": "Connectionid"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "design",
+                    "connectionId"
+                ],
+                "title": "RenderRouteRequest"
+            },
+            "RouteRequest": {
+                "properties": {
+                    "placement": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Placement"
+                    },
+                    "constraints": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Constraints"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "placement"
+                ],
+                "title": "RouteRequest"
+            },
+            "RunCodeRequest": {
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "title": "Code"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "code"
+                ],
+                "title": "RunCodeRequest"
+            },
+            "RunCodeResponse": {
+                "properties": {
+                    "ok": {
+                        "type": "boolean",
+                        "title": "Ok"
+                    },
+                    "design": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/DesignDocument-Output"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "error": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Error"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "ok"
+                ],
+                "title": "RunCodeResponse"
+            },
+            "SimulationCreate": {
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "title": "Project Id"
+                    },
+                    "solver": {
+                        "type": "string",
+                        "title": "Solver",
+                        "default": "eigenmode"
+                    },
+                    "config": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Config",
+                        "default": {}
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "project_id"
+                ],
+                "title": "SimulationCreate"
+            },
+            "TapeoutRequest": {
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "title": "Project Id"
+                    },
+                    "version_tag": {
+                        "type": "string",
+                        "title": "Version Tag",
+                        "default": "v1.0"
+                    },
+                    "fab_notes": {
+                        "type": "string",
+                        "title": "Fab Notes",
+                        "default": ""
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "project_id"
+                ],
+                "title": "TapeoutRequest"
+            },
+            "TokenResponse": {
+                "properties": {
+                    "access_token": {
+                        "type": "string",
+                        "title": "Access Token"
+                    },
+                    "token_type": {
+                        "type": "string",
+                        "title": "Token Type",
+                        "default": "bearer"
+                    },
+                    "user": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "User"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "access_token",
+                    "user"
+                ],
+                "title": "TokenResponse"
+            },
+            "UserRole": {
+                "type": "string",
+                "enum": [
+                    "admin",
+                    "org_manager",
+                    "engineer"
+                ],
+                "title": "UserRole"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    },
+                    "input": {
+                        "title": "Input"
+                    },
+                    "ctx": {
+                        "type": "object",
+                        "title": "Context"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            },
+            "ValidationIssue": {
+                "properties": {
+                    "severity": {
+                        "type": "string",
+                        "enum": [
+                            "error",
+                            "warning",
+                            "info"
+                        ],
+                        "title": "Severity"
+                    },
+                    "rule": {
+                        "type": "string",
+                        "title": "Rule"
+                    },
+                    "message": {
+                        "type": "string",
+                        "title": "Message"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "severity",
+                    "rule",
+                    "message"
+                ],
+                "title": "ValidationIssue"
+            },
+            "ValidationResult": {
+                "properties": {
+                    "valid": {
+                        "type": "boolean",
+                        "title": "Valid"
+                    },
+                    "issues": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationIssue"
+                        },
+                        "type": "array",
+                        "title": "Issues"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "valid"
+                ],
+                "title": "ValidationResult"
+            },
+            "VerifyRequest": {
+                "properties": {
+                    "project_id": {
+                        "type": "string",
+                        "title": "Project Id"
+                    },
+                    "payload": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Payload"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "project_id"
+                ],
+                "title": "VerifyRequest"
+            },
+            "ViewBox": {
+                "properties": {
+                    "x": {
+                        "type": "number",
+                        "title": "X"
+                    },
+                    "y": {
+                        "type": "number",
+                        "title": "Y"
+                    },
+                    "w": {
+                        "type": "number",
+                        "title": "W"
+                    },
+                    "h": {
+                        "type": "number",
+                        "title": "H"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "x",
+                    "y",
+                    "w",
+                    "h"
+                ],
+                "title": "ViewBox"
+            },
+            "app__routers__design__DRCRequest": {
+                "properties": {
+                    "graph": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Graph"
+                    },
+                    "constraints": {
+                        "additionalProperties": true,
+                        "type": "object",
+                        "title": "Constraints"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "graph"
+                ],
+                "title": "DRCRequest"
+            },
+            "app__routers__generate__DRCRequest": {
+                "properties": {
+                    "n": {
+                        "type": "integer",
+                        "maximum": 50.0,
+                        "minimum": 1.0,
+                        "title": "N",
+                        "default": 4
+                    },
+                    "topology": {
+                        "type": "string",
+                        "title": "Topology",
+                        "default": "grid"
+                    },
+                    "scale": {
+                        "type": "number",
+                        "maximum": 5.0,
+                        "minimum": 0.1,
+                        "title": "Scale",
+                        "default": 1.0
+                    },
+                    "rules": {
+                        "anyOf": [
+                            {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Rules"
+                    }
+                },
+                "type": "object",
+                "title": "DRCRequest"
+            }
+        },
+        "securitySchemes": {
+            "OAuth2PasswordBearer": {
+                "type": "oauth2",
+                "flows": {
+                    "password": {
+                        "scopes": {},
+                        "tokenUrl": "/api/auth/token"
+                    }
+                }
+            }
+        }
+    }
+}
