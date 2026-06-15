@@ -29,12 +29,12 @@ from app.qclang.compiler import generate_qiskit_code
 
 # ── Single source of truth for materials ─────────────────────────────────────
 from app.services.materials import MATERIALS, get_material, get_physics_substrate
+from app.services.legacy_compat import chip_name  # noqa: F401 (re-exported for callers)
 
 # ── Physics engine ────────────────────────────────────────────────────────────
 from app.services.physics.frequency_planner import FrequencyPlanner, plan_chip
 from app.services.physics.topology_router import place_qubits, placement_to_dict
-from app.services.physics.drc import run_drc
-from app.services.physics.simulation_corrector import correct_simulation
+from app.drc import run_drc_legacy as run_drc
 
 # ML intent: graceful fallback if torch not installed
 _ML_AVAILABLE = False
@@ -243,23 +243,6 @@ def _build_qclang_source(
     lines.append("")
     lines.append("end")
     return "\n".join(lines)
-
-
-# ── Chip name helper ──────────────────────────────────────────────────────────
-
-def chip_name(topology: str, n: int) -> str:
-    names = {
-        "heavy_hex": "HeavyHex",
-        "heavy-hex": "HeavyHex",
-        "ring": "Ring",
-        "chain": "Linear",
-        "line": "Linear",
-        "surface-code": "SurfaceCode",
-        "star": "Star",
-        "all-to-all": "FullyConnected",
-        "grid": "Grid",
-    }
-    return names.get(topology, "Custom")
 
 
 # ── Build frequency plan dict from physics engine ─────────────────────────────

@@ -63,7 +63,7 @@ async def run_design_pipeline(constraints: "DesignConstraints") -> dict[str, Any
     from app.services.materials import get_material, get_physics_substrate
     from app.services.physics.frequency_planner import FrequencyPlanner
     from app.services.physics.topology_router import place_qubits, placement_to_dict
-    from app.services.physics_grounding import ground_intent, resolve_geometry
+    from app.services.physics_grounding import ground_intent, resolve_geometry, reasonableness_gate
     from app.services.design_synth.compiler import schematic_compiler
 
     n         = constraints.qubit_count
@@ -99,6 +99,17 @@ async def run_design_pipeline(constraints: "DesignConstraints") -> dict[str, Any
         resolve_geometry(graph, plan)
     except Exception as exc:
         log.warning("Node-level geometry grounding failed: %s", exc)
+
+    # ── Step 2.6: Physics reasonableness gate (Increment 2) ───────────────────
+    # Non-blocking forward check: scqubits verifier validates grounded geometry
+    # against targets. Failures produce warnings but do not abort generation.
+    gate_report = None
+    try:
+        gate_report = reasonableness_gate.check_graph(graph, plan)
+        for msg in gate_report.warning_messages():
+            log.warning("Reasonableness gate: %s", msg)
+    except Exception as exc:
+        log.warning("Reasonableness gate check failed: %s", exc)
 
     # ── Step 3: Physics frequency planning ────────────────────────────────────
     physics_substrate = get_physics_substrate(sub)
@@ -207,7 +218,7 @@ async def run_design_pipeline(constraints: "DesignConstraints") -> dict[str, Any
     )
 
     # ── Compose result ─────────────────────────────────────────────────────────
-    from app.services.chip_generator import chip_name as _chip_name
+    from app.services.legacy_compat import chip_name as _chip_name
     label = f"{_chip_name(topology, n)} · {n}Q"
 
     result: dict[str, Any] = {
@@ -242,8 +253,9 @@ async def run_design_pipeline(constraints: "DesignConstraints") -> dict[str, Any
             "exports":      {k: v[:200] + "…" if isinstance(v, str) and len(v) > 200
                              else v for k, v in exports.items()
                              if k not in ("json",)},
-            "validation":   validation.to_dict(),
-            "constraints":  constraints.to_dict(),
+            "validation":       validation.to_dict(),
+            "constraints":      constraints.to_dict(),
+            "reasonableness":   gate_report.to_dict() if gate_report else {},
         },
     }
     return result

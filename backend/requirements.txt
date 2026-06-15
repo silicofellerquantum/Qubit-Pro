@@ -9,10 +9,12 @@ sqlalchemy==2.0.36
 alembic==1.14.0
 aiosqlite==0.20.0          # SQLite async driver (dev default)
 asyncpg==0.31.0            # Postgres async driver (production)
+greenlet==3.2.5            # Required by SQLAlchemy sync session bridge (missing = RuntimeError)
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==5.0.0              # Direct pin — passlib delegates to it; missing = ModuleNotFoundError
 python-multipart==0.0.20
 
 # ── HTTP / Utils ──────────────────────────────────────────────────────────────
