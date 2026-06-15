@@ -1,0 +1,56 @@
+# CODEOWNERS — Silicofeller Quantum Studio
+#
+# Maps repository paths to responsible teams/engineers.
+# Every PR touching a path requires review from the listed owner(s).
+# Syntax: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Teams are prefixed with @silicofellerquantum/ — replace usernames with real GitHub handles.
+
+# ── Default (catch-all) ───────────────────────────────────────────────────────
+*                                   @silicofellerquantum/platform
+
+# ── Platform / Infrastructure (Team F) ───────────────────────────────────────
+backend/app/auth.py                 @silicofellerquantum/platform
+backend/app/models.py               @silicofellerquantum/platform
+backend/app/database.py             @silicofellerquantum/platform
+backend/app/config.py               @silicofellerquantum/platform
+backend/app/main.py                 @silicofellerquantum/platform
+backend/requirements.txt            @silicofellerquantum/platform
+docker-compose.yml                  @silicofellerquantum/platform
+.github/                            @silicofellerquantum/platform
+
+# ── Frozen interfaces (require cross-team review: Teams C + D + E) ────────────
+backend/app/core/editor_models.py           @silicofellerquantum/qiskit-metal @silicofellerquantum/design-synth
+backend/app/core/component_catalog.json     @silicofellerquantum/qiskit-metal @silicofellerquantum/design-synth @silicofellerquantum/physics
+backend/app/core/design_graph/              @silicofellerquantum/design-synth @silicofellerquantum/physics
+
+# ── Frontend Editor (Team A) ──────────────────────────────────────────────────
+frontend/src/components/quantum-editor/     @silicofellerquantum/frontend-editor
+frontend/src/lib/editor/                    @silicofellerquantum/frontend-editor
+frontend/src/lib/bridge/                    @silicofellerquantum/frontend-editor
+frontend/src/routes/_app/schematic-editor.tsx   @silicofellerquantum/frontend-editor
+frontend/src/routes/_app/layout-viewer.tsx      @silicofellerquantum/frontend-editor
+
+# ── AI Copilot / Design UX (Team B) ──────────────────────────────────────────
+frontend/src/routes/_app/designer.tsx       @silicofellerquantum/ai-copilot
+frontend/src/lib/api/backend.ts             @silicofellerquantum/ai-copilot
+frontend/src/lib/design-context.tsx         @silicofellerquantum/ai-copilot
+
+# ── Design Synthesis (Team C) ─────────────────────────────────────────────────
+backend/app/services/design_synth/         @silicofellerquantum/design-synth
+backend/app/constraints/                   @silicofellerquantum/design-synth
+backend/app/routing/                       @silicofellerquantum/design-synth
+backend/app/routers/design.py              @silicofellerquantum/design-synth
+backend/app/services/design_pipeline.py    @silicofellerquantum/design-synth @silicofellerquantum/physics @silicofellerquantum/qiskit-metal
+
+# ── Physics Grounding (Team D) ────────────────────────────────────────────────
+backend/app/services/physics_grounding/    @silicofellerquantum/physics
+backend/app/services/physics/              @silicofellerquantum/physics
+backend/app/drc/                           @silicofellerquantum/physics
+
+# ── Qiskit Metal Integration (Team E) ─────────────────────────────────────────
+backend/app/services/render_service.py     @silicofellerquantum/qiskit-metal
+backend/app/services/worker.py             @silicofellerquantum/qiskit-metal
+backend/app/services/codegen_service.py    @silicofellerquantum/qiskit-metal
+backend/app/services/metal_codegen/        @silicofellerquantum/qiskit-metal
+backend/app/routers/bridge.py              @silicofellerquantum/qiskit-metal
