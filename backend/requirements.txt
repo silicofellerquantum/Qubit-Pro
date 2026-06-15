@@ -23,8 +23,8 @@ aiofiles==24.1.0
 python-dotenv==1.0.1
 
 # ── Physics / ML ──────────────────────────────────────────────────────────────
-networkx==3.3
+networkx==3.2.1
 torch>=2.0.0               # Optional — falls back to regex intent if not installed
 
 # ── AI Assistant ──────────────────────────────────────────────────────────────
-anthropic==0.40.0          # Optional — falls back to rule-based responses if no API key
+anthropic==0.39.0          # Optional — falls back to rule-based responses if no API key; 0.40+ requires Python>=3.10
