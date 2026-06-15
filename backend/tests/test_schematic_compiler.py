@@ -26,7 +26,7 @@ def test_pin_allocator_readout_edge():
     sp, tp = a.allocate("readout", "comp_Q1", "TransmonCross", "",
                                    "comp_RO_Q1", "ResonatorCoilRect", "")
     assert sp == "readout"
-    assert tp == "in"
+    assert tp == "spiralPin"
 
 
 def test_pin_allocator_coupling_bus_pins():
@@ -36,7 +36,7 @@ def test_pin_allocator_coupling_bus_pins():
     sp1, tp1 = a.allocate("coupling", "comp_Q1", "TransmonCross", "",
                                        "comp_C1", "CoupledLineTee", "")
     assert sp1 == "bus_01"
-    assert tp1 == "in"
+    assert tp1 == "prime_start"
     # Second coupling on same qubit should pick bus_02 (bus_01 already used)
     sp2, tp2 = a.allocate("coupling", "comp_Q1", "TransmonCross", "",
                                        "comp_C2", "CoupledLineTee", "")
@@ -49,7 +49,8 @@ def test_pin_allocator_explicit_hint_validated():
     sp, tp = a.allocate("readout", "comp_Q1", "TransmonCross", "readout",
                                    "comp_RO_Q1", "ResonatorCoilRect", "in")
     assert sp == "readout"
-    assert tp == "in"
+    # "in" is not a valid ResonatorCoilRect pin — allocator falls back to spiralPin
+    assert tp == "spiralPin"
 
 
 def test_pin_allocator_bad_hint_falls_back():
@@ -84,7 +85,7 @@ def _make_simple_graph():
     g.add_node(r)
 
     g.add_edge(DesignEdge("Q1", "RO_Q1", EdgeKind.READOUT,
-                          pin_source="readout", pin_target="in"))
+                          pin_source="readout"))
     return g
 
 
@@ -118,7 +119,7 @@ def test_compiler_readout_connection_pins():
     assert conn["from"]["placementId"] == "comp_Q1"
     assert conn["from"]["pinName"]     == "readout"
     assert conn["to"]["placementId"]   == "comp_RO_Q1"
-    assert conn["to"]["pinName"]       == "in"
+    assert conn["to"]["pinName"]       == "spiralPin"
     # READOUT edge — no route component
     assert "routeComponentId" not in conn
 

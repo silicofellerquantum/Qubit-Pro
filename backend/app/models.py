@@ -19,6 +19,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import Enum as PyEnum
+from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -114,7 +115,7 @@ class Project(Base):
     substrate_material: Mapped[str] = mapped_column(String(64), default="silicon")
     metal_layer: Mapped[str] = mapped_column(String(64), default="aluminum")
     # Full GenerateResponse JSON payload from designer/compiler
-    design_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    design_payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
@@ -151,9 +152,9 @@ class QCLangFile(Base):
     project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id", ondelete="CASCADE"))
     filename: Mapped[str] = mapped_column(String(120), default="project.qc")
     content: Mapped[str] = mapped_column(Text, default="")
-    ast_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    ast_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_valid: Mapped[bool] = mapped_column(Boolean, default=False)
-    errors: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    errors: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
@@ -169,8 +170,8 @@ class Layout(Base):
     project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id", ondelete="CASCADE"))
     version_tag: Mapped[str] = mapped_column(String(64), default="latest")
     placement_json: Mapped[dict] = mapped_column(JSON, default=dict)
-    gds_content: Mapped[str | None] = mapped_column(Text, nullable=True)
-    qiskit_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gds_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    qiskit_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     project: Mapped["Project"] = relationship("Project", back_populates="layouts")
@@ -186,12 +187,12 @@ class Simulation(Base):
     solver: Mapped[str] = mapped_column(String(64), default="eigenmode")  # eigenmode | driven_modal | transient
     status: Mapped[SimulationStatus] = mapped_column(Enum(SimulationStatus), default=SimulationStatus.queued)
     config: Mapped[dict] = mapped_column(JSON, default=dict)
-    results: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    runtime_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
-    memory_gb: Mapped[float | None] = mapped_column(Float, nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    results: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    runtime_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    memory_gb: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     project: Mapped["Project"] = relationship("Project", back_populates="simulations")
@@ -223,7 +224,7 @@ class TapeoutPackage(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id", ondelete="CASCADE"))
     version_tag: Mapped[str] = mapped_column(String(64))
-    gds_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gds_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     manifest: Mapped[dict] = mapped_column(JSON, default=dict)
     fab_notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
@@ -238,7 +239,7 @@ class ChatHistory(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"))
-    project_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    project_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     session_id: Mapped[str] = mapped_column(String(64), index=True)
     role: Mapped[str] = mapped_column(String(16))  # "user" | "assistant"
     content: Mapped[str] = mapped_column(Text)
