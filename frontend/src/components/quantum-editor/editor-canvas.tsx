@@ -122,8 +122,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     hTicks, vTicks, RULER_B, RULER_L } = vp;
 
   // ── Route rendering hook ────────────────────────────────────────────────────
-  const { routeQueries: _routeQueries, routeSvg } = useRouteRendering(state, doc, drag, dispatch);
-  const routeQueries = _routeQueries as any[];
+  const { routeQueries, routeSvg } = useRouteRendering(state, doc, drag, dispatch);
 
   // ── Drop handling hook ──────────────────────────────────────────────────────
   const { dropPrev, onDrop: _onDrop, onDragOver: _onDragOver, onDragLeave } = useDropHandling(dispatch);
@@ -287,7 +286,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         onPointerUp={onPUp}
         onPointerCancel={onPUp}
         onWheel={onWheel}
-        onDragEnter={(e) => _onDragOver(e, svgRef, s2w, state.snap)}
+        onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
         onDragOver={(e) => _onDragOver(e, svgRef, s2w, state.snap)}
         onDragLeave={onDragLeave}
         onDrop={(e) => _onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}

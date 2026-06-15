@@ -9,14 +9,18 @@
  */
 
 import { useEffect, useMemo, useRef } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, type UseQueryResult } from "@tanstack/react-query";
 import { bridgeClient } from "@/lib/bridge/client";
 import type { EditorState } from "@/lib/editor/design-store";
 
 type Dispatch = (action: any) => void;
 
+interface RouteRenderData {
+  svg: string;
+}
+
 export interface RouteRenderingResult {
-  routeQueries: ReturnType<typeof useQueries>;
+  routeQueries: UseQueryResult<RouteRenderData, Error>[];
   routeSvg: Map<string, string>;
 }
 
@@ -90,8 +94,7 @@ export function useRouteRendering(
         }
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeQueriesById]);
+  }, [routeQueriesById, routeHashes, state.connections, dispatch]);
 
   const routeSvg = useMemo(() => {
     const m = new Map<string, string>();

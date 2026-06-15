@@ -106,7 +106,8 @@ export function useDropHandling(dispatch: Dispatch): DropHandlingResult {
   };
 
   const onDragLeave = (e: React.DragEvent) => {
-    if (!(e.currentTarget as Element).contains(e.relatedTarget as Node | null)) {
+    const related = e.relatedTarget as Node | null;
+    if (related && !(e.currentTarget as Element).contains(related)) {
       setDropPrev(null);
     }
   };
