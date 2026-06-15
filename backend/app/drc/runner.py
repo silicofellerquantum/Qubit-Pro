@@ -113,6 +113,18 @@ def run_full_drc(graph, constraints) -> DRCReport:
     return DRCReport(violations=violations)
 
 
+def run_drc_legacy(placement, freq_plan, rules: dict[str, Any] | None = None) -> DRCReport:
+    """
+    Thin bridge to the V1 DRC engine (app.services.physics.drc).
+
+    Accepts the same (placement_result, freq_plan, rules) signature used by
+    chip_generator and the legacy /generate/drc endpoint.  All new code should
+    use run_full_drc() instead.
+    """
+    from app.services.physics.drc import run_drc as _v1_run_drc
+    return _v1_run_drc(placement, freq_plan, rules)
+
+
 def run_drc_from_payload(payload: dict[str, Any]) -> DRCReport:
     """
     Backward-compatible DRC that runs against a legacy GenerateResponse dict.

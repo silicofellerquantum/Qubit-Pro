@@ -18,6 +18,6 @@ Usage
 """
 
 from app.drc.report import DRCViolation, DRCReport
-from app.drc.runner import run_full_drc, run_drc_from_payload
+from app.drc.runner import run_full_drc, run_drc_from_payload, run_drc_legacy
 
-__all__ = ["DRCViolation", "DRCReport", "run_full_drc", "run_drc_from_payload"]
+__all__ = ["DRCViolation", "DRCReport", "run_full_drc", "run_drc_from_payload", "run_drc_legacy"]

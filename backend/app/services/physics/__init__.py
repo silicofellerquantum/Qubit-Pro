@@ -30,7 +30,7 @@ def full_physics_analysis(payload: dict) -> dict[str, Any]:
     """
     from app.services.physics.frequency_planner import FrequencyPlanner
     from app.services.physics.topology_router import place_qubits, placement_to_dict
-    from app.services.physics.drc import run_drc
+    from app.drc import run_drc_legacy as run_drc
     from app.services.materials import get_physics_substrate
 
     n = int(payload.get("num_qubits", 4))
