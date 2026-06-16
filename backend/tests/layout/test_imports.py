@@ -21,7 +21,7 @@ def test_main_package_imports():
 
 def test_module_imports():
     """Test all module imports."""
-    # These should import without errors even though they're stubs
+    # These should import without errors even though some are stubs
     from app.layout import engine
     from app.layout import floorplanner
     from app.layout import legalizer
@@ -30,7 +30,6 @@ def test_module_imports():
     from app.layout import footprints
     from app.layout import models
     from app.layout import adapters
-    from app.layout import cpsat_model
     from app.layout import constants
     
     # Verify constants are defined
@@ -38,6 +37,13 @@ def test_module_imports():
     assert constants.CPSAT_TIMEOUT_SECONDS == 2.0
     assert constants.CPSAT_NUM_WORKERS == 8
     assert constants.CPSAT_RANDOM_SEED == 42
+
+
+def test_cpsat_module_imports():
+    """Test cpsat_model imports — ortools optional, import succeeds regardless."""
+    from app.layout import cpsat_model
+    assert callable(cpsat_model.build_cpsat_model)
+    assert callable(cpsat_model.decode_solution)
 
 
 def test_template_imports():
@@ -79,6 +85,17 @@ def test_constants_values():
     assert 'square' in constants.TEMPLATE_PRIORITY
 
 
+try:
+    import pydantic_settings  # noqa: F401
+    _PYDANTIC_SETTINGS = True
+except ModuleNotFoundError:
+    _PYDANTIC_SETTINGS = False
+
+
+@pytest.mark.skipif(
+    not _PYDANTIC_SETTINGS,
+    reason="pydantic_settings not installed in this test environment",
+)
 def test_feature_flag_exists():
     """Test layout_engine_v2 feature flag exists in config."""
     from app.config import settings
@@ -157,21 +174,21 @@ def test_legalizer_stubs():
 
 
 def test_overlap_resolver_stubs():
-    """Test overlap resolver module stubs."""
+    """Test overlap resolver module — OverlapResolver is implemented (LAYOUT-012)."""
     from app.layout.overlap_resolver import OverlapResolver
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        resolver = OverlapResolver()
-    assert "LAYOUT-012" in str(exc_info.value)
+
+    # OverlapResolver is implemented and should instantiate fine
+    resolver = OverlapResolver()
+    assert resolver is not None
+    assert resolver.max_iters == 100
 
 
 def test_scorer_stubs():
-    """Test scorer module stubs."""
+    """LAYOUT-013: LayoutScorer is now implemented — verify it instantiates."""
     from app.layout.scorer import LayoutScorer
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        scorer = LayoutScorer()
-    assert "LAYOUT-013" in str(exc_info.value)
+
+    scorer = LayoutScorer()
+    assert scorer is not None
 
 
 def test_footprints_implemented():
@@ -205,9 +222,9 @@ def test_adapters_stubs():
 
 
 def test_cpsat_model_implemented():
-    """LAYOUT-010: CP-SAT model module is now implemented."""
+    """LAYOUT-010: CP-SAT model module is importable and exposes expected callables."""
     from app.layout.cpsat_model import build_cpsat_model, decode_solution
-    
+
     assert callable(build_cpsat_model)
     assert callable(decode_solution)
 

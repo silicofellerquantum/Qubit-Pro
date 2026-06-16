@@ -3,6 +3,17 @@ import math
 from app.layout.models import Footprint
 from app.layout.legalizer import PlacementLegalizer, LegalizationInfeasible
 
+try:
+    import ortools  # noqa: F401
+    _ORTOOLS = True
+except ModuleNotFoundError:
+    _ORTOOLS = False
+
+_skip_no_ortools = pytest.mark.skipif(
+    not _ORTOOLS,
+    reason="ortools not installed — install with: pip install ortools",
+)
+
 
 class MockConstraint:
     def __init__(self, node_id, kind, x_mm, y_mm, meta=None):
@@ -13,6 +24,7 @@ class MockConstraint:
         self.meta = meta or {}
 
 
+@_skip_no_ortools
 def test_legalizer_success():
     """Verify PlacementLegalizer solves a feasible placement problem."""
     leg = PlacementLegalizer()
@@ -50,6 +62,7 @@ def test_legalizer_success():
     assert dist >= 0.7
 
 
+@_skip_no_ortools
 def test_legalizer_infeasible():
     """Verify PlacementLegalizer raises LegalizationInfeasible for UNSAT problems."""
     leg = PlacementLegalizer()

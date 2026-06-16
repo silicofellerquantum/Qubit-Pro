@@ -15,7 +15,17 @@ Dependencies: LAYOUT-003 (footprints)
 """
 
 from typing import Dict, List, Tuple, Any, Optional
-from ortools.sat.python.cp_model import CpModel, CpSolver, OPTIMAL, FEASIBLE, INFEASIBLE, UNKNOWN, MODEL_INVALID
+
+try:
+    from ortools.sat.python.cp_model import (
+        CpModel, CpSolver, OPTIMAL, FEASIBLE, INFEASIBLE, UNKNOWN, MODEL_INVALID,
+    )
+    _ORTOOLS_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover
+    _ORTOOLS_AVAILABLE = False
+    CpModel = None  # type: ignore[assignment,misc]
+    CpSolver = None  # type: ignore[assignment,misc]
+    OPTIMAL = FEASIBLE = INFEASIBLE = UNKNOWN = MODEL_INVALID = None  # type: ignore[assignment]
 
 from app.layout.models import Footprint, Obstacle
 
@@ -41,7 +51,7 @@ def build_cpsat_model(
     constraints: List[Any],
     obstacles: List[Obstacle],
     die_bounds: Optional[Tuple[float, float]] = None
-) -> Tuple[CpModel, Dict[str, Dict[str, Any]]]:
+) -> Tuple[Any, Dict[str, Dict[str, Any]]]:
     """
     Build CP-SAT model for placement.
     
@@ -63,7 +73,15 @@ def build_cpsat_model(
         Tuple of (model, variable_map) where:
             - model: CpModel instance
             - variable_map: Dict mapping node_id to {"x": x_var, "y": y_var}
+
+    Raises:
+        LegalizationInfeasible: If ortools is not installed.
     """
+    if not _ORTOOLS_AVAILABLE:
+        raise LegalizationInfeasible(
+            "ortools is not installed. Install with: pip install ortools"
+        )
+
     model = CpModel()
 
     # Determine die bounds (in mm)
@@ -374,8 +392,13 @@ def solve_model(
         Dict[node_id, (x_mm, y_mm)]
         
     Raises:
-        LegalizationInfeasible: If solver fails to find a solution.
+        LegalizationInfeasible: If solver fails to find a solution or ortools unavailable.
     """
+    if not _ORTOOLS_AVAILABLE:
+        raise LegalizationInfeasible(
+            "ortools is not installed. Install with: pip install ortools"
+        )
+
     solver = CpSolver()
     solver.parameters.max_time_in_seconds = timeout_s
     solver.parameters.num_search_workers = 8
