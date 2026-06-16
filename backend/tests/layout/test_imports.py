@@ -110,28 +110,23 @@ def test_feature_flag_exists():
     assert settings.layout_engine_v2 is False
 
 
-def test_not_implemented_errors():
-    """Test that stub functions raise NotImplementedError."""
+def test_main_package_implemented():
+    """Verify LayoutEngine and generate_layout can be instantiated/called."""
     from app.layout import LayoutEngine, generate_layout
     
-    # LayoutEngine init should raise
-    with pytest.raises(NotImplementedError) as exc_info:
-        engine = LayoutEngine()
-    assert "LAYOUT-014" in str(exc_info.value)
+    engine = LayoutEngine()
+    assert engine is not None
     
-    # generate_layout should raise
-    with pytest.raises(NotImplementedError) as exc_info:
+    with pytest.raises((AttributeError, TypeError)):
         generate_layout(None)
-    assert "LAYOUT-014" in str(exc_info.value)
 
 
-def test_engine_module_stubs():
-    """Test engine module stubs raise NotImplementedError."""
+def test_engine_module_implemented():
+    """Verify LayoutEngineImpl can be instantiated."""
     from app.layout.engine import LayoutEngineImpl
     
-    with pytest.raises(NotImplementedError) as exc_info:
-        impl = LayoutEngineImpl()
-    assert "LAYOUT-014" in str(exc_info.value)
+    impl = LayoutEngineImpl()
+    assert impl is not None
 
 
 def test_floorplanner_stubs():
@@ -204,21 +199,18 @@ def test_footprints_implemented():
     assert len(obs_map) == 0
 
 
-def test_adapters_stubs():
-    """Test adapters module stubs."""
+def test_adapters_implemented():
+    """Verify adapters are implemented and raise standard errors on invalid inputs."""
     from app.layout.adapters import to_placement_dict, apply_to_graph, from_design_graph
     
-    with pytest.raises(NotImplementedError) as exc_info:
+    with pytest.raises((AttributeError, TypeError)):
         to_placement_dict(None)
-    assert "LAYOUT-014" in str(exc_info.value)
     
-    with pytest.raises(NotImplementedError) as exc_info:
+    with pytest.raises((AttributeError, TypeError)):
         apply_to_graph(None, None)
-    assert "LAYOUT-014" in str(exc_info.value)
     
-    with pytest.raises(NotImplementedError) as exc_info:
+    with pytest.raises((AttributeError, TypeError)):
         from_design_graph(None)
-    assert "LAYOUT-014" in str(exc_info.value)
 
 
 def test_cpsat_model_implemented():

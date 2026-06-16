@@ -44,76 +44,12 @@ from .models import (
     Floorplan,
 )
 
-# Placeholder classes - will be implemented in subsequent issues
-
-
-class LayoutEngine:
-    """
-    Main layout engine for automatic component placement.
-    
-    Phase 1 Implementation:
-        - Template selection based on topology
-        - CP-SAT legalization for small-medium N
-        - Overlap resolver fallback for large N
-        - Multi-metric scoring (0-100 scale)
-    
-    Usage:
-        engine = LayoutEngine()
-        candidate = engine.generate(design_graph, constraints)
-        engine.apply(candidate, design_graph)
-    
-    Status: Stub (to be implemented in LAYOUT-014)
-    """
-
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """
-        Initialize layout engine with configuration.
-        
-        Args:
-            config: Optional configuration overrides
-        """
-        raise NotImplementedError(
-            "LayoutEngine will be implemented in LAYOUT-014. "
-            "Dependencies: floorplanner, legalizer, overlap_resolver, scorer"
-        )
-
-    def generate(
-        self, 
-        design_graph: "DesignGraph", 
-        constraints: Optional[Dict[str, Any]] = None
-    ) -> "LayoutCandidate":
-        """
-        Generate a layout candidate from a DesignGraph.
-        
-        Args:
-            design_graph: DesignGraph instance with nodes and edges
-            constraints: Optional placement constraints
-            
-        Returns:
-            LayoutCandidate with placement coordinates and quality scores
-            
-        Raises:
-            NotImplementedError: Implementation pending LAYOUT-014
-        """
-        raise NotImplementedError("LayoutEngine.generate() pending LAYOUT-014")
-
-    def apply(self, candidate: "LayoutCandidate", design_graph: "DesignGraph"):
-        """
-        Apply layout candidate coordinates to DesignGraph nodes.
-        
-        Args:
-            candidate: LayoutCandidate from generate()
-            design_graph: Target DesignGraph to modify
-            
-        Raises:
-            NotImplementedError: Implementation pending LAYOUT-014
-        """
-        raise NotImplementedError("LayoutEngine.apply() pending LAYOUT-014")
+from .engine import LayoutEngineImpl as LayoutEngine
 
 
 def generate_layout(
     design_graph: "DesignGraph",
-    constraints: Optional[Dict[str, Any]] = None,
+    constraints: Optional[Any] = None,
     config: Optional[Dict[str, Any]] = None
 ) -> "LayoutCandidate":
     """
@@ -129,21 +65,11 @@ def generate_layout(
         
     Returns:
         LayoutCandidate with placement and scores
-        
-    Raises:
-        NotImplementedError: Implementation pending LAYOUT-014
-        
-    Example:
-        >>> from app.layout import generate_layout
-        >>> candidate = generate_layout(graph, constraints={'template': 'square'})
-        >>> print(f"Layout score: {candidate.score.overall}/100")
-        
-    Status: Stub (to be implemented in LAYOUT-014)
     """
-    raise NotImplementedError(
-        "generate_layout() will be implemented in LAYOUT-014. "
-        "Current status: Phase 1 scaffold only"
-    )
+    engine = LayoutEngine(config)
+    candidate = engine.generate(design_graph, constraints)
+    engine.apply(candidate, design_graph)
+    return candidate
 
 
 # Public API

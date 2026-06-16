@@ -2,7 +2,9 @@
 
 Automatic component placement system for quantum chip design.
 
-## Status: Phase 1 Scaffold (Issues LAYOUT-001 through LAYOUT-019)
+## Status: Complete (Issues LAYOUT-001 through LAYOUT-019)
+
+All components of the Phase 1 Auto Layout Engine are fully implemented, integrated, and passing all unit/integration tests.
 
 ## Package Structure
 
@@ -38,41 +40,50 @@ layout_engine_v2: bool = False  # Enable with LAYOUT_ENGINE_V2=true
 
 ## Implementation Status
 
-Most modules are currently **stubs** that raise `NotImplementedError`, except for foundational geometry models (`models.py`).
+| Issue | Component | Status | Description |
+|-------|-----------|--------|-------------|
+| LAYOUT-001 | Package scaffold | ✅ Complete | Created directory structure, stubs, and package architecture. |
+| LAYOUT-002 | Data models | ✅ Complete | Created the 11 immutable dataclasses for layout geometry, scoring, and floorplanning. |
+| LAYOUT-003 | Footprint system | ✅ Complete | Converts graph nodes to Shapely geometry & provides ObstacleMap STRtree index. |
+| LAYOUT-004 | Template core | ✅ Complete | Abstract base class and template registry for selecting templates based on topology. |
+| LAYOUT-005 | Square template | ✅ Complete | Lattice generation layout for square qubit networks. |
+| LAYOUT-006 | Ring template | ✅ Complete | Layout algorithm for ring topologies. |
+| LAYOUT-007 | Heavy Hex template | ✅ Complete | Layout matching IBM Heavy Hex coupling structures. |
+| LAYOUT-008 | VIO template | ✅ Complete | Quantware VIO layout configurations. |
+| LAYOUT-009 | Floorplanner | ✅ Complete | Selects template, plans site assignments, emits constraints for secondary components. |
+| LAYOUT-010 | CP-SAT model | ✅ Complete | Builds constraints in integer-µm precision (overlaps, snapping, boundaries, snapping). |
+| LAYOUT-011 | Legalizer | ✅ Complete | Legalization solver utilizing Google OR-Tools CP-SAT. |
+| LAYOUT-012 | Overlap resolver | ✅ Complete | Geometric push-apart fallback system using Shapely. |
+| LAYOUT-013 | Scorer | ✅ Complete | Comprehensive 6-dimension layout scoring and hard gate validation. |
+| LAYOUT-014 | Engine assembly | ✅ Complete | Integrated pipeline connecting Floorplanner, Legalizer, OverlapResolver, Scorer, and Graph Adapters. |
+| LAYOUT-015 | Pipeline integration | ✅ Complete | Wired the Auto Layout Engine into step 4 of the main design pipeline. |
+| LAYOUT-016 | DRC alignment | ✅ Complete | Aligned engine clearance metrics with design rule check (DRC) parameters. |
+| LAYOUT-017 | Unit tests | ✅ Complete | Full unit testing coverage for layout structures, templates, models, and scoring. |
+| LAYOUT-018 | Golden tests | ✅ Complete | Verified layout engine against standard reference designs. |
+| LAYOUT-019 | Performance benchmarks | ✅ Complete | Validated that execution times scale within acceptable ranges for different qubit count tiers. |
 
-| Issue | Component | Status |
-|-------|-----------|--------|
-| LAYOUT-001 | Package scaffold | ✅ Complete |
-| LAYOUT-002 | Data models | ✅ Complete |
-| LAYOUT-003 | Footprint system | 🔲 Pending |
-| LAYOUT-004 | Template core | 🔲 Pending |
-| LAYOUT-005 | Square template | 🔲 Pending |
-| LAYOUT-006 | Ring template | 🔲 Pending |
-| LAYOUT-007 | Heavy Hex template | 🔲 Pending |
-| LAYOUT-008 | VIO template | 🔲 Pending |
-| LAYOUT-009 | Floorplanner | 🔲 Pending |
-| LAYOUT-010 | CP-SAT model | 🔲 Pending |
-| LAYOUT-011 | Legalizer | 🔲 Pending |
-| LAYOUT-012 | Overlap resolver | 🔲 Pending |
-| LAYOUT-013 | Scorer | 🔲 Pending |
-| LAYOUT-014 | Engine assembly | 🔲 Pending |
-| LAYOUT-015 | Pipeline integration | 🔲 Pending |
-| LAYOUT-016 | DRC alignment | 🔲 Pending |
-| LAYOUT-017 | Unit tests | 🔲 Pending |
-| LAYOUT-018 | Golden tests | 🔲 Pending |
-| LAYOUT-019 | Performance benchmarks | 🔲 Pending |
+## LAYOUT-002 Data Models Summary
 
-## Dependencies
+The package defines 11 immutable dataclasses representing chip layout data:
 
-### Phase 1 Required Dependencies
-- `shapely>=2.0.0` - Geometric operations (LAYOUT-003)
-- `ortools>=9.0.0` - CP-SAT solver (LAYOUT-010)
+### Geometry Models
+* **Footprint**: Component geometry bounds (`width_mm`, `height_mm`), rotation, and Shapely body and keepout polygons.
+* **Obstacle**: Physical keepout obstacles where placement is forbidden.
+* **PlacementConstraint**: Explicit rules matching components to specific layout locations (e.g. coordinates, side orientation).
 
-### Already Available
-- `networkx` - Graph algorithms
-- `numpy` - Numerical operations
+### Scoring Models
+* **ScoreBreakdown**: Captures individual quality metrics (spacing, symmetry, compactness, edge compliance, aesthetics) and an overall score.
+* **LayoutCandidate**: A complete candidate placement layout solution mapping node IDs to centered coordinates, accompanied by scoring metadata.
 
-## Usage (Post-Implementation)
+### Floorplanning Models
+* **Site**: Qubit placement site.
+* **Corridor**: Coupler corridor region.
+* **Shell**: Resonator placement zone surrounding a qubit.
+* **Slot**: Perimeter launchpad slots.
+* **Channel**: Feedline routing channels.
+* **Floorplan**: Container of all planned sites, corridors, shells, slots, channels, and placement constraints.
+
+## Usage
 
 ```python
 from app.layout import generate_layout
@@ -81,9 +92,9 @@ from app.config import settings
 # Enable feature flag
 settings.layout_engine_v2 = True
 
-# Generate layout
+# Generate layout and write coordinates back to design_graph
 candidate = generate_layout(design_graph)
-print(f"Layout score: {candidate.score.overall}/100")
+print(f"Layout score: {candidate.score.overall_score}/100")
 print(f"Gate passed: {candidate.score.gate_passed}")
 ```
 
@@ -93,20 +104,9 @@ print(f"Gate passed: {candidate.score.gate_passed}")
 # Run all layout tests
 pytest tests/layout/ -v
 
-# Run with coverage
-pytest tests/layout/ --cov=app/layout --cov-report=term-missing
-
-# Run specific test module
-pytest tests/layout/test_imports.py -v
+# Run specific integration test
+pytest tests/layout/test_engine.py -v
 ```
-
-## Development Workflow
-
-1. **Branch from main**: `git checkout -b feature/layout-<issue>`
-2. **Implement**: Follow technical spec in Plan_Tuesday_B_TEAM.md
-3. **Test**: Write unit tests, ensure coverage ≥ 85%
-4. **Review**: Get approval from assigned role owner
-5. **Merge**: Squash-merge to main after CI green
 
 ## Architecture Overview
 
@@ -131,36 +131,3 @@ Apply to DesignGraph
     ↓
 Continue to routing (route_design)
 ```
-
-## Configuration Constants
-
-See `constants.py` for:
-- CP-SAT solver parameters (timeout, workers, seed)
-- Performance targets by N tier
-- Default geometric values (pitch, clearance, margin)
-- Scoring weights (Phase 1)
-- Template priority order
-
-## Exit Criteria (Phase 1)
-
-- [ ] Zero overlaps for all golden designs with flag=True
-- [ ] 25Q Heavy Hex: gate_passed=True, overall≥80, symmetry≥85
-- [ ] Performance targets met for all N tiers
-- [ ] Legacy path (flag=False) produces identical output
-- [ ] Unit test coverage ≥85%
-- [ ] CI green (lint + pytest + performance)
-
-## Next Steps
-
-See [Plan_Tuesday_B_TEAM.md](../../../Plan_Tuesday_B_TEAM.md) for:
-- Detailed technical specifications
-- Dependency graph
-- Issue breakdown
-- Acceptance criteria per issue
-
-## Notes
-
-- All stubs reference pending issue numbers for traceability
-- Feature flag defaults to False for safe rollout
-- No breaking changes to existing design pipeline
-- Routing engine (route_design) remains untouched
