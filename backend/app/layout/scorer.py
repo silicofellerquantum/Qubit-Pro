@@ -23,6 +23,12 @@ Phase-1 default weights  (from constants.SCORE_WEIGHTS):
     edge_compliance 0.15
     aesthetics     0.15
 
+DRC Alignment (LAYOUT-016):
+    Gate thresholds aligned with app/drc/geometry_drc.py rules:
+    - Overlap check: matches QUBIT_OVERLAP rule
+    - Spacing check: uses min_spacing_mm from fab constraints
+    - Off-chip check: matches OFF_CHIP rule
+
 Dependencies: LAYOUT-002 (models), LAYOUT-003 (footprints / ObstacleMap)
 """
 

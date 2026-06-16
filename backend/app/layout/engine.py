@@ -230,6 +230,15 @@ class LayoutEngineImpl:
             die_bounds=(die_w, die_h)
         )
         
+        # LAYOUT-016: DRC Alignment Check (non-blocking validation)
+        from app.layout.drc_alignment import log_alignment_check
+        log_alignment_check(
+            placements=scorer_placements,
+            footprints=scorer_footprints,
+            die_bounds=(die_w, die_h),
+            constraints=constraints_obj
+        )
+        
         # 8. Create LayoutCandidate
         generation_time = time.perf_counter() - start_time
         orientations = {node.id: node.orientation_deg for node in centered_graph.nodes}

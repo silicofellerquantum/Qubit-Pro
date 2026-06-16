@@ -46,6 +46,14 @@ from .models import (
 
 from .engine import LayoutEngineImpl as LayoutEngine
 
+# LAYOUT-016: DRC Alignment
+from .drc_alignment import (
+    get_drc_thresholds,
+    validate_scorer_drc_alignment,
+    check_graph_alignment,
+    log_alignment_check,
+)
+
 
 def generate_layout(
     design_graph: "DesignGraph",
@@ -87,6 +95,11 @@ __all__ = [
     "Slot",
     "Channel",
     "Floorplan",
+    # LAYOUT-016: DRC Alignment
+    "get_drc_thresholds",
+    "validate_scorer_drc_alignment",
+    "check_graph_alignment",
+    "log_alignment_check",
 ]
 
 # Version info
