@@ -207,21 +207,20 @@ def test_cpsat_model_stubs():
 
 
 def test_template_base_stubs():
-    """Test template base module stubs."""
+    """Test template base module is implemented."""
     from app.layout.templates.base import Template, select_template, register_template, TEMPLATE_REGISTRY
     
-    # Registry should be empty dict
+    # Registry should be a dict (may be empty or populated)
     assert isinstance(TEMPLATE_REGISTRY, dict)
-    assert len(TEMPLATE_REGISTRY) == 0
     
-    # Functions should raise
-    with pytest.raises(NotImplementedError) as exc_info:
+    # select_template with empty registry should raise ValueError
+    TEMPLATE_REGISTRY.clear()  # Ensure empty for test
+    with pytest.raises(ValueError) as exc_info:
         select_template('square', 9, [], 4)
-    assert "LAYOUT-004" in str(exc_info.value)
+    assert "No suitable template found" in str(exc_info.value)
     
-    with pytest.raises(NotImplementedError) as exc_info:
-        register_template('test', Template)
-    assert "LAYOUT-004" in str(exc_info.value)
+    # register_template should raise ValueError for duplicate or invalid templates
+    # (Tested more thoroughly in test_template_core.py)
 
 
 def test_template_class_stubs():
