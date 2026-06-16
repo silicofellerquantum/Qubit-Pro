@@ -145,10 +145,9 @@ def test_legalizer_stubs():
     # Exception class should exist
     assert issubclass(LegalizationInfeasible, Exception)
     
-    # Legalizer should raise
-    with pytest.raises(NotImplementedError) as exc_info:
-        leg = PlacementLegalizer()
-    assert "LAYOUT-011" in str(exc_info.value)
+    # Legalizer should instantiate successfully
+    leg = PlacementLegalizer()
+    assert leg is not None
     
     # Static method should work
     from app.layout.constants import CPSAT_MAX_COMPONENTS

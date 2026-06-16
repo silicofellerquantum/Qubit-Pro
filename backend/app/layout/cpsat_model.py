@@ -15,7 +15,7 @@ Dependencies: LAYOUT-003 (footprints)
 """
 
 from typing import Dict, List, Tuple, Any, Optional
-from ortools.sat.python.cp_model import CpModel, CpSolver, CpSolverStatus
+from ortools.sat.python.cp_model import CpModel, CpSolver, OPTIMAL, FEASIBLE, INFEASIBLE, UNKNOWN, MODEL_INVALID
 
 from app.layout.models import Footprint, Obstacle
 
@@ -249,8 +249,12 @@ def build_cpsat_model(
             # Resonators stay near qubit shell target (tolerance: 800 µm)
             dev_x = model.NewIntVar(0, die_width_um, f"res_dev_x_{node_id}")
             dev_y = model.NewIntVar(0, die_height_um, f"res_dev_y_{node_id}")
-            model.AddAbsEquality(dev_x, x_center - target_x_um)
-            model.AddAbsEquality(dev_y, y_center - target_y_um)
+            diff_x = model.NewIntVar(-die_width_um, die_width_um, f"res_diff_x_{node_id}")
+            diff_y = model.NewIntVar(-die_height_um, die_height_um, f"res_diff_y_{node_id}")
+            model.Add(diff_x == x_center - target_x_um)
+            model.Add(diff_y == y_center - target_y_um)
+            model.AddAbsEquality(dev_x, diff_x)
+            model.AddAbsEquality(dev_y, diff_y)
             model.Add(dev_x <= 800)
             model.Add(dev_y <= 800)
             
@@ -266,8 +270,12 @@ def build_cpsat_model(
                 # Resonator distance to qubit <= 1200 µm
                 q_dev_x = model.NewIntVar(0, die_width_um, f"res_q_dev_x_{node_id}")
                 q_dev_y = model.NewIntVar(0, die_height_um, f"res_q_dev_y_{node_id}")
-                model.AddAbsEquality(q_dev_x, x_center - qx_var)
-                model.AddAbsEquality(q_dev_y, y_center - qy_var)
+                q_diff_x = model.NewIntVar(-die_width_um, die_width_um, f"res_q_diff_x_{node_id}")
+                q_diff_y = model.NewIntVar(-die_height_um, die_height_um, f"res_q_diff_y_{node_id}")
+                model.Add(q_diff_x == x_center - qx_var)
+                model.Add(q_diff_y == y_center - qy_var)
+                model.AddAbsEquality(q_dev_x, q_diff_x)
+                model.AddAbsEquality(q_dev_y, q_diff_y)
                 model.Add(q_dev_x <= 1200)
                 model.Add(q_dev_y <= 1200)
                 
@@ -287,8 +295,12 @@ def build_cpsat_model(
             # Couplers stay centered in corridor (tolerance: 200 µm)
             dev_x = model.NewIntVar(0, die_width_um, f"cpl_dev_x_{node_id}")
             dev_y = model.NewIntVar(0, die_height_um, f"cpl_dev_y_{node_id}")
-            model.AddAbsEquality(dev_x, x_center - target_x_um)
-            model.AddAbsEquality(dev_y, y_center - target_y_um)
+            diff_x = model.NewIntVar(-die_width_um, die_width_um, f"cpl_diff_x_{node_id}")
+            diff_y = model.NewIntVar(-die_height_um, die_height_um, f"cpl_diff_y_{node_id}")
+            model.Add(diff_x == x_center - target_x_um)
+            model.Add(diff_y == y_center - target_y_um)
+            model.AddAbsEquality(dev_x, diff_x)
+            model.AddAbsEquality(dev_y, diff_y)
             model.Add(dev_x <= 200)
             model.Add(dev_y <= 200)
             
@@ -299,8 +311,12 @@ def build_cpsat_model(
             # Launchpads stay close to perimeter slot (tolerance: 500 µm)
             dev_x = model.NewIntVar(0, die_width_um, f"lp_dev_x_{node_id}")
             dev_y = model.NewIntVar(0, die_height_um, f"lp_dev_y_{node_id}")
-            model.AddAbsEquality(dev_x, x_center - target_x_um)
-            model.AddAbsEquality(dev_y, y_center - target_y_um)
+            diff_x = model.NewIntVar(-die_width_um, die_width_um, f"lp_diff_x_{node_id}")
+            diff_y = model.NewIntVar(-die_height_um, die_height_um, f"lp_diff_y_{node_id}")
+            model.Add(diff_x == x_center - target_x_um)
+            model.Add(diff_y == y_center - target_y_um)
+            model.AddAbsEquality(dev_x, diff_x)
+            model.AddAbsEquality(dev_y, diff_y)
             model.Add(dev_x <= 500)
             model.Add(dev_y <= 500)
             
@@ -372,7 +388,7 @@ def solve_model(
 
     status = solver.Solve(model)
 
-    if status in (CpSolverStatus.FEASIBLE, CpSolverStatus.OPTIMAL):
+    if status in (FEASIBLE, OPTIMAL):
         return decode_solution(solver, variable_map)
     else:
         raise LegalizationInfeasible(f"CP-SAT solver failed with status {status}")
