@@ -29,7 +29,20 @@ from typing import Dict, Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.core.design_graph.graph import DesignGraph
-    from app.layout.models import LayoutCandidate
+
+from .models import (
+    Footprint,
+    Obstacle,
+    PlacementConstraint,
+    ScoreBreakdown,
+    LayoutCandidate,
+    Site,
+    Corridor,
+    Shell,
+    Slot,
+    Channel,
+    Floorplan,
+)
 
 # Placeholder classes - will be implemented in subsequent issues
 
@@ -137,6 +150,17 @@ def generate_layout(
 __all__ = [
     "LayoutEngine",
     "generate_layout",
+    "Footprint",
+    "Obstacle",
+    "PlacementConstraint",
+    "ScoreBreakdown",
+    "LayoutCandidate",
+    "Site",
+    "Corridor",
+    "Shell",
+    "Slot",
+    "Channel",
+    "Floorplan",
 ]
 
 # Version info

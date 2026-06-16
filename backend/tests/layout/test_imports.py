@@ -255,7 +255,12 @@ def test_all_exports():
     
     assert 'LayoutEngine' in __all__
     assert 'generate_layout' in __all__
-    assert len(__all__) == 2
+    for model in [
+        'Footprint', 'Obstacle', 'PlacementConstraint', 'ScoreBreakdown',
+        'LayoutCandidate', 'Site', 'Corridor', 'Shell', 'Slot', 'Channel', 'Floorplan'
+    ]:
+        assert model in __all__
+    assert len(__all__) == 13
 
 
 if __name__ == "__main__":
