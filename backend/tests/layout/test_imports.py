@@ -205,17 +205,12 @@ def test_adapters_stubs():
     assert "LAYOUT-014" in str(exc_info.value)
 
 
-def test_cpsat_model_stubs():
-    """Test CP-SAT model module stubs."""
+def test_cpsat_model_implemented():
+    """LAYOUT-010: CP-SAT model module is now implemented."""
     from app.layout.cpsat_model import build_cpsat_model, decode_solution
     
-    with pytest.raises(NotImplementedError) as exc_info:
-        build_cpsat_model([], [], [])
-    assert "LAYOUT-010" in str(exc_info.value)
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        decode_solution(None, {})
-    assert "LAYOUT-010" in str(exc_info.value)
+    assert callable(build_cpsat_model)
+    assert callable(decode_solution)
 
 
 def test_template_base_stubs():

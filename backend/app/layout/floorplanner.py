@@ -303,8 +303,16 @@ class Floorplanner:
         margin      = self._MIN_MARGIN_MM
 
         # Width / height to comfortably fit the lattice
-        layout_w    = (cols - 1) * pitch_mm + footprint_mm
-        layout_h    = (rows - 1) * pitch_mm + footprint_mm
+        if topo in {"heavy_hex", "heavy-hex", "heavyhex", "ibm"}:
+            hex_w = pitch_mm * math.sqrt(3)
+            hex_h = pitch_mm * 1.5
+            internal_rows = max(1, math.ceil(math.sqrt(n / 1.5)))
+            internal_cols = max(1, math.ceil(n / internal_rows))
+            layout_w = (internal_cols - 0.5) * hex_w + footprint_mm
+            layout_h = (internal_rows - 1) * hex_h + footprint_mm
+        else:
+            layout_w    = (cols - 1) * pitch_mm + footprint_mm
+            layout_h    = (rows - 1) * pitch_mm + footprint_mm
 
         # Add margin on all four sides
         chip_w = layout_w + 2 * margin

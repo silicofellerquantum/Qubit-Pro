@@ -25,6 +25,7 @@ python-dotenv==1.0.1
 # ── Physics / ML ──────────────────────────────────────────────────────────────
 networkx==3.2.1
 shapely==2.1.2             # Geometric footprint/obstacle polygons for layout engine (LAYOUT-003)
+ortools==9.15.6755         # CP-SAT constraint solver for Auto Layout (LAYOUT-010)
 # torch>=2.0.0             # Optional — large dep, not installed in CI; code falls back to regex intent
 
 # ── AI Assistant ──────────────────────────────────────────────────────────────
