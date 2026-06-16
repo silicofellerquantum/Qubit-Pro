@@ -163,17 +163,17 @@ def test_scorer_stubs():
     assert "LAYOUT-013" in str(exc_info.value)
 
 
-def test_footprints_stubs():
-    """Test footprints module stubs."""
+def test_footprints_implemented():
+    """LAYOUT-003: FootprintGenerator and ObstacleMap are now implemented."""
     from app.layout.footprints import FootprintGenerator, ObstacleMap
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        gen = FootprintGenerator()
-    assert "LAYOUT-003" in str(exc_info.value)
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        obs_map = ObstacleMap()
-    assert "LAYOUT-003" in str(exc_info.value)
+
+    # Both classes should be instantiable (no longer stubs)
+    gen = FootprintGenerator()
+    assert gen is not None
+
+    obs_map = ObstacleMap()
+    assert obs_map is not None
+    assert len(obs_map) == 0
 
 
 def test_adapters_stubs():

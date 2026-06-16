@@ -24,6 +24,7 @@ python-dotenv==1.0.1
 
 # ── Physics / ML ──────────────────────────────────────────────────────────────
 networkx==3.2.1
+shapely==2.1.2             # Geometric footprint/obstacle polygons for layout engine (LAYOUT-003)
 # torch>=2.0.0             # Optional — large dep, not installed in CI; code falls back to regex intent
 
 # ── AI Assistant ──────────────────────────────────────────────────────────────
