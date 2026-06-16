@@ -43,6 +43,18 @@ class Settings(BaseSettings):
     squadds_dataset_dir: str = ""        # "" → auto-resolve to squadds_mirror/
     squadds_refresh_hours: int = 168     # Periodic mirror refresh interval
 
+    # ============================================================================
+    # Phase 1 Layout Engine Feature Flag (LAYOUT-001)
+    # ============================================================================
+    # Controls the automatic layout engine introduced in Phase 1.
+    # When True: Uses new template-driven, CP-SAT-legalized placement system
+    # When False: Uses legacy placement logic (default for Phase 1 rollout)
+    #
+    # Set via environment variable: LAYOUT_ENGINE_V2=true
+    # Default: False (safe rollout)
+    # ============================================================================
+    layout_engine_v2: bool = False
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
