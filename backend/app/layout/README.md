@@ -38,12 +38,12 @@ layout_engine_v2: bool = False  # Enable with LAYOUT_ENGINE_V2=true
 
 ## Implementation Status
 
-All modules are currently **stubs** that raise `NotImplementedError`.
+Most modules are currently **stubs** that raise `NotImplementedError`, except for foundational geometry models (`models.py`).
 
 | Issue | Component | Status |
 |-------|-----------|--------|
 | LAYOUT-001 | Package scaffold | ✅ Complete |
-| LAYOUT-002 | Data models | 🔲 Pending |
+| LAYOUT-002 | Data models | ✅ Complete |
 | LAYOUT-003 | Footprint system | 🔲 Pending |
 | LAYOUT-004 | Template core | 🔲 Pending |
 | LAYOUT-005 | Square template | 🔲 Pending |

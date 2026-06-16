@@ -163,17 +163,17 @@ def test_scorer_stubs():
     assert "LAYOUT-013" in str(exc_info.value)
 
 
-def test_footprints_stubs():
-    """Test footprints module stubs."""
+def test_footprints_implemented():
+    """LAYOUT-003: FootprintGenerator and ObstacleMap are now implemented."""
     from app.layout.footprints import FootprintGenerator, ObstacleMap
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        gen = FootprintGenerator()
-    assert "LAYOUT-003" in str(exc_info.value)
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        obs_map = ObstacleMap()
-    assert "LAYOUT-003" in str(exc_info.value)
+
+    # Both classes should be instantiable (no longer stubs)
+    gen = FootprintGenerator()
+    assert gen is not None
+
+    obs_map = ObstacleMap()
+    assert obs_map is not None
+    assert len(obs_map) == 0
 
 
 def test_adapters_stubs():
@@ -207,21 +207,20 @@ def test_cpsat_model_stubs():
 
 
 def test_template_base_stubs():
-    """Test template base module stubs."""
+    """Test template base module is implemented."""
     from app.layout.templates.base import Template, select_template, register_template, TEMPLATE_REGISTRY
     
-    # Registry should be empty dict
+    # Registry should be a dict (may be empty or populated)
     assert isinstance(TEMPLATE_REGISTRY, dict)
-    assert len(TEMPLATE_REGISTRY) == 0
     
-    # Functions should raise
-    with pytest.raises(NotImplementedError) as exc_info:
+    # select_template with empty registry should raise ValueError
+    TEMPLATE_REGISTRY.clear()  # Ensure empty for test
+    with pytest.raises(ValueError) as exc_info:
         select_template('square', 9, [], 4)
-    assert "LAYOUT-004" in str(exc_info.value)
+    assert "No suitable template found" in str(exc_info.value)
     
-    with pytest.raises(NotImplementedError) as exc_info:
-        register_template('test', Template)
-    assert "LAYOUT-004" in str(exc_info.value)
+    # register_template should raise ValueError for duplicate or invalid templates
+    # (Tested more thoroughly in test_template_core.py)
 
 
 def test_template_class_stubs():
@@ -255,7 +254,12 @@ def test_all_exports():
     
     assert 'LayoutEngine' in __all__
     assert 'generate_layout' in __all__
-    assert len(__all__) == 2
+    for model in [
+        'Footprint', 'Obstacle', 'PlacementConstraint', 'ScoreBreakdown',
+        'LayoutCandidate', 'Site', 'Corridor', 'Shell', 'Slot', 'Channel', 'Floorplan'
+    ]:
+        assert model in __all__
+    assert len(__all__) == 13
 
 
 if __name__ == "__main__":
