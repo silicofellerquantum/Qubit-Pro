@@ -118,12 +118,24 @@ def test_engine_module_stubs():
 
 
 def test_floorplanner_stubs():
-    """Test floorplanner module stubs."""
+    """LAYOUT-009: Floorplanner is implemented — verify it requires graph + constraints."""
     from app.layout.floorplanner import Floorplanner
-    
-    with pytest.raises(NotImplementedError) as exc_info:
+    from app.core.design_graph.graph import DesignGraph
+    from app.constraints.constraints import DesignConstraints
+    from app.core.design_graph.node import QubitNode
+
+    # Floorplanner is fully implemented; calling with no args raises TypeError (not NIE)
+    with pytest.raises(TypeError):
         fp = Floorplanner()
-    assert "LAYOUT-009" in str(exc_info.value)
+
+    # Calling with proper args should succeed and return a FloorplanResult
+    g = DesignGraph()
+    for i in range(4):
+        g.add_node(QubitNode(id=f"q{i}"))
+    fp = Floorplanner(g, DesignConstraints(qubit_count=4))
+    result = fp.plan()
+    assert result is not None
+    assert result.spec.pitch_mm > 0
 
 
 def test_legalizer_stubs():
@@ -224,28 +236,28 @@ def test_template_base_stubs():
 
 
 def test_template_class_stubs():
-    """Test template class stubs."""
+    """LAYOUT-005..008: All four template classes are implemented — verify instantiation works."""
     from app.layout.templates.square import SquareLatticeTemplate
     from app.layout.templates.ring import RingTemplate
     from app.layout.templates.heavyhex import HeavyHexTemplate
     from app.layout.templates.vio import QuantwareVIOTemplate
-    
-    # All should raise on instantiation
-    with pytest.raises(NotImplementedError) as exc_info:
-        SquareLatticeTemplate()
-    assert "LAYOUT-005" in str(exc_info.value)
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        RingTemplate()
-    assert "LAYOUT-006" in str(exc_info.value)
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        HeavyHexTemplate()
-    assert "LAYOUT-007" in str(exc_info.value)
-    
-    with pytest.raises(NotImplementedError) as exc_info:
-        QuantwareVIOTemplate()
-    assert "LAYOUT-008" in str(exc_info.value)
+
+    # All templates are implemented and should instantiate without error
+    sq = SquareLatticeTemplate()
+    assert sq.name == "square"
+    assert len(sq.sites(9, 1.0)) == 9
+
+    rng = RingTemplate()
+    assert rng.name == "ring"
+    assert len(rng.sites(8, 1.0)) == 8
+
+    hh = HeavyHexTemplate()
+    assert hh.name == "heavyhex"
+    assert len(hh.sites(25, 1.0)) == 25
+
+    vio = QuantwareVIOTemplate()
+    assert vio.name == "vio"
+    assert len(vio.sites(16, 1.0)) == 16
 
 
 def test_all_exports():

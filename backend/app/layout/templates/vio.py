@@ -59,8 +59,8 @@ class QuantwareVIOTemplate(Template):
         cols = math.ceil(math.sqrt(n))
         rows = math.ceil(n / cols)
         
-        # Tighter pitch for VIO (20% smaller for compact core)
-        effective_pitch = pitch * 0.8
+        # Preserve the floorplanner's footprint-plus-clearance spacing guarantee.
+        effective_pitch = pitch
         
         sites = []
         site_idx = 0

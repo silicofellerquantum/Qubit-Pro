@@ -29,6 +29,8 @@ Dependencies: LAYOUT-002 (models)
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
+from numbers import Integral
 from typing import Dict, List, Optional, Sequence
 
 from shapely.affinity import rotate as _shapely_rotate
@@ -243,10 +245,13 @@ class FootprintGenerator:
         Returns:
             ``{node_id: Footprint}`` mapping.
         """
-        return {
-            node_id: self.generate(node)
-            for node_id, node in design_graph.nodes.items()
-        }
+        nodes = design_graph.nodes
+        if isinstance(nodes, Mapping):
+            iterable = nodes.items()
+        else:
+            iterable = ((node.id, node) for node in nodes)
+
+        return {node_id: self.generate(node) for node_id, node in iterable}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -281,6 +286,7 @@ class ObstacleMap:
         """
         self._obstacles: List[Obstacle] = list(obstacles) if obstacles else []
         self._tree: Optional[STRtree] = None  # built on first query
+        self._geom_to_obstacle: Dict[int, Obstacle] = {}
 
     # ------------------------------------------------------------------
     # Construction helpers
@@ -330,6 +336,7 @@ class ObstacleMap:
         """
         self._obstacles.append(obstacle)
         self._tree = None  # force rebuild on next query
+        self._geom_to_obstacle = {}
 
     def reset(self, obstacles: Optional[Sequence[Obstacle]] = None) -> None:
         """
@@ -340,6 +347,7 @@ class ObstacleMap:
         """
         self._obstacles = list(obstacles) if obstacles else []
         self._tree = None
+        self._geom_to_obstacle = {}
 
     # ------------------------------------------------------------------
     # Internal index management
@@ -350,7 +358,23 @@ class ObstacleMap:
         if self._tree is None:
             geoms = [obs.polygon for obs in self._obstacles]
             self._tree = STRtree(geoms)
+            self._geom_to_obstacle = {id(obs.polygon): obs for obs in self._obstacles}
         return self._tree
+
+    def _query_obstacles(self, query_poly) -> List[Obstacle]:
+        """Return obstacles matching STRtree query results for Shapely 1.x/2.x."""
+        tree = self._ensure_tree()
+        candidates = tree.query(query_poly)
+
+        results: List[Obstacle] = []
+        for candidate in candidates:
+            if isinstance(candidate, Integral):
+                results.append(self._obstacles[int(candidate)])
+            else:
+                obstacle = self._geom_to_obstacle.get(id(candidate))
+                if obstacle is not None:
+                    results.append(obstacle)
+        return results
 
     # ------------------------------------------------------------------
     # Query API
@@ -372,12 +396,10 @@ class ObstacleMap:
         if not self._obstacles:
             return False
 
-        tree = self._ensure_tree()
         query_poly = footprint.keepout_polygon
-        candidate_indices = tree.query(query_poly)
 
-        for idx in candidate_indices:
-            if query_poly.intersects(self._obstacles[idx].polygon):
+        for obstacle in self._query_obstacles(query_poly):
+            if query_poly.intersects(obstacle.polygon):
                 return True
         return False
 
@@ -395,13 +417,11 @@ class ObstacleMap:
         if not self._obstacles:
             return 0.0
 
-        tree = self._ensure_tree()
         query_poly = footprint.keepout_polygon
-        candidate_indices = tree.query(query_poly)
 
         total_area = 0.0
-        for idx in candidate_indices:
-            intersection = query_poly.intersection(self._obstacles[idx].polygon)
+        for obstacle in self._query_obstacles(query_poly):
+            intersection = query_poly.intersection(obstacle.polygon)
             total_area += intersection.area
         return total_area
 

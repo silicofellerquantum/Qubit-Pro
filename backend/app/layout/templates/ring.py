@@ -58,7 +58,11 @@ class RingTemplate(Template):
         # Arc length between adjacent sites: s = r * θ
         # For equal spacing: θ = 2π/n
         # pitch = r * (2π/n) → r = n * pitch / (2π)
-        radius = n * pitch / (2 * math.pi)
+        arc_radius = n * pitch / (2 * math.pi)
+        chord_radius = 0.0
+        if n > 1:
+            chord_radius = pitch / (2 * math.sin(math.pi / n))
+        radius = max(arc_radius, chord_radius)
         
         # Minimum radius for practical layout
         radius = max(radius, 0.5)  # mm

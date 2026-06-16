@@ -2,21 +2,36 @@
 Template System Module
 
 Template-driven site/corridor/shell generation for different topologies.
-
-Available Templates:
-    - SquareLatticeTemplate: Row × column grid, D4 symmetry
-    - RingTemplate: Circular layout, cyclic symmetry
-    - HeavyHexTemplate: IBM-style heavy-hexagon lattice
-    - QuantwareVIOTemplate: Vertical-IO flip-chip design
-
-Status: Stubs (to be implemented in LAYOUT-005 through LAYOUT-008)
-Dependencies: LAYOUT-004 (template core)
+Importing this package registers the built-in templates.
 """
 
-# Templates will be imported here after implementation
-# from .square import SquareLatticeTemplate
-# from .ring import RingTemplate
-# from .heavyhex import HeavyHexTemplate
-# from .vio import QuantwareVIOTemplate
+from .base import (
+    Template,
+    TEMPLATE_REGISTRY,
+    TOPOLOGY_MAP,
+    get_template,
+    list_templates,
+    register_template,
+    select_template,
+)
+from .square import SquareLatticeTemplate
+from .ring import RingTemplate
+from .heavyhex import HeavyHexTemplate
+from .vio import QuantwareVIOTemplate
+from .registry import TemplateResult, get_template as get_template_result
 
-__all__ = []  # Will be populated in LAYOUT-004..008
+__all__ = [
+    "Template",
+    "TEMPLATE_REGISTRY",
+    "TOPOLOGY_MAP",
+    "register_template",
+    "get_template",
+    "list_templates",
+    "select_template",
+    "TemplateResult",
+    "get_template_result",
+    "SquareLatticeTemplate",
+    "RingTemplate",
+    "HeavyHexTemplate",
+    "QuantwareVIOTemplate",
+]
