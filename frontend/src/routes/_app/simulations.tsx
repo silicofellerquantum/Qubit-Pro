@@ -97,6 +97,7 @@ function SimulationsPage() {
   const [runs, setRuns] = useState<SimRun[]>([]);
   const [selectedSolver, setSelectedSolver] = useState("physics");
   const [running, setRunning] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const hasDesign = !!activeConversation?.result;
 
@@ -215,6 +216,7 @@ function SimulationsPage() {
             results = {
               overall_status: rawResults.overall_status,
               physics_score: rawResults.physics_score,
+              field_images: rawResults.field_images,
               min_qubit_spacing_MHz: rawResults.frequency_collision_analysis?.min_qubit_spacing_mhz,
               total_checks: rawResults.validation_summary?.total_checks,
               passed_checks: rawResults.validation_summary?.passed,
@@ -431,26 +433,60 @@ function SimulationsPage() {
                           </div>
                         ))}
 
-                        {/* 3D Render Snapshot */}
-                        {(r.solver === "eigenmode" || r.solver === "electrostatic") && (
+                        {/* Field Visualizations Section */}
+                        {(r.solver === "eigenmode" || r.solver === "electrostatic" || r.solver === "driven_modal" || (r.results && (r.results as any).field_images && (r.results as any).field_images.length > 0)) && (
                           <div className="mt-4 pt-3 border-t border-slate-100">
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">3D Field Visualization</p>
-                              <a href={`${BACKEND}/api/simulations/${r.id}/download`} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-accent hover:text-accent-hover hover:underline flex items-center gap-1 bg-accent/10 px-2 py-0.5 rounded-full transition-colors">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Field Visualizations</p>
+                              <a 
+                                href={`${BACKEND}/api/simulations/${r.id}/download`} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-[10px] font-bold text-accent hover:text-accent-hover hover:underline flex items-center gap-1 bg-accent/10 px-2 py-0.5 rounded-full transition-colors"
+                              >
                                 <Download className="w-3 h-3"/> Download VTK Data
                               </a>
                             </div>
-                            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 relative flex items-center justify-center p-2">
-                              <img 
-                                src={`${BACKEND}/api/simulations/${r.id}/render`} 
-                                alt="3D Simulation Render"
-                                className="w-full h-auto object-cover max-h-[350px] rounded-lg shadow-sm bg-white"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<p class="text-xs text-slate-400 font-medium py-10">3D render unavailable for this simulation</p>';
-                                }}
-                              />
-                            </div>
+                            
+                            {r.results && (r.results as any).field_images && (r.results as any).field_images.length > 0 ? (
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                {(r.results as any).field_images.map((imgUrl: string, idx: number) => {
+                                  const fullUrl = `${BACKEND}${imgUrl}`;
+                                  return (
+                                    <div 
+                                      key={idx} 
+                                      className="group relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center p-1.5 cursor-pointer hover:border-accent hover:shadow-md transition-all"
+                                      onClick={() => setSelectedImage(fullUrl)}
+                                    >
+                                      <img 
+                                        src={fullUrl} 
+                                        alt={`Field Visualization ${idx}`}
+                                        className="w-full h-auto object-cover max-h-[150px] rounded-lg shadow-sm bg-white group-hover:scale-[1.02] transition-transform"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                          (e.target as HTMLImageElement).parentElement!.innerHTML = '<p class="text-[10px] text-slate-400 font-medium py-6 text-center">Image failed to load</p>';
+                                        }}
+                                      />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-xl">
+                                        <span className="text-[10px] font-bold text-white uppercase tracking-wider bg-slate-900/60 px-2 py-1 rounded-full">Zoom</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 relative flex items-center justify-center p-2">
+                                <img 
+                                  src={`${BACKEND}/api/simulations/${r.id}/render`} 
+                                  alt="3D Simulation Render Fallback"
+                                  className="w-full h-auto object-cover max-h-[350px] rounded-lg shadow-sm bg-white"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                    (e.target as HTMLImageElement).parentElement!.innerHTML = '<p class="text-xs text-slate-400 font-medium py-10">No field visualizations available for this simulation</p>';
+                                  }}
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -466,6 +502,25 @@ function SimulationsPage() {
           </div>
         </div>
       </div>
+
+      {/* Zoom Modal overlay */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4" onClick={() => setSelectedImage(null)}>
+          <div className="relative max-w-4xl max-h-[85vh] bg-white rounded-2xl p-2 shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <img 
+              src={selectedImage} 
+              alt="Field Visualization Zoom" 
+              className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
+            />
+            <button 
+              onClick={() => setSelectedImage(null)} 
+              className="absolute top-4 right-4 bg-slate-900/60 hover:bg-slate-900 text-white rounded-full p-1.5 transition-colors cursor-pointer"
+            >
+              <XCircle className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

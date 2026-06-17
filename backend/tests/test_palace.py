@@ -376,3 +376,58 @@ async def test_palace_runner_missing_output_files():
             )
         assert "expected output file 'eig.csv' is missing" in str(exc_info.value)
 
+
+@pytest.mark.asyncio
+async def test_run_simulation_generates_mesh_image(sample_v2_payload):
+    import shutil
+    mock_db = AsyncMock()
+    mock_user = MagicMock()
+    mock_user.id = "user_123"
+
+    mock_project = Project(
+        id="project_456",
+        owner_id="user_123",
+        design_payload=sample_v2_payload
+    )
+    
+    from datetime import datetime
+    sim_id = "test_sim_visual_id"
+    mock_sim = Simulation(
+        id=sim_id,
+        project_id="project_456",
+        solver="eigenmode",
+        status=SimulationStatus.queued,
+        created_at=datetime.utcnow()
+    )
+    
+    mock_sim_result = MagicMock()
+    mock_sim_result.scalar_one_or_none.return_value = mock_sim
+    mock_proj_result = MagicMock()
+    mock_proj_result.scalar_one_or_none.return_value = mock_project
+    
+    mock_db.execute.side_effect = [mock_sim_result, mock_proj_result]
+    
+    with patch("app.routers.simulations.settings.palace_mock_mode", True):
+        result = await run_simulation(
+            sim_id=sim_id,
+            body=RunSimulationRequest(engine="palace"),
+            db=mock_db,
+            user=mock_user
+        )
+        
+        assert result["status"] == "completed"
+        assert "field_images" in result["results"]
+        assert len(result["results"]["field_images"]) > 0
+        
+        project_root = Path(__file__).resolve().parents[3]
+        artifact_dir = project_root / "backend" / "storage" / "simulations" / sim_id
+        assert artifact_dir.exists()
+        images_dir = artifact_dir / "images"
+        assert images_dir.exists()
+        
+        # Clean up
+        shutil.rmtree(artifact_dir)
+
+
+
+

@@ -121,7 +121,7 @@ class EMAdapter:
                         EJ_ghz=float(q.ej_ghz) if q.ej_ghz is not None else 20.0,
                         junction_area_um2=0.1,
                     ),
-                    capacitance_terminal_id=f"{q.id}_island",
+                    capacitance_terminal_id=f"comp_{q.id}_island",
                     junction_id=f"JJ_{q.id}",
                     targets=QubitTargets(
                         frequency_ghz=float(q.frequency_ghz) if q.frequency_ghz is not None else 5.0,
@@ -148,7 +148,7 @@ class EMAdapter:
                     resonator_id=r.id,
                     type=r_type,
                     coupled_to=r.target_qubit_id or "",
-                    capacitance_terminal_id=r.id,
+                    capacitance_terminal_id=f"comp_{r.id}",
                     target_frequency_ghz=float(r.frequency_ghz) if r.frequency_ghz is not None else 7.0,
                     target_kappa_khz=500.0,
                 )

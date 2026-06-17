@@ -32,3 +32,8 @@ anthropic==0.39.0          # Optional — falls back to rule-based responses if 
 # ── Testing ────────────────────────────────────────────────────────────────────
 pytest==8.3.4
 pytest-asyncio==0.24.0
+
+# ── Visualization ──────────────────────────────────────────────────────────────
+pyvista==0.48.4
+vtk==9.4.1
+meshio==5.3.5             # Bridge for PyVista to read GMSH .msh files

@@ -56,6 +56,9 @@ class ConfigGenerator:
                 "Type": solver_str,
                 "Verbose": kwargs.get("verbose", 1),
                 "Output": output_dir,
+                "OutputFormats": {
+                    "Paraview": True,
+                }
             }
 
             # 2. Model block
@@ -140,9 +143,11 @@ class ConfigGenerator:
                 # Target average frequency of qubits or default to 5.0 GHz
                 freqs = [q.params.get("frequency_ghz", 5.0) for q in geometry.qubits]
                 target_freq = sum(freqs) / len(freqs) if freqs else 5.0
+                n_modes = len(geometry.qubits) + len(geometry.resonators) + 2
                 solver["Eigenmode"] = {
-                    "N": len(geometry.qubits) + len(geometry.resonators) + 2,  # Search modes
+                    "N": n_modes,  # Search modes
                     "Target": target_freq * 1.0e9,  # Convert GHz to Hz
+                    "Save": n_modes,  # Save all computed modes for 3D visualization
                 }
             elif solver_type == PalaceSolverType.ELECTROSTATIC:
                 solver["Electrostatic"] = {

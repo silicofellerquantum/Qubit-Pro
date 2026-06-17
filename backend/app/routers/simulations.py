@@ -5,6 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 import shutil
 import zipfile
 import io
@@ -109,6 +112,27 @@ async def create_simulation(
     await db.flush()
     await db.refresh(sim)
     return _sim_out(sim)
+def _copy_tree_robust(src: Path | str, dst: Path | str):
+    src = Path(src)
+    dst = Path(dst)
+    dst.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Starting robust copy from {src} to {dst}")
+    
+    # We use rglob("*") for recursive directory scanning
+    for item in src.rglob("*"):
+        rel_path = item.relative_to(src)
+        target = dst / rel_path
+        logger.info(f"DISCOVERED: {item} (rel: {rel_path})")
+        if item.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            logger.info(f"CREATED DIR: {target}")
+        else:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(item, target)
+                logger.info(f"COPIED: {item} -> {target}")
+            except Exception as e:
+                logger.warning(f"SKIPPED/FAILED: {item} -> {target} (error: {e})")
 
 
 @router.post("/{sim_id}/run")
@@ -152,9 +176,36 @@ async def run_simulation(
         payload = project.design_payload or {}
         
         if body.engine == "palace":
+            # Create simulation artifact directory early!
+            project_root = Path(__file__).resolve().parents[3]
+            artifact_dir = project_root / "backend" / "storage" / "simulations" / sim_id
+            images_dir = artifact_dir / "images"
+            images_dir.mkdir(parents=True, exist_ok=True)
+            
             # 1. Build EMGeometry
             geometry = GeometryBuilder.build_geometry(payload)
             
+            # Generate mesh file directly in the permanent artifact directory first!
+            mesh_file_path = artifact_dir / "mesh.msh"
+            from app.services.palace.gmsh_builder import GmshBuilder
+            GmshBuilder.generate_mesh(geometry, mesh_file_path, coarse=settings.palace_mock_mode)
+            
+            # Render the mesh file immediately to images/mesh_0.png
+            try:
+                from app.services.vtu_renderer import render_mesh_file
+                render_mesh_file(mesh_file_path, images_dir / "mesh_0.png")
+            except Exception as e:
+                logger.warning(f"Failed to pre-render mesh image: {e}")
+                
+            # Set artifact path early and commit so the render endpoint can access it!
+            sim.artifact_path = str(artifact_dir.relative_to(project_root))
+            sim.artifact_retained = True
+            await db.commit()
+            
+            # Load mesh bytes for runner
+            with open(mesh_file_path, "rb") as f:
+                mesh_bytes = f.read()
+
             # 2. Generate configurations for both solvers (both are required for full physics analysis)
             config_eig = ConfigGenerator.generate_config(geometry, PalaceSolverType.EIGENMODE)
             config_cap = ConfigGenerator.generate_config(geometry, PalaceSolverType.ELECTROSTATIC)
@@ -163,11 +214,11 @@ async def run_simulation(
             mock_mode = settings.palace_mock_mode
             runner = PalaceRunner(mock_mode=mock_mode)
             
-            run_eig = await runner.run_simulation(config_eig, geometry=geometry)
+            run_eig = await runner.run_simulation(config_eig, mesh_content=mesh_bytes)
             temp_dir_eig = run_eig["temp_dir_obj"]
             
             try:
-                run_cap = await runner.run_simulation(config_cap, geometry=geometry)
+                run_cap = await runner.run_simulation(config_cap, mesh_content=mesh_bytes)
                 temp_dir_cap = run_cap["temp_dir_obj"]
                 
                 try:
@@ -178,7 +229,8 @@ async def run_simulation(
                     terminal_names = []
                     for el in geometry.elements:
                         if el.kind in (GeometryElementKind.QUBIT, GeometryElementKind.RESONATOR):
-                            terminal_names.append(f"{el.id}_island" if el.kind == GeometryElementKind.QUBIT else el.id)
+                            prefix = "" if el.id.startswith("comp_") else "comp_"
+                            terminal_names.append(f"{prefix}{el.id}_island" if el.kind == GeometryElementKind.QUBIT else f"{prefix}{el.id}")
                     parsed_cap = ResultParser.parse_electrostatic(run_cap["output_dir"], terminal_names=terminal_names)
                     
                     # Combine into PalaceSimulationOutput
@@ -210,16 +262,19 @@ async def run_simulation(
 
                     # 8. Preserve artifacts if configured
                     if settings.keep_simulation_artifacts:
-                        project_root = Path(__file__).resolve().parents[3]
-                        artifact_dir = project_root / "storage" / "simulations" / sim_id
-                        artifact_dir.mkdir(parents=True, exist_ok=True)
+                        # Copy both eigenmode and electrostatic job folders using robust copy helper
+                        _copy_tree_robust(run_eig["temp_dir_obj"].name, artifact_dir / "eigenmode")
+                        _copy_tree_robust(run_cap["temp_dir_obj"].name, artifact_dir / "electrostatic")
                         
-                        # Copy both eigenmode and electrostatic job folders
-                        shutil.copytree(run_eig["temp_dir_obj"].name, artifact_dir / "eigenmode", dirs_exist_ok=True)
-                        shutil.copytree(run_cap["temp_dir_obj"].name, artifact_dir / "electrostatic", dirs_exist_ok=True)
-                        
-                        sim.artifact_path = str(artifact_dir.relative_to(project_root))
-                        sim.artifact_retained = True
+                        # Generate Field Visualizations from VTU files
+                        try:
+                            from app.services.vtu_renderer import generate_field_visualizations
+                            image_urls = generate_field_visualizations(sim_id, str(artifact_dir))
+                            results_dict = dict(sim.results or {})
+                            results_dict["field_images"] = image_urls
+                            sim.results = results_dict
+                        except Exception as render_err:
+                            logger.warning(f"Field visualization generation failed (non-fatal): {render_err}", exc_info=True)
                 finally:
                     temp_dir_cap.cleanup()
             finally:
@@ -335,6 +390,18 @@ async def render_simulation_snapshot(
         
     render_path = artifact_dir / "render.png"
     
+    # Check if we have pre-rendered images in the new layout first
+    images_dir = artifact_dir / "images"
+    if images_dir.exists():
+        # Prefer field visualization images if they exist
+        pre_rendered_fields = sorted(list(images_dir.glob("*_field_*.png")))
+        if pre_rendered_fields:
+            return FileResponse(pre_rendered_fields[0], media_type="image/png")
+            
+        pre_rendered = sorted(list(images_dir.glob("*.png")))
+        if pre_rendered:
+            return FileResponse(pre_rendered[0], media_type="image/png")
+
     if not render_path.exists():
         # Generate on the fly
         success = PyVistaRenderer.render_simulation(str(artifact_dir), str(render_path))

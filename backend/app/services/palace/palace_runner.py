@@ -130,20 +130,24 @@ class PalaceRunner:
 
             # Generate/write mesh file
             mesh_file_path = job_dir / "mesh.msh"
-            if not self.mock_mode:
-                if geometry is not None:
-                    from app.services.palace.gmsh_builder import GmshBuilder
-                    GmshBuilder.generate_mesh(geometry, mesh_file_path)
-                elif mesh_content:
-                    with open(mesh_file_path, "wb") as f:
-                        f.write(mesh_content)
-                else:
-                    raise PalaceRunnerError("No geometry or mesh content provided to generate mesh.msh in real mode.")
+            if geometry is not None:
+                from app.services.palace.gmsh_builder import GmshBuilder
+                try:
+                    # Generate a coarse mesh for speed in mock mode
+                    GmshBuilder.generate_mesh(geometry, mesh_file_path, coarse=self.mock_mode)
+                except Exception as mesh_err:
+                    logger.warning(f"Failed to generate GMSH mesh (falling back to dummy): {mesh_err}")
+                    if self.mock_mode:
+                        with open(mesh_file_path, "w", encoding="utf-8") as f:
+                            f.write("$MeshFormat\n2.2 0 8\n$EndMeshFormat\n")
+                    else:
+                        raise mesh_err
+            elif mesh_content:
+                with open(mesh_file_path, "wb") as f:
+                    f.write(mesh_content)
             else:
-                # Mock mode placeholder fallback
-                if mesh_content:
-                    with open(mesh_file_path, "wb") as f:
-                        f.write(mesh_content)
+                if not self.mock_mode:
+                    raise PalaceRunnerError("No geometry or mesh content provided to generate mesh.msh in real mode.")
                 else:
                     with open(mesh_file_path, "w", encoding="utf-8") as f:
                         f.write("$MeshFormat\n2.2 0 8\n$EndMeshFormat\n")
@@ -254,6 +258,11 @@ class PalaceRunner:
             # Discover and verify output files existence
             solver_type = config_data.get("Problem", {}).get("Type", "Eigenmode").lower()
             logger.info("Discovering Palace simulation output files in: %s", output_dir)
+            
+            # Inspect output directory structure immediately after Palace exits
+            for path in output_dir.rglob("*"):
+                logger.info(f"FOUND: {path}")
+
             if solver_type == "eigenmode":
                 eig_file = output_dir / "eig.csv"
                 if not eig_file.exists():

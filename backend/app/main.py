@@ -165,6 +165,15 @@ app.include_router(design.router)            # /api/design/... (V2 pipeline)
 app.include_router(bridge.router)            # /components and /design (bridge router)
 
 
+# ── Static Files serving (simulation field images) ──────────────────────────
+from fastapi.staticfiles import StaticFiles
+import os
+
+storage_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "storage", "simulations")
+os.makedirs(storage_path, exist_ok=True)
+app.mount("/simulation-files", StaticFiles(directory=storage_path), name="simulation-files")
+
+
 # ── Frequency plan (legacy frontend compat) ───────────────────────────────────
 
 from fastapi import APIRouter

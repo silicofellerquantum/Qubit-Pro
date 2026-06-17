@@ -74,6 +74,20 @@ class GeometryBuilder:
 
         # 1. Extract qubits
         for q in graph.qubits:
+            params = {
+                "qubit_type": q.qubit_type.value if hasattr(q.qubit_type, "value") else str(q.qubit_type),
+                "frequency_ghz": q.frequency_ghz,
+                "anharmonicity_ghz": q.anharmonicity_ghz,
+                "ej_ghz": q.ej_ghz,
+                "ec_ghz": q.ec_ghz,
+                "pad_gap_um": getattr(q, "pad_gap_um", 30.0),
+                "pad_width_um": getattr(q, "pad_width_um", 455.0),
+                "pad_height_um": getattr(q, "pad_height_um", 90.0),
+                "pocket_width_um": getattr(q, "pocket_width_um", 650.0),
+                "pocket_height_um": getattr(q, "pocket_height_um", 650.0),
+            }
+            if getattr(q, "design_options", None):
+                params.update(q.design_options)
             elements.append(
                 GeometryElement(
                     id=q.id,
@@ -81,23 +95,21 @@ class GeometryBuilder:
                     x_mm=q.x_mm if q.x_mm is not None else 0.0,
                     y_mm=q.y_mm if q.y_mm is not None else 0.0,
                     orientation_deg=float(q.orientation_deg),
-                    params={
-                        "qubit_type": q.qubit_type.value if hasattr(q.qubit_type, "value") else str(q.qubit_type),
-                        "frequency_ghz": q.frequency_ghz,
-                        "anharmonicity_ghz": q.anharmonicity_ghz,
-                        "ej_ghz": q.ej_ghz,
-                        "ec_ghz": q.ec_ghz,
-                        "pad_gap_um": getattr(q, "pad_gap_um", 30.0),
-                        "pad_width_um": getattr(q, "pad_width_um", 455.0),
-                        "pad_height_um": getattr(q, "pad_height_um", 90.0),
-                        "pocket_width_um": getattr(q, "pocket_width_um", 650.0),
-                        "pocket_height_um": getattr(q, "pocket_height_um", 650.0),
-                    },
+                    params=params,
                 )
             )
 
         # 2. Extract resonators
         for r in graph.resonators:
+            params = {
+                "resonator_type": r.resonator_type.value if hasattr(r.resonator_type, "value") else str(r.resonator_type),
+                "frequency_ghz": r.frequency_ghz,
+                "length_mm": r.length_mm,
+                "detuning_ghz": r.detuning_ghz,
+                "target_qubit_id": r.target_qubit_id,
+            }
+            if getattr(r, "design_options", None):
+                params.update(r.design_options)
             elements.append(
                 GeometryElement(
                     id=r.id,
@@ -105,18 +117,20 @@ class GeometryBuilder:
                     x_mm=r.x_mm if r.x_mm is not None else 0.0,
                     y_mm=r.y_mm if r.y_mm is not None else 0.0,
                     orientation_deg=float(r.orientation_deg),
-                    params={
-                        "resonator_type": r.resonator_type.value if hasattr(r.resonator_type, "value") else str(r.resonator_type),
-                        "frequency_ghz": r.frequency_ghz,
-                        "length_mm": r.length_mm,
-                        "detuning_ghz": r.detuning_ghz,
-                        "target_qubit_id": r.target_qubit_id,
-                    },
+                    params=params,
                 )
             )
 
         # 3. Extract couplers
         for c in graph.couplers:
+            params = {
+                "coupler_type": c.coupler_type.value if hasattr(c.coupler_type, "value") else str(c.coupler_type),
+                "strength_mhz": c.strength_mhz,
+                "qubit_a_id": c.qubit_a_id,
+                "qubit_b_id": c.qubit_b_id,
+            }
+            if getattr(c, "design_options", None):
+                params.update(c.design_options)
             elements.append(
                 GeometryElement(
                     id=c.id,
@@ -124,17 +138,19 @@ class GeometryBuilder:
                     x_mm=c.x_mm if c.x_mm is not None else 0.0,
                     y_mm=c.y_mm if c.y_mm is not None else 0.0,
                     orientation_deg=float(c.orientation_deg),
-                    params={
-                        "coupler_type": c.coupler_type.value if hasattr(c.coupler_type, "value") else str(c.coupler_type),
-                        "strength_mhz": c.strength_mhz,
-                        "qubit_a_id": c.qubit_a_id,
-                        "qubit_b_id": c.qubit_b_id,
-                    },
+                    params=params,
                 )
             )
 
         # 4. Extract feedlines
         for f in graph.feedlines:
+            params = {
+                "length_mm": f.length_mm,
+                "cpw_width_um": f.cpw_width_um,
+                "cpw_gap_um": f.cpw_gap_um,
+            }
+            if getattr(f, "design_options", None):
+                params.update(f.design_options)
             elements.append(
                 GeometryElement(
                     id=f.id,
@@ -142,16 +158,19 @@ class GeometryBuilder:
                     x_mm=f.x_mm if f.x_mm is not None else 0.0,
                     y_mm=f.y_mm if f.y_mm is not None else 0.0,
                     orientation_deg=float(f.orientation_deg),
-                    params={
-                        "length_mm": f.length_mm,
-                        "cpw_width_um": f.cpw_width_um,
-                        "cpw_gap_um": f.cpw_gap_um,
-                    },
+                    params=params,
                 )
             )
 
         # 5. Extract launchpads
         for lp in graph.launchpads:
+            params = {
+                "style": lp.style.value if hasattr(lp.style, "value") else str(lp.style),
+                "pad_width_um": lp.pad_width_um,
+                "pad_gap_um": getattr(lp, "pad_gap_um", 15.0),
+            }
+            if getattr(lp, "design_options", None):
+                params.update(lp.design_options)
             elements.append(
                 GeometryElement(
                     id=lp.id,
@@ -159,11 +178,7 @@ class GeometryBuilder:
                     x_mm=lp.x_mm if lp.x_mm is not None else 0.0,
                     y_mm=lp.y_mm if lp.y_mm is not None else 0.0,
                     orientation_deg=float(lp.orientation_deg),
-                    params={
-                        "style": lp.style.value if hasattr(lp.style, "value") else str(lp.style),
-                        "pad_width_um": lp.pad_width_um,
-                        "pad_gap_um": getattr(lp, "pad_gap_um", 15.0),
-                    },
+                    params=params,
                 )
             )
 
@@ -249,7 +264,7 @@ class GeometryBuilder:
                     x_mm=x,
                     y_mm=y,
                     orientation_deg=rot,
-                    params={},
+                    params=p.get("params", {}),
                 )
             )
 

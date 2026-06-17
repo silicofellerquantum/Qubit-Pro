@@ -15,6 +15,27 @@ from app.services.palace.exceptions import GmshBuilderError
 logger = logging.getLogger(__name__)
 
 
+def parse_dim_to_um(val: Any, default: float) -> float:
+    if val is None:
+        return default
+    if isinstance(val, (int, float)):
+        return float(val)
+    if isinstance(val, str):
+        val_clean = val.strip().lower()
+        if val_clean.endswith("um"):
+            val_clean = val_clean[:-2].strip()
+        elif val_clean.endswith("mm"):
+            try:
+                return float(val_clean[:-2].strip()) * 1000.0
+            except ValueError:
+                pass
+        try:
+            return float(val_clean)
+        except ValueError:
+            return default
+    return default
+
+
 class GmshBuilder:
     """Helper to build 3D tetrahedral GMSH meshes for AWS Palace."""
 
@@ -80,12 +101,28 @@ class GmshBuilder:
                 params = el.params
 
                 if el.kind == GeometryElementKind.QUBIT:
-                    # Retrieve or default transmon params (in mm)
-                    pad_width = params.get("pad_width_um", 455.0) / 1000.0
-                    pad_height = params.get("pad_height_um", 90.0) / 1000.0
-                    pad_gap = params.get("pad_gap_um", 30.0) / 1000.0
-                    pocket_width = params.get("pocket_width_um", 650.0) / 1000.0
-                    pocket_height = params.get("pocket_height_um", 650.0) / 1000.0
+                    # Retrieve transmon pad params (in mm)
+                    # Support both TransmonPocket names (pad_width_um) and TransmonCross names (cross_width)
+                    pad_width = parse_dim_to_um(
+                        params.get("cross_width") or params.get("pad_width_um") or params.get("pad_width"),
+                        455.0
+                    ) / 1000.0
+                    pad_height = parse_dim_to_um(
+                        params.get("cross_length") or params.get("pad_height_um") or params.get("pad_height"),
+                        90.0
+                    ) / 1000.0
+                    pad_gap = parse_dim_to_um(
+                        params.get("cross_gap") or params.get("pad_gap_um") or params.get("pad_gap"),
+                        30.0
+                    ) / 1000.0
+                    pocket_width = parse_dim_to_um(
+                        params.get("pocket_width_um") or params.get("pocket_width"),
+                        max(650.0, pad_width * 1000.0 * 1.5)  # Pocket must be larger than pad
+                    ) / 1000.0
+                    pocket_height = parse_dim_to_um(
+                        params.get("pocket_height_um") or params.get("pocket_height"),
+                        max(650.0, (pad_height * 2 + pad_gap) * 1000.0 * 1.5)  # Must contain both pads + gap
+                    ) / 1000.0
 
                     # A. Ground Pocket cutout
                     pocket = gmsh.model.occ.addRectangle(
@@ -117,9 +154,22 @@ class GmshBuilder:
 
                 else:
                     # Resonators, Couplers, Feedlines, Launchpads
-                    L = params.get("length_mm", 2.0)
-                    w = params.get("cpw_width_um", 10.0) / 1000.0
-                    g = params.get("cpw_gap_um", 5.0) / 1000.0
+                    len_mm = params.get("length_mm")
+                    if len_mm is not None:
+                        try:
+                            if isinstance(len_mm, str) and len_mm.strip().lower().endswith("mm"):
+                                len_mm = len_mm.strip().lower()[:-2].strip()
+                            L = float(len_mm)
+                        except ValueError:
+                            L = 2.0
+                    else:
+                        L = parse_dim_to_um(params.get("length"), 2000.0) / 1000.0
+                        
+                    width_val = params.get("cpw_width_um") or params.get("cpw_width") or params.get("line_width") or params.get("trace_width") or params.get("pad_width")
+                    w = parse_dim_to_um(width_val, 10.0) / 1000.0
+                    
+                    gap_val = params.get("cpw_gap_um") or params.get("cpw_gap") or params.get("gap") or params.get("trace_gap") or params.get("pad_gap")
+                    g = parse_dim_to_um(gap_val, 5.0) / 1000.0
 
                     trace = gmsh.model.occ.addRectangle(-L / 2, -w / 2, 0, L, w)
                     

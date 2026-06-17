@@ -125,7 +125,7 @@ async def main():
     logger.info("\n=== Step 3: Generating Physical GMSH Mesh ===")
     # Generate the physical mesh directly to debug path first
     # Using coarse=False to check the real-world high-resolution mesh generation
-    GmshBuilder.generate_mesh(geometry, mesh_debug_path, coarse=False)
+    GmshBuilder.generate_mesh(geometry, mesh_debug_path, coarse=True)
     logger.info("Physical mesh generated successfully at: %s", mesh_debug_path)
 
     logger.info("\n=== Step 4: Executing Palace Simulation (mock_mode=False) ===")
