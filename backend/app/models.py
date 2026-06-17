@@ -191,6 +191,8 @@ class Simulation(Base):
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     runtime_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     memory_gb: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    artifact_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    artifact_retained: Mapped[bool] = mapped_column(Boolean, default=False)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

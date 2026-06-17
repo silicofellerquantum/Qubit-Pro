@@ -3,17 +3,35 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
+import os
+import shutil
+import zipfile
+import io
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models import Project, Simulation, SimulationStatus, User
 from app.services.physics import full_physics_analysis
+from app.services.palace import (
+    GeometryBuilder,
+    ConfigGenerator,
+    PalaceRunner,
+    ResultParser,
+    EMAdapter,
+    PalaceSolverType,
+    PalaceSimulationOutput,
+    GeometryElementKind,
+)
 import uuid
 
 router = APIRouter(prefix="/api/simulations", tags=["simulations"])
@@ -23,6 +41,10 @@ class SimulationCreate(BaseModel):
     project_id: str
     solver: str = "eigenmode"
     config: dict = {}
+
+
+class RunSimulationRequest(BaseModel):
+    engine: str = "analytic"
 
 
 def _sim_out(s: Simulation) -> dict:
@@ -92,12 +114,12 @@ async def create_simulation(
 @router.post("/{sim_id}/run")
 async def run_simulation(
     sim_id: str,
+    body: RunSimulationRequest = RunSimulationRequest(),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
     """
-    Run a simulation analytically (physics engine).
-    In production this would dispatch to Palace/scqubits workers.
+    Run a simulation analytically (physics engine) or using AWS Palace.
     """
     # Verify ownership BEFORE mutating any state
     result = await db.execute(
@@ -120,19 +142,103 @@ async def run_simulation(
     # Run physics analysis
     sim.status = SimulationStatus.running
     sim.started_at = datetime.utcnow()
-    await db.flush()
+    
+    # Commit the transaction here! This is crucial because Palace execution
+    # takes 2-5+ minutes. If we don't commit, the SQLite database remains
+    # locked for the entire duration, blocking all frontend autosave requests.
+    await db.commit()
 
     try:
         payload = project.design_payload or {}
-        physics_results = full_physics_analysis(payload)
+        
+        if body.engine == "palace":
+            # 1. Build EMGeometry
+            geometry = GeometryBuilder.build_geometry(payload)
+            
+            # 2. Generate configurations for both solvers (both are required for full physics analysis)
+            config_eig = ConfigGenerator.generate_config(geometry, PalaceSolverType.EIGENMODE)
+            config_cap = ConfigGenerator.generate_config(geometry, PalaceSolverType.ELECTROSTATIC)
+            
+            # 3. Execute both runs
+            mock_mode = settings.palace_mock_mode
+            runner = PalaceRunner(mock_mode=mock_mode)
+            
+            run_eig = await runner.run_simulation(config_eig, geometry=geometry)
+            temp_dir_eig = run_eig["temp_dir_obj"]
+            
+            try:
+                run_cap = await runner.run_simulation(config_cap, geometry=geometry)
+                temp_dir_cap = run_cap["temp_dir_obj"]
+                
+                try:
+                    # 4. Parse simulation results
+                    port_names = [f"JJ_{q.id}" for q in geometry.qubits]
+                    parsed_eig = ResultParser.parse_eigenmode(run_eig["output_dir"], port_names=port_names)
+                    
+                    terminal_names = []
+                    for el in geometry.elements:
+                        if el.kind in (GeometryElementKind.QUBIT, GeometryElementKind.RESONATOR):
+                            terminal_names.append(f"{el.id}_island" if el.kind == GeometryElementKind.QUBIT else el.id)
+                    parsed_cap = ResultParser.parse_electrostatic(run_cap["output_dir"], terminal_names=terminal_names)
+                    
+                    # Combine into PalaceSimulationOutput
+                    palace_output = PalaceSimulationOutput(
+                        simulation_id=sim_id,
+                        design_id=geometry.design_id,
+                        timestamp=datetime.utcnow().isoformat() + "Z",
+                        solver_type=PalaceSolverType.EIGENMODE,
+                        eigenmode=parsed_eig,
+                        electrostatic=parsed_cap,
+                        runtime_seconds=run_eig["runtime_seconds"] + run_cap["runtime_seconds"],
+                        stdout=run_eig["stdout"] + "\n" + run_cap["stdout"],
+                        stderr=run_eig["stderr"] + "\n" + run_cap["stderr"]
+                    )
+                    
+                    # 5. Adapt to standard EMResults
+                    em_results = EMAdapter.to_em_results(palace_output)
+                    
+                    # 6. Convert design payload to DesignSpec
+                    design_spec = EMAdapter.build_design_spec_from_payload(payload)
+                    
+                    # 7. Feed into downstream PhysicsAnalysisPipeline
+                    from physics_engine.pipeline import PhysicsAnalysisPipeline
+                    pipeline = PhysicsAnalysisPipeline()
+                    report = pipeline.run(em_results, design_spec, output_dir=str(run_eig["output_dir"]))
+                    
+                    sim.results = json.loads(report.model_dump_json())
+                    sim.runtime_seconds = round(palace_output.runtime_seconds, 3)
 
-        sim.results = physics_results
-        sim.status = SimulationStatus.completed
-        sim.finished_at = datetime.utcnow()
-        sim.runtime_seconds = round(
-            (sim.finished_at - sim.started_at).total_seconds(), 3
-        )
-        sim.memory_gb = 0.1
+                    # 8. Preserve artifacts if configured
+                    if settings.keep_simulation_artifacts:
+                        project_root = Path(__file__).resolve().parents[3]
+                        artifact_dir = project_root / "storage" / "simulations" / sim_id
+                        artifact_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # Copy both eigenmode and electrostatic job folders
+                        shutil.copytree(run_eig["temp_dir_obj"].name, artifact_dir / "eigenmode", dirs_exist_ok=True)
+                        shutil.copytree(run_cap["temp_dir_obj"].name, artifact_dir / "electrostatic", dirs_exist_ok=True)
+                        
+                        sim.artifact_path = str(artifact_dir.relative_to(project_root))
+                        sim.artifact_retained = True
+                finally:
+                    temp_dir_cap.cleanup()
+            finally:
+                temp_dir_eig.cleanup()
+
+            sim.status = SimulationStatus.completed
+            sim.finished_at = datetime.utcnow()
+            sim.memory_gb = 0.5
+        else:
+            # Legacy analytic flow
+            physics_results = full_physics_analysis(payload)
+            sim.results = physics_results
+            sim.status = SimulationStatus.completed
+            sim.finished_at = datetime.utcnow()
+            sim.runtime_seconds = round(
+                (sim.finished_at - sim.started_at).total_seconds(), 3
+            )
+            sim.memory_gb = 0.1
+            
     except Exception as e:
         sim.status = SimulationStatus.failed
         sim.error_message = str(e)
@@ -152,3 +258,88 @@ async def get_simulation(
     if not sim:
         raise HTTPException(status_code=404, detail="Simulation not found")
     return _sim_out(sim)
+
+
+@router.get("/{sim_id}/artifacts")
+async def get_simulation_artifacts(
+    sim_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
+    sim = result.scalar_one_or_none()
+    if not sim or not getattr(sim, "artifact_retained", False) or not getattr(sim, "artifact_path", None):
+        raise HTTPException(status_code=404, detail="Artifacts not found or not retained")
+        
+    project_root = Path(__file__).resolve().parents[3]
+    artifact_dir = project_root / sim.artifact_path
+    if not artifact_dir.exists():
+        raise HTTPException(status_code=404, detail="Artifact directory missing on disk")
+        
+    files = []
+    for root, _, filenames in os.walk(artifact_dir):
+        for name in filenames:
+            abs_path = Path(root) / name
+            rel_path = abs_path.relative_to(artifact_dir)
+            files.append(str(rel_path))
+            
+    return {"artifact_path": sim.artifact_path, "files": files}
+
+@router.get("/{sim_id}/download")
+async def download_simulation_artifacts(
+    sim_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
+    sim = result.scalar_one_or_none()
+    if not sim or not getattr(sim, "artifact_retained", False) or not getattr(sim, "artifact_path", None):
+        raise HTTPException(status_code=404, detail="Artifacts not found or not retained")
+        
+    project_root = Path(__file__).resolve().parents[3]
+    artifact_dir = project_root / sim.artifact_path
+    if not artifact_dir.exists():
+        raise HTTPException(status_code=404, detail="Artifact directory missing on disk")
+        
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, filenames in os.walk(artifact_dir):
+            for name in filenames:
+                file_path = Path(root) / name
+                archive_name = file_path.relative_to(artifact_dir)
+                zipf.write(file_path, arcname=str(archive_name))
+                
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer, 
+        media_type="application/zip", 
+        headers={"Content-Disposition": f"attachment; filename=simulation_{sim_id}_artifacts.zip"}
+    )
+
+@router.get("/{sim_id}/render")
+async def render_simulation_snapshot(
+    sim_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    from fastapi.responses import FileResponse
+    from app.services.palace.renderer import PyVistaRenderer
+    
+    result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
+    sim = result.scalar_one_or_none()
+    if not sim or not getattr(sim, "artifact_retained", False) or not getattr(sim, "artifact_path", None):
+        raise HTTPException(status_code=404, detail="Artifacts not found or not retained")
+        
+    project_root = Path(__file__).resolve().parents[3]
+    artifact_dir = project_root / sim.artifact_path
+    if not artifact_dir.exists():
+        raise HTTPException(status_code=404, detail="Artifact directory missing on disk")
+        
+    render_path = artifact_dir / "render.png"
+    
+    if not render_path.exists():
+        # Generate on the fly
+        success = PyVistaRenderer.render_simulation(str(artifact_dir), str(render_path))
+        if not success or not render_path.exists():
+            raise HTTPException(status_code=500, detail="Failed to render 3D snapshot")
+            
+    return FileResponse(render_path, media_type="image/png")
+

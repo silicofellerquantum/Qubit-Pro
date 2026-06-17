@@ -29,10 +29,14 @@ _db_url = settings.database_url
 
 if settings.is_sqlite:
     # SQLite requires check_same_thread=False for async use
+    # Adding timeout helps prevent "database is locked" on concurrent writes
     engine = create_async_engine(
         _db_url,
         echo=False,
-        connect_args={"check_same_thread": False},
+        connect_args={
+            "check_same_thread": False,
+            "timeout": 60.0,
+        },
     )
 else:
     engine = create_async_engine(
@@ -42,6 +46,20 @@ else:
         max_overflow=20,
         pool_pre_ping=True,
     )
+
+if settings.is_sqlite:
+    from sqlalchemy import event
+    from sqlalchemy.engine import Engine
+    import sqlite3
+
+    @event.listens_for(Engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        if type(dbapi_connection) is sqlite3.Connection:
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA busy_timeout=60000")
+            cursor.close()
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
@@ -63,11 +81,26 @@ class Base(DeclarativeBase):
 # Dependency — commit on success, rollback on error
 # ---------------------------------------------------------------------------
 
+import asyncio
+from sqlalchemy.exc import OperationalError
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
+            
+            # Commit with explicit retry logging for SQLite locks
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    await session.commit()
+                    break
+                except OperationalError as e:
+                    if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                        log.warning("SQLite database is locked. Retrying commit (attempt %d/%d)...", attempt + 1, max_retries)
+                        await asyncio.sleep(1.0)
+                    else:
+                        raise
         except Exception:
             await session.rollback()
             raise

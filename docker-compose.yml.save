@@ -1,3 +1,7 @@
+
+
+
+
 version: "3.9"
 
 services:
@@ -28,9 +32,8 @@ services:
       SYNC_DATABASE_URL: postgresql://postgres:password@db:5432/quantum_studio
       SECRET_KEY: "${SECRET_KEY:-change-me-in-production-minimum-32-chars}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
-      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:5174,localhost:8080"
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:5174"
       APP_ENV: production
-      PALACE_MOCK_MODE: "false"
     ports:
       - "5000:5000"
     depends_on:
@@ -53,3 +56,4 @@ services:
 
 volumes:
   pg_data:
+g

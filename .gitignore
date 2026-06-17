@@ -49,3 +49,10 @@ dist-ssr/
 *.njsproj
 *.sln
 *.sw?
+
+# Project-specific ignores
+backend/metal_env/
+backend/tmp/
+backend/storage/
+backend/dev.db
+

@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   PlayCircle, CheckCircle2, XCircle, Clock, Loader2,
-  Atom, Zap, Activity, AlertTriangle, BarChart3, Cpu,
+  Atom, Zap, Activity, AlertTriangle, BarChart3, Cpu, Download
 } from "lucide-react";
 import { useDesign } from "@/lib/design-context";
 import { useProject } from "@/lib/project-context";
@@ -93,12 +93,41 @@ function buildOfflineResults(solver: string, payload: any): Record<string, unkno
 
 function SimulationsPage() {
   const { activeConversation } = useDesign();
-  const { activeProject } = useProject();
+  const { activeProject, projects, setActiveProject, createAndActivate } = useProject();
   const [runs, setRuns] = useState<SimRun[]>([]);
   const [selectedSolver, setSelectedSolver] = useState("physics");
   const [running, setRunning] = useState(false);
 
   const hasDesign = !!activeConversation?.result;
+
+  // Fetch simulation history from backend
+  useEffect(() => {
+    const fetchSimulations = async () => {
+      try {
+        const token = localStorage.getItem("qs_token");
+        const res = await fetch(`${BACKEND}/api/simulations`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Map backend simulation objects to frontend SimRun format
+          const mappedRuns: SimRun[] = data.map((s: any) => ({
+            id: s.id,
+            name: s.config?.name || `Simulation — ${s.solver}`,
+            solver: s.solver,
+            status: s.status,
+            runtime: s.runtime_seconds ? `${s.runtime_seconds}s` : undefined,
+            results: s.results,
+            error: s.error_message,
+          }));
+          setRuns(mappedRuns);
+        }
+      } catch (err) {
+        console.error("Failed to fetch simulation history:", err);
+      }
+    };
+    fetchSimulations();
+  }, []);
 
   const runSim = async () => {
     if (!hasDesign) return;
@@ -113,12 +142,112 @@ function SimulationsPage() {
     setRuns(prev => [newRun, ...prev]);
     const t0 = Date.now();
 
+    let dbSimId = id;
     try {
-      // Try real backend first
-      let results: Record<string, unknown>;
+      let results: Record<string, unknown> = {};
       try {
-        results = await callPhysics(activeConversation!.result);
-      } catch {
+        // 1. Get or create active project
+        let project = activeProject;
+        if (!project) {
+          if (projects && projects.length > 0) {
+            project = projects[0];
+            setActiveProject(project);
+          } else {
+            project = await createAndActivate({
+              name: "Default Project",
+              topology: activeConversation!.result!.topology,
+              num_qubits: activeConversation!.result!.num_qubits,
+            });
+          }
+        }
+
+        // 2. Save the design payload to the project
+        const token = localStorage.getItem("qs_token");
+        await fetch(`${BACKEND}/api/projects/${project.id}/save-design`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(activeConversation!.result),
+        });
+
+        // 3. Create simulation record
+        const simCreateRes = await fetch(`${BACKEND}/api/simulations`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            project_id: project.id,
+            solver: selectedSolver,
+            config: {},
+          }),
+        });
+        if (!simCreateRes.ok) throw new Error("Failed to create simulation record");
+        const simData = await simCreateRes.json();
+        const simId = simData.id;
+        dbSimId = simId;
+
+        // Update ID immediately to the real DB ID so active polls or refs use the correct UUID
+        setRuns(prev => prev.map(r => r.id === id ? { ...r, id: dbSimId } : r));
+
+        // 4. Run the simulation
+        const engine = (selectedSolver === "eigenmode" || selectedSolver === "driven_modal") ? "palace" : "analytic";
+        const simRunRes = await fetch(`${BACKEND}/api/simulations/${simId}/run`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            engine,
+          }),
+        });
+        if (!simRunRes.ok) throw new Error("Failed to start simulation run");
+        const simRunData = await simRunRes.json();
+
+        // 5. Parse and map results
+        if (simRunData.status === "completed" && simRunData.results) {
+          const rawResults = simRunData.results;
+          if (engine === "palace") {
+            results = {
+              overall_status: rawResults.overall_status,
+              physics_score: rawResults.physics_score,
+              min_qubit_spacing_MHz: rawResults.frequency_collision_analysis?.min_qubit_spacing_mhz,
+              total_checks: rawResults.validation_summary?.total_checks,
+              passed_checks: rawResults.validation_summary?.passed,
+              failed_checks: rawResults.validation_summary?.failures,
+              qubit_properties: (rawResults.qubit_results || []).map((q: any) => ({
+                qubit: q.qubit_id,
+                frequency_GHz: q.computed?.frequency_ghz?.toFixed(4),
+                anharmonicity_MHz: q.computed?.anharmonicity_mhz?.toFixed(1),
+                T1_us: q.coherence?.T1_effective_us?.toFixed(1),
+                T2_us: q.coherence?.T2_effective_us?.toFixed(1),
+              })),
+              coupling_properties: (rawResults.coupling_results || []).map((c: any) => ({
+                qubits: `${c.qubit_a}-${c.qubit_b}`,
+                capacitance_fF: c.coupling_capacitance_fF?.toFixed(2),
+                coupling_MHz: c.bare_coupling_mhz?.toFixed(2),
+                zz_shift_kHz: c.zz_coupling_khz?.toFixed(2),
+              })),
+              readout_properties: (rawResults.readout_results || []).map((r: any) => ({
+                resonator: r.resonator_id,
+                qubit: r.qubit_id,
+                frequency_GHz: r.resonator_frequency_ghz?.toFixed(4),
+                detuning_GHz: r.qubit_resonator_detuning_ghz?.toFixed(4),
+                dispersive_shift_MHz: r.dispersive_shift_mhz?.toFixed(2),
+              })),
+            };
+          } else {
+            results = rawResults;
+          }
+        } else if (simRunData.status === "failed") {
+          throw new Error(simRunData.error_message || "Simulation execution failed");
+        }
+      } catch (backendError) {
+        console.warn("Backend simulation failed, falling back to offline mock:", backendError);
         // Offline fallback
         await new Promise(r => setTimeout(r, 900));
         results = buildOfflineResults(selectedSolver, activeConversation!.result);
@@ -126,11 +255,11 @@ function SimulationsPage() {
 
       const runtime = `${((Date.now() - t0) / 1000).toFixed(2)}s`;
       setRuns(prev => prev.map(r =>
-        r.id === id ? { ...r, status: "completed", runtime, results } : r
+        r.id === dbSimId ? { ...r, status: "completed", runtime, results } : r
       ));
     } catch (e) {
       setRuns(prev => prev.map(r =>
-        r.id === id ? { ...r, status: "failed", error: String(e) } : r
+        r.id === dbSimId ? { ...r, status: "failed", error: String(e) } : r
       ));
     } finally {
       setRunning(false);
@@ -301,6 +430,29 @@ function SimulationsPage() {
                             </div>
                           </div>
                         ))}
+
+                        {/* 3D Render Snapshot */}
+                        {(r.solver === "eigenmode" || r.solver === "electrostatic") && (
+                          <div className="mt-4 pt-3 border-t border-slate-100">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">3D Field Visualization</p>
+                              <a href={`${BACKEND}/api/simulations/${r.id}/download`} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-accent hover:text-accent-hover hover:underline flex items-center gap-1 bg-accent/10 px-2 py-0.5 rounded-full transition-colors">
+                                <Download className="w-3 h-3"/> Download VTK Data
+                              </a>
+                            </div>
+                            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 relative flex items-center justify-center p-2">
+                              <img 
+                                src={`${BACKEND}/api/simulations/${r.id}/render`} 
+                                alt="3D Simulation Render"
+                                className="w-full h-auto object-cover max-h-[350px] rounded-lg shadow-sm bg-white"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  (e.target as HTMLImageElement).parentElement!.innerHTML = '<p class="text-xs text-slate-400 font-medium py-10">3D render unavailable for this simulation</p>';
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 

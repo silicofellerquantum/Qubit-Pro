@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     max_qubits: int = 256
+    palace_mock_mode: bool = True
+    keep_simulation_artifacts: bool = True
+    gmsh_coarse_test: bool = False
 
     # Database — defaults to SQLite for zero-setup local dev
     database_url: str = "sqlite+aiosqlite:///./dev.db"
@@ -57,3 +60,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+import os
+if settings.gmsh_coarse_test:
+    os.environ["GMSH_COARSE_TEST"] = "true"
