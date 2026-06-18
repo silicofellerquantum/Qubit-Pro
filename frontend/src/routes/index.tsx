@@ -437,7 +437,11 @@ function LandingPage() {
                     : "border border-border bg-transparent text-foreground hover:bg-muted"
                 }`}
               >
-                <Link to={p.ctaLink}>{p.ctaText}</Link>
+                {p.ctaLink.startsWith("/#") ? (
+                  <a href={p.ctaLink}>{p.ctaText}</a>
+                ) : (
+                  <Link to={p.ctaLink as any}>{p.ctaText}</Link>
+                )}
               </Button>
             </div>
           ))}
