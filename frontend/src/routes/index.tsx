@@ -21,6 +21,11 @@ import {
   MousePointer2,
   FlaskConical,
   Code2,
+  Lock,
+  ShieldCheck,
+  Database,
+  FileText,
+  Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SilicofellerLogo } from "@/components/silicofeller-logo";
@@ -210,6 +215,61 @@ function LandingPage() {
 
       </Section>
 
+      {/* ───────── CAREERS — warm/paper tone ───────── */}
+      <Section
+        id="careers"
+        eyebrow="Careers"
+        title="Help us build the quantum design layer."
+        tone="paper"
+      >
+        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1.2fr]">
+          <div>
+            <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
+              At SilicoFeller, we are uniting artificial intelligence and quantum physics to democratize quantum processor design. We're a fast-moving, research-driven team building tools that make layout, simulation, and verification of superconducting qubits instantaneous.
+            </p>
+            <h3 className="mt-6 text-lg font-semibold text-foreground">Why join SilicoFeller?</h3>
+            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-[#F26B3A] shrink-0" />
+                Working at the cutting edge of AI and quantum computing.
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-[#F26B3A] shrink-0" />
+                Remote-friendly culture with flexible working hours.
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-[#F26B3A] shrink-0" />
+                Generous equity package and health benefits.
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-[#F26B3A] shrink-0" />
+                Annual learning & conference stipend.
+              </li>
+            </ul>
+          </div>
+          <div className="space-y-4">
+            <h3 className="text-base font-semibold text-foreground">Open Positions</h3>
+            {OPEN_ROLES.map((role) => (
+              <div
+                key={role.title}
+                className="group flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-[#F26B3A] hover:shadow-[0_4px_20px_rgba(242,107,58,0.05)]"
+              >
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground">{role.title}</h4>
+                  <p className="mt-1 text-xs text-muted-foreground">{role.dept} · {role.loc}</p>
+                </div>
+                <a
+                  href="#contact"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-foreground transition-all group-hover:bg-[#F26B3A] group-hover:text-white"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Section>
+
       {/* ───────── TECHNOLOGY — circuit-grid background ───────── */}
       <Section id="technology" eyebrow="Technology" title="Built on quantum-aware AI." tone="grid">
         <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
@@ -239,6 +299,29 @@ function LandingPage() {
                 <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t.desc}</p>
               </div>
             </motion.div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ───────── SECURITY — dark cinematic tone ───────── */}
+      <Section
+        id="security"
+        eyebrow="Security & Trust"
+        title="Enterprise-grade security for quantum IP."
+        tone="dark"
+      >
+        <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
+          {SECURITY_PILLARS.map((p) => (
+            <div
+              key={p.title}
+              className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl transition-all hover:border-white/20"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F26B3A]/20 text-[#F26B3A]">
+                <p.icon className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-semibold text-white">{p.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-white/60">{p.desc}</p>
+            </div>
           ))}
         </div>
       </Section>
@@ -310,6 +393,83 @@ function LandingPage() {
         </div>
       </Section>
 
+      {/* ───────── PRICING — grid / light layout ───────── */}
+      <Section
+        id="pricing"
+        eyebrow="Pricing"
+        title="Flexible plans for teams of all sizes."
+        tone="grid"
+      >
+        <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
+          {PRICING_PLANS.map((p) => (
+            <div
+              key={p.name}
+              className={`relative flex flex-col overflow-hidden rounded-2xl border bg-card p-6 backdrop-blur ${
+                p.featured
+                  ? "border-[#F26B3A] shadow-[0_20px_40px_-15px_rgba(242,107,58,0.15)] ring-1 ring-[#F26B3A]"
+                  : "border-border shadow-sm"
+              }`}
+            >
+              {p.featured && (
+                <span className="absolute right-4 top-4 rounded-full bg-[#F26B3A] px-2.5 py-0.5 text-[10px] font-semibold text-white">
+                  POPULAR
+                </span>
+              )}
+              <h3 className="text-lg font-semibold text-foreground">{p.name}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{p.desc}</p>
+              <div className="mt-4 flex items-baseline">
+                <span className="text-3xl font-bold tracking-tight text-foreground">{p.price}</span>
+                {p.period && <span className="ml-1 text-xs text-muted-foreground">{p.period}</span>}
+              </div>
+              <ul className="mt-6 flex-1 space-y-3 text-xs text-muted-foreground">
+                {p.features.map((f) => (
+                  <li key={f} className="flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <Button
+                asChild
+                className={`mt-6 h-10 w-full rounded-lg text-xs font-semibold ${
+                  p.featured
+                    ? "bg-[#F26B3A] text-white hover:bg-[#F26B3A]/90"
+                    : "border border-border bg-transparent text-foreground hover:bg-muted"
+                }`}
+              >
+                <Link to={p.ctaLink}>{p.ctaText}</Link>
+              </Button>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ───────── CHANGELOG — timeline style on elevated tone ───────── */}
+      <Section
+        id="changelog"
+        eyebrow="Changelog"
+        title="Product updates & releases."
+        tone="elevated"
+      >
+        <div className="mx-auto mt-10 max-w-3xl">
+          <div className="relative border-l border-border pl-6 space-y-10">
+            {CHANGES.map((item) => (
+              <div key={item.version} className="relative">
+                <span className="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-[#F26B3A]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                </span>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-sm font-semibold text-foreground">{item.version}</span>
+                  <span className="text-xs text-muted-foreground">· {item.date}</span>
+                </div>
+                <h4 className="mt-1 text-sm font-semibold text-foreground">{item.title}</h4>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Section>
+
       {/* ───────── BLOG — elevated cards ───────── */}
       <Section
         id="blog"
@@ -344,6 +504,66 @@ function LandingPage() {
               </h3>
             </Link>
           ))}
+        </div>
+      </Section>
+
+      {/* ───────── LEGAL & COMPLIANCE — paper tone ───────── */}
+      <Section
+        id="legal"
+        eyebrow="Legal & Terms"
+        title="Privacy Standards & Terms of Service."
+        tone="paper"
+      >
+        <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2">
+          <div id="privacy-policy" className="scroll-mt-24 rounded-2xl border border-border bg-card p-6 shadow-sm">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-[#F26B3A]" />
+              <h3 className="text-base font-semibold text-foreground">Privacy Policy</h3>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+              We take the privacy of your designs, account details, and telemetry seriously. Under our privacy guidelines, we ensure that:
+            </p>
+            <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
+                <span>We do not sell your personal or IP data to third parties.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
+                <span>Cookies are strictly used for session authentication and billing security.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
+                <span>Design telemetry is anonymous and encrypted end-to-end.</span>
+              </li>
+            </ul>
+            <p className="mt-4 text-xs font-semibold text-[#F26B3A]">Last updated: June 15, 2026</p>
+          </div>
+
+          <div id="terms-of-service" className="scroll-mt-24 rounded-2xl border border-border bg-card p-6 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Scale className="h-5 w-5 text-[#F26B3A]" />
+              <h3 className="text-base font-semibold text-foreground">Terms of Service</h3>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+              By using SilicoFeller's compiler, schematic editor, and AI layout generators, you agree to:
+            </p>
+            <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
+                <span>Maintain user credentials securely and report unauthorized access.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
+                <span>Use API endpoints responsibly, respecting rate limits.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
+                <span>Ensure your generated files comply with export regulations.</span>
+              </li>
+            </ul>
+            <p className="mt-4 text-xs font-semibold text-[#F26B3A]">Last updated: June 15, 2026</p>
+          </div>
         </div>
       </Section>
 
@@ -591,18 +811,48 @@ function FormInput({
   );
 }
 
+const FOOTER_LINK_MAP: Record<string, string> = {
+  "Features": "#features",
+  "Designer": "/designer",
+  "Pricing": "#pricing",
+  "Changelog": "#changelog",
+  "About": "#about",
+  "Blog": "/blog",
+  "Careers": "#careers",
+  "Contact": "#contact",
+  "Documentation": "/documentation",
+  "API": "/documentation",
+  "Support": "#legal",
+  "Status": "#",
+  "Privacy Policy": "#privacy-policy",
+  "Terms of Service": "#terms-of-service",
+  "Security": "#security",
+};
+
 function FooterCol({ title, links }: { title: string; links: string[] }) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wider text-white">{title}</p>
       <ul className="mt-3 space-y-2 text-sm text-white/50">
-        {links.map((l) => (
-          <li key={l}>
-            <a href="#" className="transition-colors hover:text-white">
-              {l}
-            </a>
-          </li>
-        ))}
+        {links.map((l) => {
+          const href = FOOTER_LINK_MAP[l] || "#";
+          if (href.startsWith("/")) {
+            return (
+              <li key={l}>
+                <Link to={href} className="transition-colors hover:text-white">
+                  {l}
+                </Link>
+              </li>
+            );
+          }
+          return (
+            <li key={l}>
+              <a href={href} className="transition-colors hover:text-white">
+                {l}
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -704,3 +954,99 @@ const POST_IMAGES: Record<string, string> = {
   "cudaq-qec-decoders": "/images/cudaq_relaybp_throughput.png",
   "quantum-supremacy": "/images/quantum_supremacy_scaling.png",
 };
+
+const OPEN_ROLES = [
+  { title: "Senior Quantum Compiler Engineer", dept: "Quantum Software", loc: "Remote / Bengaluru" },
+  { title: "AI Research Scientist (Generative Layouts)", dept: "AI Engineering", loc: "Remote / SF" },
+  { title: "Senior Full-Stack Product Engineer", dept: "Product Team", loc: "Remote / Bengaluru" },
+] as const;
+
+const SECURITY_PILLARS = [
+  {
+    icon: ShieldCheck,
+    title: "SOC 2 Type II Certified",
+    desc: "Our platform processes your design graphs under strict SOC 2 compliance guidelines, ensuring top-tier corporate security controls.",
+  },
+  {
+    icon: Lock,
+    title: "IP Isolation",
+    desc: "Your synthesized transmon geometries and custom couplers are cryptographically isolated. We never train public models on your proprietary designs.",
+  },
+  {
+    icon: Database,
+    title: "Secure Cloud & On-Premise",
+    desc: "Deploy on our secure AWS cloud sandbox or run entirely on-premise within your government-grade air-gapped lab environments.",
+  },
+] as const;
+
+const PRICING_PLANS = [
+  {
+    name: "Hobby",
+    desc: "For students, academics and quantum enthusiasts.",
+    price: "$0",
+    period: "",
+    features: [
+      "Up to 5 AI designs per month",
+      "Standard component library",
+      "Basic transmon coupling maps",
+      "Qiskit Metal python exports",
+      "Community forum support",
+    ],
+    ctaText: "Get Started",
+    ctaLink: "/sign-up",
+    featured: false,
+  },
+  {
+    name: "Professional",
+    desc: "For startups and dedicated hardware design teams.",
+    price: "$450",
+    period: "/ month",
+    features: [
+      "Unlimited AI chip designs",
+      "Full parametric layout editor",
+      "Electromagnetic & frequency simulations",
+      "Auto-generated GDSII exports",
+      "Priority email support (under 12h)",
+    ],
+    ctaText: "Start 14-day Free Trial",
+    ctaLink: "/sign-up",
+    featured: true,
+  },
+  {
+    name: "Enterprise",
+    desc: "For commercial foundries and security-focused labs.",
+    price: "Custom",
+    period: "",
+    features: [
+      "Custom component templates & library",
+      "SOC 2 compliance logs",
+      "On-premise air-gapped deployment",
+      "Dedicated simulation HPC cluster",
+      "Dedicated Slack & 24/7 phone support",
+    ],
+    ctaText: "Contact Sales",
+    ctaLink: "/#contact",
+    featured: false,
+  },
+] as const;
+
+const CHANGES = [
+  {
+    version: "v1.4.0",
+    date: "June 2026",
+    title: "QClang Compiler Optimization",
+    desc: "We released QClang's secondary compiler pipeline featuring advanced crosstalk mitigations, optimizing GDS layout paths and lowering qubit frequency interference by 24%.",
+  },
+  {
+    version: "v1.3.2",
+    date: "May 2026",
+    title: "Multi-Qubit Transmon Simulator",
+    desc: "Simulation speeds improved by 4x for transmon array frequency calculations. Engineers can now model up to 27-qubit systems with full electromagnetic coupling matrix generation.",
+  },
+  {
+    version: "v1.2.0",
+    date: "April 2026",
+    title: "Vast Component Library Expansion",
+    desc: "Added 12 new launch pads, customizable coplanar waveguide resonators, and 3D transmon pocket models into the drag-and-drop Schematic Canvas.",
+  },
+] as const;
