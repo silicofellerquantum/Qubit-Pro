@@ -14,6 +14,7 @@ import { useWorkspace } from "@/lib/editor/workspace-store";
 import {
   componentPinsQueryOptions,
   componentsQueryOptions,
+  componentPreviewQueryOptions,
 } from "@/lib/bridge/queries";
 import { defaultParamsFromMetadata } from "@/lib/bridge/adapters";
 import { bridgeClient } from "@/lib/bridge/client";
@@ -38,7 +39,7 @@ import {
 } from "./use-canvas-viewport";
 import { useRouteRendering } from "./use-route-rendering";
 import { useDropHandling } from "./use-drop-handling";
-import { PlacementPreview, DropGhost, PlacementGlyph, MiniMap } from "./editor-canvas-glyphs";
+// PlacementPreview, DropGhost, PlacementGlyph, MiniMap are defined locally below
 
 export { CHIP_W_MM, CHIP_H_MM, CHIP_HALF_W, CHIP_HALF_H } from "./use-canvas-viewport"; // re-export for consumers
 const UM_TO_MM = 0.001;
@@ -131,73 +132,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   // ── Route rendering hook ────────────────────────────────────────────────────
   const { routeQueries, routeSvg } = useRouteRendering(state, doc, drag, dispatch);
 
-  const needsRouteRender = useMemo(() => {
-    const m = new Map<string, boolean>();
-    state.connections.forEach((c) => {
-      const hash = routeHashes.get(c.id) ?? "none";
-      if (c.locked && c.cachedSvg) { m.set(c.id, false); return; }
-      m.set(c.id, c.cachedGeometryHash !== hash);
-    });
-    return m;
-  }, [state.connections, routeHashes]);
-
-  const routeQueries = useQueries({
-    queries: state.connections.map((c) => ({
-      queryKey: ["bridge", "render-route", c.id, routeHashes.get(c.id)] as const,
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        bridgeClient.renderRoute(docRef.current, c.id, signal).then((r) => {
-          if (!r.data) throw new Error(r.error || "Route render failed");
-          return r.data;
-        }),
-      enabled: doc.placements.length > 0 && !!c.routeComponentId && needsRouteRender.get(c.id) === true && !drag,
-      staleTime: 0,
-      placeholderData: (prev: any) => prev,
-    })),
-  });
-
-  const routeQueriesById = useMemo(() => {
-    const m = new Map<string, typeof routeQueries[number]>();
-    state.connections.forEach((c, i) => {
-      m.set(c.id, routeQueries[i]);
-    });
-    return m;
-  }, [state.connections, routeQueries]);
-
-  const routeSvg = useMemo(() => {
-    const m = new Map<string, string>();
-    state.connections.forEach((c) => {
-      const needsRender = needsRouteRender.get(c.id) ?? false;
-      if (!needsRender && c.cachedSvg) {
-        m.set(c.id, c.cachedSvg);
-      }
-      const q = routeQueriesById.get(c.id);
-      if (q?.data?.svg) {
-        m.set(c.id, q.data.svg);
-      }
-    });
-    return m;
-  }, [state.connections, routeQueriesById, needsRouteRender]);
-
-  // Auto-cache route geometry from per-route query results.
-  // IMPORTANT: read state via refs inside the effect so that dispatching
-  // SET_CONNECTION_GEOMETRY does NOT re-trigger this effect (which would
-  // cause an infinite update loop via workspace → state → effect → dispatch).
-  const stateRef = useRef(state);
-  stateRef.current = state;
-  const routeHashesRef = useRef(routeHashes);
-  routeHashesRef.current = routeHashes;
-  useEffect(() => {
-    stateRef.current.connections.forEach((c) => {
-      const q = routeQueriesById.get(c.id);
-      if (q?.data?.svg) {
-        const expectedHash = routeHashesRef.current.get(c.id) ?? "none";
-        if (c.cachedGeometryHash !== expectedHash) {
-          dispatch({ type: "SET_CONNECTION_GEOMETRY", id: c.id, svg: q.data.svg, hash: expectedHash });
-        }
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeQueriesById]);
+  // ── Drop handling hook ───────────────────────────────────────────────────────
+  const { dropPrev, onDrop, onDragOver, onDragLeave } = useDropHandling(dispatch);
 
   const pinQueries = useQueries({
     queries: state.placements.map((p) => componentPinsQueryOptions(p.componentId, p.params)),
@@ -340,34 +276,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     fitToContent, zoomToSelection, cancelDrag,
   ]);
 
-  // Compute fixed tick lists for horizontal and vertical rulers attached to the board
-  const hTicks = useMemo(() => {
-    const ticks = [];
-    for (let v = -CHIP_HALF_W; v <= CHIP_HALF_W; v = parseFloat((v + 0.1).toFixed(1))) {
-      const isMajor = Math.abs(v % 1.0) < 0.01;
-      const isHalf = Math.abs(v % 0.5) < 0.01;
-      ticks.push({
-        value: v,
-        px: cx + v * MM_TO_PX * scale,
-        type: isMajor ? "major" : isHalf ? "half" : "minor",
-      });
-    }
-    return ticks;
-  }, [cx, scale]);
-
-  const vTicks = useMemo(() => {
-    const ticks = [];
-    for (let v = -CHIP_HALF_H; v <= CHIP_HALF_H; v = parseFloat((v + 0.1).toFixed(1))) {
-      const isMajor = Math.abs(v % 1.0) < 0.01;
-      const isHalf = Math.abs(v % 0.5) < 0.01;
-      ticks.push({
-        value: v,
-        py: cy - v * MM_TO_PX * scale,
-        type: isMajor ? "major" : isHalf ? "half" : "minor",
-      });
-    }
-    return ticks;
-  }, [cy, scale]);
+  // hTicks and vTicks come from useCanvasViewport (vp) — no local re-declaration needed
 
   // Shared placement interaction handlers — used by both the visual glyph
   // layer and the top-level hit-area layer so behavior stays consistent.
@@ -530,9 +439,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         onPointerCancel={onPUp}
         onWheel={onWheel}
         onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-        onDragOver={(e) => _onDragOver(e, svgRef, s2w, state.snap)}
+        onDragOver={(e) => onDragOver(e, svgRef, s2w, state.snap)}
         onDragLeave={onDragLeave}
-        onDrop={(e) => _onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
+        onDrop={(e) => onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
       >
         <defs>
           <clipPath id="boardClip">
@@ -1567,6 +1476,7 @@ function PlacementHitArea({
   selected,
   onPointerDown,
   onPinClick,
+  onRename,
   onHoverStart,
   onHoverEnd,
   onContextMenu,
