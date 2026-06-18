@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -17,8 +16,6 @@ from app.models import Project, Simulation, SimulationStatus, User
 from app.services.physics import full_physics_analysis
 import uuid
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/api/simulations", tags=["simulations"])
 
 
@@ -26,10 +23,6 @@ class SimulationCreate(BaseModel):
     project_id: str
     solver: str = "eigenmode"
     config: dict = {}
-
-
-class SimulationRunParams(BaseModel):
-    engine: str = "analytic"
 
 
 def _sim_out(s: Simulation) -> dict:
@@ -99,12 +92,12 @@ async def create_simulation(
 @router.post("/{sim_id}/run")
 async def run_simulation(
     sim_id: str,
-    params: SimulationRunParams = SimulationRunParams(),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
     """
-    Run a simulation analytically or using AWS Palace.
+    Run a simulation analytically (physics engine).
+    In production this would dispatch to Palace/scqubits workers.
     """
     # Verify ownership BEFORE mutating any state
     result = await db.execute(
@@ -131,99 +124,16 @@ async def run_simulation(
 
     try:
         payload = project.design_payload or {}
+        physics_results = full_physics_analysis(payload)
 
-        if params.engine == "palace":
-            # Run AWS Palace pipeline
-            from app.services.palace import (
-                build_geometry,
-                PalaceConfigGenerator,
-                PalaceRunner,
-                PalaceResultParser,
-                build_em_results,
-                build_design_spec,
-                SolverType,
-            )
-
-            # Map simulator/solver string to Palace SolverType
-            solver_map = {
-                "eigenmode": SolverType.EIGENMODE,
-                "electrostatic": SolverType.ELECTROSTATIC,
-                "driven": SolverType.DRIVEN,
-            }
-            solver_type = solver_map.get(sim.solver.lower(), SolverType.EIGENMODE)
-
-            # 1. Geometry Builder
-            geometry = build_geometry(payload)
-
-            # 2. Config Generator
-            config_gen = PalaceConfigGenerator(geometry)
-            palace_config = config_gen.generate(solver_type=solver_type, config_override=sim.config)
-
-            # 3. Palace Runner (Docker container + mock fallback)
-            runner = PalaceRunner()
-            result_dir = runner.run(geometry, palace_config, solver_type=solver_type)
-
-            # 4. Result Parser
-            parser = PalaceResultParser()
-            postpro_dir = result_dir / "postpro"
-
-            eigenmodes = []
-            capacitance = None
-
-            if solver_type == SolverType.EIGENMODE:
-                eig_csv = postpro_dir / "eig.csv"
-                epr_csv = postpro_dir / "epr.csv"
-                eigenmodes = parser.parse_eigenmodes(eig_csv, epr_csv if epr_csv.exists() else None)
-            elif solver_type == SolverType.ELECTROSTATIC:
-                cap_csv = postpro_dir / "cap.csv"
-                if not cap_csv.exists():
-                    cap_csv = postpro_dir / "capacitance.csv"
-                capacitance = parser.parse_capacitance(cap_csv)
-
-            from app.services.palace.result_parser import PalaceSimulationOutputs
-            parsed_outputs = PalaceSimulationOutputs(
-                eigenmodes=eigenmodes,
-                capacitance=capacitance,
-                inductances=[],
-            )
-
-            # 5. EM Adapter
-            em_results = build_em_results(
-                simulation_id=sim.id,
-                design_id=project.id,
-                parsed=parsed_outputs,
-            )
-
-            design_spec = build_design_spec(
-                design_id=project.id,
-                project_name=project.name,
-                payload_or_graph=payload,
-            )
-
-            # 6. Run post-simulation physics analysis pipeline
-            from physics_engine.pipeline import PhysicsAnalysisPipeline
-            pipeline = PhysicsAnalysisPipeline()
-            report = pipeline.run(
-                em_results=em_results,
-                design_spec=design_spec,
-                output_dir=str(result_dir / "plots"),
-            )
-
-            sim.results = report.dict()
-            sim.memory_gb = 0.5
-        else:
-            # Run traditional analytic approximations
-            physics_results = full_physics_analysis(payload)
-            sim.results = physics_results
-            sim.memory_gb = 0.1
-
+        sim.results = physics_results
         sim.status = SimulationStatus.completed
         sim.finished_at = datetime.utcnow()
         sim.runtime_seconds = round(
             (sim.finished_at - sim.started_at).total_seconds(), 3
         )
+        sim.memory_gb = 0.1
     except Exception as e:
-        logger.exception("Simulation run failed")
         sim.status = SimulationStatus.failed
         sim.error_message = str(e)
         sim.finished_at = datetime.utcnow()

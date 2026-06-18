@@ -51,7 +51,7 @@ import { useProject } from "@/lib/project-context";
 import { cn } from "@/lib/utils";
 import { MaterialSelector } from "@/components/quantum-editor/material-selector";
 import { toast } from "sonner";
-import { ChipView, InteractiveCADCanvas, FreqPlanView, CodeView } from "./-designer-panels";
+import { ChipView, InteractiveCADCanvas, FreqPlanView, CodeView } from "./designer-panels";
 
 import { z } from "zod";
 
