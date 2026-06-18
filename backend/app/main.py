@@ -149,6 +149,20 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+# ── Root route ────────────────────────────────────────────────────────────────
+
+@app.get("/")
+async def root():
+    """API root — see /health for status or /docs for API documentation."""
+    return {
+        "service": "Silicofeller Quantum Studio API",
+        "version": "3.0.0",
+        "status": "online",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
 # ── Routers ───────────────────────────────────────────────────────────────────
 
 app.include_router(generate.router)          # /health  /generate

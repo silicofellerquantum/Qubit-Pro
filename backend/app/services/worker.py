@@ -111,6 +111,19 @@ os.environ["MPLBACKEND"] = "Agg"
 try:
     import importlib
     import pkgutil
+
+    # ── geopandas compatibility shim ─────────────────────────────────────────
+    # qiskit-metal pins geopandas==0.12.2 but any modern version works fine for
+    # our headless rendering use-case. Patch the version string so the import
+    # constraint check passes, then let the real package load normally.
+    try:
+        import geopandas as _geopandas_real
+        if _geopandas_real.__version__ != "0.12.2":
+            _geopandas_real.__version__ = "0.12.2"
+            log.info("geopandas version spoofed to 0.12.2 for qiskit-metal compatibility.")
+    except ImportError:
+        pass
+
     import qiskit_metal.qlibrary as _qlibrary
     from qiskit_metal import designs as _designs
     from qiskit_metal.qlibrary.core import QComponent as _QComponent

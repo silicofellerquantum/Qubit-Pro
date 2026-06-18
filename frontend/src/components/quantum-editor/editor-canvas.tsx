@@ -8,12 +8,13 @@ import {
   useImperativeHandle,
 } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Minus, MousePointer2 } from "lucide-react";
-import { prefixForCategory, type EditorState, isSelected, getSingleSelection } from "@/lib/editor/design-store";
+import { Plus, Minus, Hand, MousePointer2, X } from "lucide-react";
+import { prefixForCategory, type EditorState, type Selection, isSelected, getSingleSelection } from "@/lib/editor/design-store";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import {
   componentPinsQueryOptions,
   componentsQueryOptions,
+  componentPreviewQueryOptions,
 } from "@/lib/bridge/queries";
 import { defaultParamsFromMetadata } from "@/lib/bridge/adapters";
 import { bridgeClient } from "@/lib/bridge/client";
@@ -38,11 +39,18 @@ import {
 } from "./use-canvas-viewport";
 import { useRouteRendering } from "./use-route-rendering";
 import { useDropHandling } from "./use-drop-handling";
-import { PlacementPreview, DropGhost, PlacementGlyph, MiniMap } from "./editor-canvas-glyphs";
+// PlacementPreview, DropGhost, PlacementGlyph, MiniMap are defined locally below
 
 export { CHIP_W_MM, CHIP_H_MM, CHIP_HALF_W, CHIP_HALF_H } from "./use-canvas-viewport"; // re-export for consumers
 const UM_TO_MM = 0.001;
 const UI_SCALE_KEY = "_uiScale";
+
+// Hit-area tuning constants — generous padding so components are easy to
+// click without needing pixel-perfect precision.
+const HIT_PAD = 28; // px extra around the component's visual bounding box
+const MIN_HIT = 64; // px minimum hit-rect side length
+const HIT_PAD_ROUTE = 18; // px extra around a route's pin-to-pin bbox (kept
+// modest so route hit areas don't swallow nearby component hit areas)
 
 export interface EditorCanvasHandle {
   fitToContent: () => void;
@@ -124,8 +132,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   // ── Route rendering hook ────────────────────────────────────────────────────
   const { routeQueries, routeSvg } = useRouteRendering(state, doc, drag, dispatch);
 
-  // ── Drop handling hook ──────────────────────────────────────────────────────
-  const { dropPrev, onDrop: _onDrop, onDragOver: _onDragOver, onDragLeave } = useDropHandling(dispatch);
+  // ── Drop handling hook ───────────────────────────────────────────────────────
+  const { dropPrev, onDrop, onDragOver, onDragLeave } = useDropHandling(dispatch);
 
   const pinQueries = useQueries({
     queries: state.placements.map((p) => componentPinsQueryOptions(p.componentId, p.params)),
@@ -268,6 +276,150 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     fitToContent, zoomToSelection, cancelDrag,
   ]);
 
+  // hTicks and vTicks come from useCanvasViewport (vp) — no local re-declaration needed
+
+  // Shared placement interaction handlers — used by both the visual glyph
+  // layer and the top-level hit-area layer so behavior stays consistent.
+  const makePlacementHandlers = useCallback(
+    (p: Placement) => ({
+      onPointerDown: (e: React.PointerEvent) => {
+        if (state.tool === "pan") return; // let SVG pan handler take over
+        e.stopPropagation();
+        if (e.shiftKey) {
+          dispatch({ type: "TOGGLE_SELECT", item: { kind: "placement", id: p.id } });
+        } else {
+          dispatch({ type: "SELECT", selection: [{ kind: "placement", id: p.id }] });
+        }
+        if (p.locked) return;
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const sc = w2s(p.x, p.y);
+        setDrag({
+          mode: "move",
+          id: p.id,
+          offsetX: e.clientX - rect.left - sc.px,
+          offsetY: e.clientY - rect.top - sc.py,
+        });
+        setDragStartPos({ id: p.id, x: p.x, y: p.y });
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      },
+      onPinClick: (pin: string) =>
+        dispatch({
+          type: "PIN_CLICK",
+          placementId: p.id,
+          pinName: pin,
+          defaultRouteComponentId: "RouteMeander",
+        }),
+      onRename: (name: string) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { name } }),
+      onContextMenu: (e: React.MouseEvent) => {
+        e.preventDefault();
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const selIds = state.selection
+          .filter((s): s is { kind: "placement"; id: string } => s.kind === "placement")
+          .map((s) => s.id);
+        const multi = selIds.length > 1 && selIds.includes(p.id);
+        setContextMenu({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+          items: [
+            {
+              label: "Select similar",
+              action: () => {
+                const similar = state.placements
+                  .filter((pl) => pl.componentId === p.componentId)
+                  .map((pl) => ({ kind: "placement" as const, id: pl.id }));
+                dispatch({ type: "SELECT", selection: similar });
+              },
+            },
+            {
+              label: multi ? "Duplicate selected" : "Duplicate",
+              action: () => {
+                if (multi) {
+                  selIds.forEach((id) => dispatch({ type: "DUPLICATE_PLACEMENT", id }));
+                } else {
+                  dispatch({ type: "DUPLICATE_PLACEMENT", id: p.id });
+                }
+              },
+            },
+            {
+              label: multi ? "Rotate 90°" : "Rotate 90°",
+              action: () => {
+                const targets = multi ? selIds : [p.id];
+                targets.forEach((id) => {
+                  const pl = state.placements.find((x) => x.id === id);
+                  if (pl) {
+                    dispatch({
+                      type: "UPDATE_PLACEMENT",
+                      id: pl.id,
+                      patch: { rotation: (pl.rotation + 90) % 360 },
+                    });
+                  }
+                });
+              },
+            },
+            {
+              label: multi ? "Mirror selected" : "Mirror",
+              action: () => {
+                const targets = multi ? selIds : [p.id];
+                targets.forEach((id) => dispatch({ type: "MIRROR_PLACEMENT", id }));
+              },
+            },
+            {
+              label: multi ? "Delete selected" : "Delete",
+              action: () => {
+                const targets = multi ? [...selIds] : [p.id];
+                targets.forEach((id) => dispatch({ type: "DELETE_PLACEMENT", id }));
+              },
+              destructive: true,
+            },
+          ],
+        });
+      },
+    }),
+    [state.tool, state.selection, state.placements, dispatch, w2s],
+  );
+
+  // Shared connection interaction handlers — used by both the route visual
+  // layer and the top-level route hit-area layer.
+  const makeConnectionHandlers = useCallback(
+    (c: Connection) => ({
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (e.shiftKey) {
+          dispatch({ type: "TOGGLE_SELECT", item: { kind: "connection", id: c.id } });
+        } else {
+          dispatch({ type: "SELECT", selection: [{ kind: "connection", id: c.id }] });
+        }
+      },
+      onContextMenu: (e: React.MouseEvent) => {
+        e.preventDefault();
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        setContextMenu({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+          items: [
+            {
+              label: c.locked ? "Unlock route" : "Lock route",
+              action: () =>
+                dispatch({
+                  type: c.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
+                  id: c.id,
+                }),
+            },
+            {
+              label: "Delete",
+              action: () => dispatch({ type: "DELETE_CONNECTION", id: c.id }),
+              destructive: true,
+            },
+          ],
+        });
+      },
+    }),
+    [dispatch],
+  );
+
   return (
     <div
       ref={containerRef}
@@ -287,9 +439,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         onPointerCancel={onPUp}
         onWheel={onWheel}
         onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-        onDragOver={(e) => _onDragOver(e, svgRef, s2w, state.snap)}
+        onDragOver={(e) => onDragOver(e, svgRef, s2w, state.snap)}
         onDragLeave={onDragLeave}
-        onDrop={(e) => _onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
+        onDrop={(e) => onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
       >
         <defs>
           <clipPath id="boardClip">
@@ -340,7 +492,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
 
           {/* Snap-aligned grid inside board */}
           {state.showGrid && (
-            <g opacity={Math.min(1, state.snap * 10)}>
+            <g opacity={Math.min(1, state.snap * 10)} style={{ pointerEvents: "none" }}>
               {(() => {
                 const step = state.snap;
                 const els = [];
@@ -400,6 +552,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             />
           )}
 
+          {/* ── Z-ORDER LAYERING FOR SELECTION ──────────────────────────────
+              1. Visual glyphs (labels, pin dots, lock icons) — no big hit areas
+              2. Route visuals + a MODEST route hit-rect
+              3. Component hit-areas (large, generous) — always on TOP so a
+                 click anywhere near a component wins over nearby wires/grid.
+             ─────────────────────────────────────────────────────────────── */}
+
+          {/* 1. Visual glyphs only (labels, pins, lock icon, hover tooltip) */}
           {state.placements.map((p, i) => (
             <PlacementGlyph
               key={p.id}
@@ -414,107 +574,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               w2s={w2s}
               scale={scale}
               uiScale={getUiScale(p)}
-              onPointerDown={(e) => {
-                if (state.tool === "pan") return; // let SVG pan handler take over
-                e.stopPropagation();
-                if (e.shiftKey) {
-                  dispatch({ type: "TOGGLE_SELECT", item: { kind: "placement", id: p.id } });
-                } else {
-                  dispatch({ type: "SELECT", selection: [{ kind: "placement", id: p.id }] });
-                }
-                if (p.locked) return;
-                const rect = svgRef.current?.getBoundingClientRect();
-                if (!rect) return;
-                const sc = w2s(p.x, p.y);
-                setDrag({
-                  mode: "move",
-                  id: p.id,
-                  offsetX: e.clientX - rect.left - sc.px,
-                  offsetY: e.clientY - rect.top - sc.py,
-                });
-                setDragStartPos({ id: p.id, x: p.x, y: p.y });
-                (e.currentTarget as Element).setPointerCapture(e.pointerId);
-              }}
-              onPinClick={(pin) =>
-                dispatch({
-                  type: "PIN_CLICK",
-                  placementId: p.id,
-                  pinName: pin,
-                  defaultRouteComponentId: "RouteMeander",
-                })
-              }
-              onRename={(name) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { name } })}
               overlapping={overlappingIds.has(p.id)}
-              onHoverStart={() => setHovered(p.id)}
-              onHoverEnd={() => setHovered(null)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                const rect = containerRef.current?.getBoundingClientRect();
-                if (!rect) return;
-                const selIds = state.selection
-                  .filter((s): s is { kind: "placement"; id: string } => s.kind === "placement")
-                  .map((s) => s.id);
-                const multi = selIds.length > 1 && selIds.includes(p.id);
-                setContextMenu({
-                  x: e.clientX - rect.left,
-                  y: e.clientY - rect.top,
-                  items: [
-                    {
-                      label: "Select similar",
-                      action: () => {
-                        const similar = state.placements
-                          .filter((pl) => pl.componentId === p.componentId)
-                          .map((pl) => ({ kind: "placement" as const, id: pl.id }));
-                        dispatch({ type: "SELECT", selection: similar });
-                      },
-                    },
-                    {
-                      label: multi ? "Duplicate selected" : "Duplicate",
-                      action: () => {
-                        if (multi) {
-                          selIds.forEach((id) => dispatch({ type: "DUPLICATE_PLACEMENT", id }));
-                        } else {
-                          dispatch({ type: "DUPLICATE_PLACEMENT", id: p.id });
-                        }
-                      },
-                    },
-                    {
-                      label: multi ? "Rotate 90°" : "Rotate 90°",
-                      action: () => {
-                        const targets = multi ? selIds : [p.id];
-                        targets.forEach((id) => {
-                          const pl = state.placements.find((x) => x.id === id);
-                          if (pl) {
-                            dispatch({
-                              type: "UPDATE_PLACEMENT",
-                              id: pl.id,
-                              patch: { rotation: (pl.rotation + 90) % 360 },
-                            });
-                          }
-                        });
-                      },
-                    },
-                    {
-                      label: multi ? "Mirror selected" : "Mirror",
-                      action: () => {
-                        const targets = multi ? selIds : [p.id];
-                        targets.forEach((id) => dispatch({ type: "MIRROR_PLACEMENT", id }));
-                      },
-                    },
-                    {
-                      label: multi ? "Delete selected" : "Delete",
-                      action: () => {
-                        const targets = multi ? [...selIds] : [p.id];
-                        targets.forEach((id) => dispatch({ type: "DELETE_PLACEMENT", id }));
-                      },
-                      destructive: true,
-                    },
-                  ],
-                });
-              }}
             />
           ))}
 
+          {/* 2. Route visuals + modest hit-rects (sit below component hit areas) */}
           {state.showConnections && state.connections.map((c) => {
             const a = state.placements.find((x) => x.id === c.from.placementId),
               b = state.placements.find((x) => x.id === c.to.placementId);
@@ -525,66 +589,65 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             const pa = fromPinPos ? w2s(fromPinPos.x, fromPinPos.y) : w2s(a.x, a.y);
             const pb = toPinPos ? w2s(toPinPos.x, toPinPos.y) : w2s(b.x, b.y);
             const rsvg = routeSvg.get(c.id);
+            const handlers = makeConnectionHandlers(c);
             if (rsvg) {
               const sc = scale * MM_TO_PX * UM_TO_MM,
                 { px, py } = w2s(0, 0);
+
+              // Bounding box of the route in screen coords for the hit rect.
+              // Kept modest (HIT_PAD_ROUTE) so it doesn't overwhelm nearby
+              // component hit-areas, which render afterwards and win ties.
+              const rxMin = Math.min(pa.px, pb.px) - HIT_PAD_ROUTE;
+              const ryMin = Math.min(pa.py, pb.py) - HIT_PAD_ROUTE;
+              const rxW   = Math.abs(pb.px - pa.px) + HIT_PAD_ROUTE * 2;
+              const ryH   = Math.abs(pb.py - pa.py) + HIT_PAD_ROUTE * 2;
+
               return (
                 <g
                   key={c.id}
                   className="cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (e.shiftKey) {
-                      dispatch({ type: "TOGGLE_SELECT", item: { kind: "connection", id: c.id } });
-                    } else {
-                      dispatch({ type: "SELECT", selection: [{ kind: "connection", id: c.id }] });
-                    }
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    setContextMenu({
-                      x: e.clientX - rect.left,
-                      y: e.clientY - rect.top,
-                      items: [
-                        {
-                          label: c.locked ? "Unlock route" : "Lock route",
-                          action: () =>
-                            dispatch({
-                              type: c.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
-                              id: c.id,
-                            }),
-                        },
-                        {
-                          label: "Delete",
-                          action: () => dispatch({ type: "DELETE_CONNECTION", id: c.id }),
-                          destructive: true,
-                        },
-                      ],
-                    });
-                  }}
+                  onClick={handlers.onClick}
+                  onContextMenu={handlers.onContextMenu}
                 >
+                  {/* Modest invisible hit rect covering the meander bounding box */}
+                  <rect
+                    x={rxMin} y={ryMin}
+                    width={Math.max(rxW, 32)} height={Math.max(ryH, 32)}
+                    fill="transparent" stroke="none"
+                  />
                   {isSel && (
                     <g
                       transform={`translate(${px} ${py}) scale(${sc} ${-sc})`}
                       opacity={0.3}
+                      style={{ pointerEvents: "none" }}
                       dangerouslySetInnerHTML={{ __html: rsvg }}
                     />
                   )}
                   <g
                     transform={`translate(${px} ${py}) scale(${sc} ${-sc})`}
                     opacity={isSel ? 1 : 0.9}
+                    style={{ pointerEvents: "none" }}
                     dangerouslySetInnerHTML={{ __html: rsvg }}
                   />
+                  {/* Selection highlight border */}
+                  {isSel && (
+                    <rect
+                      x={rxMin - 2} y={ryMin - 2}
+                      width={Math.max(rxW, 32) + 4} height={Math.max(ryH, 32) + 4}
+                      rx={6} fill="none"
+                      stroke="var(--primary)" strokeOpacity={0.35}
+                      strokeWidth={2} strokeDasharray="4 2"
+                      style={{ pointerEvents: "none" }}
+                    />
+                  )}
                   {c.locked && (
-                    <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}>
+                    <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
                       <rect x={-6} y={-7} width={12} height={10} rx={2} fill="#64748b" />
                       <rect x={-3} y={-10} width={6} height={5} rx={1} fill="none" stroke="#64748b" strokeWidth={1.5} />
                     </g>
                   )}
                   {/* Direction arrow at midpoint */}
-                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}>
+                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
                     <polygon
                       points="0,-4 3,2 -3,2"
                       fill={isSel ? "var(--primary)" : "#5B9BD5"}
@@ -597,6 +660,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             }
             return (
               <g key={c.id}>
+                {/* Modest transparent stroke for clicking on thin wire */}
+                <path
+                  d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
+                  stroke="transparent"
+                  strokeWidth={Math.max(8, HIT_PAD_ROUTE)}
+                  fill="none"
+                  className="cursor-pointer"
+                  onClick={handlers.onClick}
+                  onContextMenu={handlers.onContextMenu}
+                />
                 {isSel && (
                   <path
                     d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
@@ -604,6 +677,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                     strokeWidth={8}
                     strokeOpacity={0.2}
                     fill="none"
+                    style={{ pointerEvents: "none" }}
                   />
                 )}
                 <path
@@ -612,48 +686,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                   strokeWidth={isSel ? 2.5 : 1.8}
                   strokeDasharray={routeQueries.some((q) => q.isLoading) ? "6 4" : c.locked ? "4 2" : "none"}
                   fill="none"
-                  className="cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (e.shiftKey) {
-                      dispatch({ type: "TOGGLE_SELECT", item: { kind: "connection", id: c.id } });
-                    } else {
-                      dispatch({ type: "SELECT", selection: [{ kind: "connection", id: c.id }] });
-                    }
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    setContextMenu({
-                      x: e.clientX - rect.left,
-                      y: e.clientY - rect.top,
-                      items: [
-                        {
-                          label: c.locked ? "Unlock route" : "Lock route",
-                          action: () =>
-                            dispatch({
-                              type: c.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
-                              id: c.id,
-                            }),
-                        },
-                        {
-                          label: "Delete",
-                          action: () => dispatch({ type: "DELETE_CONNECTION", id: c.id }),
-                          destructive: true,
-                        },
-                      ],
-                    });
-                  }}
+                  style={{ pointerEvents: "none" }}
                 />
                 {c.locked && (
-                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}>
+                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
                     <rect x={-6} y={-7} width={12} height={10} rx={2} fill="#64748b" />
                     <rect x={-3} y={-10} width={6} height={5} rx={1} fill="none" stroke="#64748b" strokeWidth={1.5} />
                   </g>
                 )}
                 {/* Direction arrow at midpoint */}
-                <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}>
+                <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
                   <polygon
                     points="0,-4 3,2 -3,2"
                     fill={isSel ? "var(--primary)" : "#5B9BD5"}
@@ -672,6 +714,31 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                   {routeQueries.some((q) => q.isLoading) ? "rendering…" : `${a.name}→${b.name}`}
                 </text>
               </g>
+            );
+          })}
+
+          {/* 3. Component hit-areas — rendered LAST so they sit on top of
+                 route hit-rects and the grid, guaranteeing components win
+                 selection priority. Large, generous padding (HIT_PAD/MIN_HIT). */}
+          {state.placements.map((p, i) => {
+            const handlers = makePlacementHandlers(p);
+            return (
+              <PlacementHitArea
+                key={`hit-${p.id}`}
+                placement={p}
+                componentId={p.componentId}
+                pins={pinQueries[i]?.data?.pins ?? []}
+                w2s={w2s}
+                scale={scale}
+                uiScale={getUiScale(p)}
+                selected={isSelected(state.selection, "placement", p.id)}
+                onPointerDown={handlers.onPointerDown}
+                onPinClick={handlers.onPinClick}
+                onRename={handlers.onRename}
+                onHoverStart={() => setHovered(p.id)}
+                onHoverEnd={() => setHovered(null)}
+                onContextMenu={handlers.onContextMenu}
+              />
             );
           })}
         </g>
@@ -710,7 +777,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         {state.showRulers && (
         <>
         {/* Horizontal board ruler */}
-        <g>
+        <g style={{ pointerEvents: "none" }}>
           <rect
             x={left}
             y={top - RULER_B}
@@ -751,7 +818,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         </g>
 
         {/* Vertical board ruler */}
-        <g>
+        <g style={{ pointerEvents: "none" }}>
           <rect
             x={left - RULER_L}
             y={top}
@@ -793,7 +860,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
 
         {/* Cursor crosshair on rulers */}
         {cursorPos && (
-          <g>
+          <g style={{ pointerEvents: "none" }}>
             <line
               x1={w2s(cursorPos.x, 0).px}
               y1={top}
@@ -818,7 +885,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         )}
 
         {/* Corner mm unit label */}
-        <g>
+        <g style={{ pointerEvents: "none" }}>
           <rect
             x={left - RULER_L}
             y={top - RULER_B}
@@ -892,7 +959,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         cx={cx}
         cy={cy}
         scale={scale}
+        visible={state.showMiniMap}
         onPan={(x, y) => dispatch({ type: "PAN", x, y })}
+        onClose={() => dispatch({ type: "TOGGLE_MINIMAP" })}
       />
 
       {/* Global Dimension Indicator & Selection HUD */}
@@ -1146,3 +1215,618 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   );
 });
 
+function PlacementPreview({
+  placement,
+  w2s,
+  scale,
+  uiScale,
+}: {
+  placement: Placement;
+  w2s: (x: number, y: number) => { px: number; py: number };
+  scale: number;
+  uiScale: number;
+}) {
+  const q = useQuery(componentPreviewQueryOptions(placement.componentId, placement.params));
+  const p = q.data;
+  const { px, py } = w2s(placement.x, placement.y);
+  const mx = placement.mirrorX ? -1 : 1;
+  if (!p?.svg) {
+    const s = Math.max(36, 0.6 * MM_TO_PX * scale * uiScale),
+      h = s / 2;
+    return (
+      <g
+        transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}
+        style={{ pointerEvents: "none" }}
+      >
+        <rect
+          x={-h}
+          y={-h}
+          width={s}
+          height={s}
+          rx={4}
+          fill="color-mix(in oklab, var(--primary) 5%, transparent)"
+          stroke="color-mix(in oklab, var(--foreground) 30%, transparent)"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+        />
+      </g>
+    );
+  }
+  const sc = scale * MM_TO_PX * (p.units === "um" ? UM_TO_MM : 1) * uiScale;
+  const vb = p.viewBox;
+  return (
+    <g
+      transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}
+      style={{ pointerEvents: "none" }}
+    >
+      <g
+        transform={`scale(${sc} ${-sc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
+        dangerouslySetInnerHTML={{ __html: p.svg }}
+        style={{ transition: "transform 0.12s ease", pointerEvents: "none" }}
+      />
+    </g>
+  );
+}
+
+function DropGhost({
+  componentId,
+  x,
+  y,
+  w2s,
+  scale,
+}: {
+  componentId: string;
+  x: number;
+  y: number;
+  w2s: (x: number, y: number) => { px: number; py: number };
+  scale: number;
+}) {
+  const q = useQuery(componentPreviewQueryOptions(componentId));
+  const p = q.data;
+  const { px, py } = w2s(x, y);
+  if (!p?.svg) {
+    const s = Math.max(36, 0.6 * MM_TO_PX * scale),
+      h = s / 2;
+    return (
+      <g className="pointer-events-none" transform={`translate(${px} ${py})`}>
+        <rect
+          x={-h}
+          y={-h}
+          width={s}
+          height={s}
+          rx={4}
+          fill="color-mix(in oklab, var(--primary) 10%, transparent)"
+          stroke="var(--primary)"
+          strokeDasharray="5 4"
+          strokeOpacity={0.65}
+        />
+      </g>
+    );
+  }
+  const sc = scale * MM_TO_PX * (p.units === "um" ? UM_TO_MM : 1),
+    vb = p.viewBox;
+  return (
+    <g className="pointer-events-none" opacity={0.72}>
+      <g transform={`translate(${px} ${py})`}>
+        <g
+          transform={`scale(${sc} ${-sc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
+          dangerouslySetInnerHTML={{ __html: p.svg }}
+        />
+      </g>
+      <circle
+        cx={px}
+        cy={py}
+        r={4}
+        fill="var(--primary)"
+        stroke="var(--background)"
+        strokeWidth={1.5}
+      />
+    </g>
+  );
+}
+
+/**
+ * Visual-only glyph layer: name label, component-id label, lock icon,
+ * overlap/selection outline, and hover tooltip. Carries NO large hit
+ * rectangle of its own — selection & dragging are handled by
+ * `PlacementHitArea`, which renders afterwards (on top) with a generous
+ * hitbox. This split lets us guarantee component hit-areas always win
+ * over routes/grid in z-order while keeping visuals in their natural
+ * paint position.
+ */
+function PlacementGlyph({
+  placement,
+  componentId,
+  selected,
+  hovered,
+  overlapping,
+  pendingOwner,
+  pendingPin,
+  pins,
+  showComponentIds,
+  w2s,
+  scale,
+  uiScale,
+}: {
+  placement: Placement;
+  componentId: string;
+  selected: boolean;
+  hovered: boolean;
+  overlapping: boolean;
+  pendingOwner: string | null;
+  pendingPin: string | null;
+  pins: PinSpec[];
+  showComponentIds: boolean;
+  w2s: (x: number, y: number) => { px: number; py: number };
+  scale: number;
+  uiScale: number;
+}) {
+  const q = useQuery(componentPreviewQueryOptions(componentId, placement.params));
+  const vb = q.data?.viewBox;
+  const um = q.data?.units === "um" ? UM_TO_MM : 1;
+  const sz = vb
+    ? Math.max(vb.w, vb.h) * um * MM_TO_PX * scale * uiScale
+    : Math.max(28, 0.5 * MM_TO_PX * scale);
+
+  const { px, py } = w2s(placement.x, placement.y),
+    half = sz / 2;
+  const isPO = pendingOwner === placement.id;
+
+  return (
+    <g
+      transform={`translate(${px} ${py}) rotate(${-placement.rotation})`}
+      style={{ pointerEvents: "none" }}
+    >
+      {overlapping && (
+        <rect
+          x={-half - 8}
+          y={-half - 8}
+          width={sz + 16}
+          height={sz + 16}
+          rx={6}
+          fill="none"
+          stroke="#ef4444"
+          strokeOpacity={0.6}
+          strokeWidth={2}
+          strokeDasharray="4 2"
+        />
+      )}
+      {placement.locked && (
+        <g transform={`translate(${half - 8} ${-half + 2})`}>
+          <rect x={-4} y={-2} width={10} height={8} rx={1} fill="#64748b" />
+          <rect x={-2} y={-5} width={6} height={4} rx={1} fill="none" stroke="#64748b" strokeWidth={1.2} />
+        </g>
+      )}
+      <text
+        x={0}
+        y={half + 14}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+        fill="var(--foreground)"
+        className="select-none"
+      >
+        {placement.name}
+      </text>
+      {showComponentIds && (
+        <text
+          x={0}
+          y={half + 26}
+          textAnchor="middle"
+          fontSize={8}
+          fill="var(--muted-foreground)"
+          className="select-none"
+        >
+          {componentId}
+        </text>
+      )}
+      {placement.locked && (
+        <g transform={`translate(${-half + 4} ${-half + 4})`}>
+          <circle r={6} fill="var(--amber-500)" stroke="var(--foreground)" strokeWidth={1} />
+          <text y={3} textAnchor="middle" fontSize={7} fontWeight={700} fill="var(--foreground)">L</text>
+        </g>
+      )}
+      {hovered && (
+        <g transform={`translate(${half + 8} ${-half})`}>
+          <rect x={0} y={0} width={140} height={42} rx={4} fill="var(--card)" stroke="var(--border)" strokeWidth={1} opacity={0.95} />
+          <text x={6} y={14} fontSize={9} fontWeight={700} fill="var(--foreground)">{placement.componentId}</text>
+          <text x={6} y={28} fontSize={8} fill="var(--muted-foreground)">
+            {Object.entries(placement.params).slice(0, 2).map(([k, v]) => `${k}=${v}`).join(" ")}
+          </text>
+          <text x={6} y={38} fontSize={8} fill="var(--muted-foreground)">x:{placement.x.toFixed(2)} y:{placement.y.toFixed(2)}</text>
+        </g>
+      )}
+      {/* Pin name labels (dots themselves are interactive, drawn in PlacementHitArea) */}
+      {selected && pins.map((pin) => {
+        const cx = pin.hint.x * UM_TO_MM * MM_TO_PX * scale,
+          cy = -pin.hint.y * UM_TO_MM * MM_TO_PX * scale;
+        return (
+          <text
+            key={pin.name}
+            x={cx + 6}
+            y={cy + 3}
+            fontSize={8}
+            fill="var(--foreground)"
+            fontWeight={700}
+            className="select-none"
+          >
+            {pin.name}
+          </text>
+        );
+      })}
+    </g>
+  );
+}
+
+/**
+ * Interactive hit-area layer for a placement. Renders LAST (topmost) so
+ * that clicking anywhere within a generous padded bounding box around the
+ * component — even over a route or the background grid — selects and lets
+ * the user drag the component. Also renders the rename text-edit field,
+ * selection/hover outlines, and pin click targets, all of which need to be
+ * interactive.
+ */
+function PlacementHitArea({
+  placement,
+  componentId,
+  pins,
+  w2s,
+  scale,
+  uiScale,
+  selected,
+  onPointerDown,
+  onPinClick,
+  onRename,
+  onHoverStart,
+  onHoverEnd,
+  onContextMenu,
+}: {
+  placement: Placement;
+  componentId: string;
+  pins: PinSpec[];
+  w2s: (x: number, y: number) => { px: number; py: number };
+  scale: number;
+  uiScale: number;
+  selected: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPinClick: (p: string) => void;
+  onRename: (name: string) => void;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+}) {
+  const [editingName, setEditingName] = useState(false);
+  const q = useQuery(componentPreviewQueryOptions(componentId, placement.params));
+  const vb = q.data?.viewBox;
+  const um = q.data?.units === "um" ? UM_TO_MM : 1;
+  const sz = vb
+    ? Math.max(vb.w, vb.h) * um * MM_TO_PX * scale * uiScale
+    : Math.max(28, 0.5 * MM_TO_PX * scale);
+
+  // ── Hit area calculation ──────────────────────────────────────────────────
+  // PlacementPreview renders the SVG centered on the viewBox center, which is
+  // at screen position (px, py). But the viewBox center in SVG coords is
+  //   (vb.x + vb.w/2,  vb.y + vb.h/2)
+  // and the scale transform is scale(sc, -sc) — y is flipped.
+  // So the hit rect must be offset by the same amount, in screen pixels.
+  const sc = vb ? (scale * MM_TO_PX * um * uiScale) : 1;
+  const vbOffX = vb ? (vb.x + vb.w / 2) * sc : 0;
+  const vbOffY = vb ? -(vb.y + vb.h / 2) * sc : 0;
+  // Generous hit rect dimensions — large padding + minimum so resonators,
+  // couplers, and thin meander shapes are all easy to click.
+  const hitW = vb
+    ? Math.max(MIN_HIT, vb.w * sc + HIT_PAD * 2)
+    : Math.max(MIN_HIT, sz + HIT_PAD * 2);
+  const hitH = vb
+    ? Math.max(MIN_HIT, vb.h * sc + HIT_PAD * 2)
+    : hitW;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const { px, py } = w2s(placement.x, placement.y),
+    half = sz / 2;
+
+  return (
+    <g
+      transform={`translate(${px} ${py}) rotate(${-placement.rotation})`}
+      className={cn("cursor-grab", selected && "cursor-grabbing")}
+      role="button"
+      aria-label={`${placement.name} (${componentId}) at ${placement.x.toFixed(2)}, ${placement.y.toFixed(2)} mm`}
+      onPointerDown={onPointerDown}
+      onPointerEnter={onHoverStart}
+      onPointerLeave={onHoverEnd}
+      onContextMenu={onContextMenu}
+    >
+      <title>{`${placement.name} (${componentId})\nX: ${placement.x.toFixed(3)} mm, Y: ${placement.y.toFixed(3)} mm\nRotation: ${placement.rotation}°${placement.mirrorX ? ", Mirrored" : ""}${placement.locked ? " [Locked]" : ""}`}</title>
+      {/* Large invisible hit area — generous padding, easy to click anywhere
+          near the component. fill="transparent" (NOT "none") so it remains
+          a valid pointer target. */}
+      <rect
+        x={vbOffX - hitW / 2}
+        y={vbOffY - hitH / 2}
+        width={hitW}
+        height={hitH}
+        fill="transparent"
+        stroke="none"
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setEditingName(true);
+        }}
+      />
+      {selected && (
+        <rect
+          x={vbOffX - hitW / 2 + 4}
+          y={vbOffY - hitH / 2 + 4}
+          width={hitW - 8}
+          height={hitH - 8}
+          rx={6}
+          fill="none"
+          stroke="var(--primary)"
+          strokeOpacity={0.5}
+          strokeWidth={2}
+          strokeDasharray="3 2"
+          style={{ pointerEvents: "none" }}
+        />
+      )}
+      {!selected && (
+        <rect
+          x={vbOffX - hitW / 2 + 4}
+          y={vbOffY - hitH / 2 + 4}
+          width={hitW - 8}
+          height={hitH - 8}
+          rx={6}
+          fill="none"
+          stroke="var(--primary)"
+          strokeOpacity={0}
+          strokeWidth={1.5}
+          className="hover:[stroke-opacity:0.2]"
+          style={{ pointerEvents: "none" }}
+        />
+      )}
+      {editingName && (
+        <foreignObject x={-60} y={half + 4} width={120} height={22} style={{ pointerEvents: "auto" }}>
+          <input
+            type="text"
+            defaultValue={placement.name}
+            autoFocus
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v) onRename(v);
+              setEditingName(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const v = (e.currentTarget as HTMLInputElement).value.trim();
+                if (v) onRename(v);
+                setEditingName(false);
+              } else if (e.key === "Escape") {
+                setEditingName(false);
+              }
+            }}
+            className="h-5 w-full rounded border border-primary bg-background px-1 text-[10px] font-bold text-foreground outline-none"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </foreignObject>
+      )}
+      {pins.map((pin) => {
+        const cx = pin.hint.x * UM_TO_MM * MM_TO_PX * scale,
+          cy = -pin.hint.y * UM_TO_MM * MM_TO_PX * scale;
+        return (
+          <g key={pin.name}>
+            {/* Larger invisible pin hit target so pins are easy to click too */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={10}
+              fill="transparent"
+              className="cursor-crosshair"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onPinClick(pin.name);
+              }}
+            />
+            <circle
+              cx={cx}
+              cy={cy}
+              r={3.5}
+              fill={selected ? "var(--primary)" : "var(--muted-foreground)"}
+              stroke="var(--background)"
+              strokeWidth={1}
+              style={{ pointerEvents: "none" }}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function MiniMap({
+  placements,
+  connections,
+  selection,
+  size,
+  cx,
+  cy,
+  scale,
+  visible,
+  onPan,
+  onClose,
+}: {
+  placements: Placement[];
+  connections: Connection[];
+  selection: Selection;
+  size: { w: number; h: number };
+  cx: number;
+  cy: number;
+  scale: number;
+  visible: boolean;
+  onPan: (x: number, y: number) => void;
+  onClose: () => void;
+}) {
+  const W = 160;
+  const H = 100;
+  const PAD = 4;
+  const mapScale = Math.min((W - PAD * 2) / CHIP_W_MM, (H - PAD * 2) / CHIP_H_MM);
+  const ox = (W - CHIP_W_MM * mapScale) / 2;
+  const oy = (H - CHIP_H_MM * mapScale) / 2;
+
+  // Draggable panel position
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  const w2m = (wx: number, wy: number) => ({
+    mx: ox + (wx + CHIP_HALF_W) * mapScale,
+    my: H - (oy + (wy + CHIP_HALF_H) * mapScale),
+  });
+
+  // Visible world bounds
+  const visLeft = (0 - cx) / (MM_TO_PX * scale);
+  const visRight = (size.w - cx) / (MM_TO_PX * scale);
+  const visTop = (0 - cy) / (MM_TO_PX * scale);
+  const visBottom = (size.h - cy) / (MM_TO_PX * scale);
+
+  const a = w2m(visLeft, visTop);
+  const b = w2m(visRight, visBottom);
+  const selSet = new Set(selection.filter((s) => s.kind === "placement").map((s) => s.id));
+
+  const onSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const wx = (sx - ox) / mapScale - CHIP_HALF_W;
+    const wy = -(sy - H + oy) / mapScale - CHIP_HALF_H;
+    onPan(-wx * MM_TO_PX * scale + size.w / 2, -wy * MM_TO_PX * scale + size.h / 2);
+  };
+
+  const onDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only drag from the header bar, not the SVG
+    if ((e.target as HTMLElement).closest("svg, button")) return;
+    e.preventDefault();
+    const panel = panelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    dragState.current = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top };
+
+    const onMove = (me: MouseEvent) => {
+      if (!dragState.current) return;
+      const dx = me.clientX - dragState.current.startX;
+      const dy = me.clientY - dragState.current.startY;
+      setPos({ left: dragState.current.origLeft + dx, top: dragState.current.origTop + dy });
+    };
+    const onUp = () => {
+      dragState.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const panelStyle: React.CSSProperties = pos
+    ? { position: "fixed", left: pos.left, top: pos.top, right: "auto", bottom: "auto" }
+    : { position: "absolute", top: 12, right: 12 };
+
+  return (
+    <div
+      ref={panelRef}
+      onMouseDown={onDragStart}
+      style={{
+        ...panelStyle,
+        width: W + 2,       // +2 for border
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateX(0) scale(1)" : "translateX(24px) scale(0.95)",
+        pointerEvents: visible ? "auto" : "none",
+        transition: "opacity 220ms ease, transform 220ms ease",
+        zIndex: 50,
+        borderRadius: 8,
+        border: "1px solid var(--border)",
+        background: "var(--card)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+        backdropFilter: "blur(8px)",
+        cursor: "grab",
+        userSelect: "none",
+      }}
+      aria-hidden={!visible}
+    >
+      {/* Drag handle / header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "3px 4px 2px 7px",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.03em", lineHeight: 1.4 }}>
+          TOP VIEW
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 18, height: 18, borderRadius: 4, border: "none",
+            background: "transparent", cursor: "pointer", color: "var(--muted-foreground)",
+            transition: "background 150ms",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "var(--destructive)/10")}
+          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          title="Close Top View"
+          aria-label="Close Top View panel"
+        >
+          <X style={{ width: 10, height: 10 }} />
+        </button>
+      </div>
+
+      {/* SVG map */}
+      <div style={{ padding: 2 }}>
+        <svg
+          width={W}
+          height={H}
+          style={{ display: "block", cursor: "crosshair" }}
+          role="img"
+          aria-label="Mini-map overview"
+          onClick={onSvgClick}
+          onMouseDown={e => e.stopPropagation()}  // prevent drag when clicking map
+        >
+          {/* Chip bounds */}
+          <rect
+            x={ox} y={oy}
+            width={CHIP_W_MM * mapScale} height={CHIP_H_MM * mapScale}
+            fill="var(--muted)" stroke="var(--border)" strokeWidth={1} rx={2}
+          />
+          {/* Connections */}
+          {connections.map((c) => {
+            const pa_ = placements.find((p) => p.id === c.from.placementId);
+            const pb_ = placements.find((p) => p.id === c.to.placementId);
+            if (!pa_ || !pb_) return null;
+            const pa = w2m(pa_.x, pa_.y);
+            const pb = w2m(pb_.x, pb_.y);
+            return (
+              <line key={c.id} x1={pa.mx} y1={pa.my} x2={pb.mx} y2={pb.my}
+                stroke="var(--border)" strokeWidth={0.5} opacity={0.5} />
+            );
+          })}
+          {/* Placements */}
+          {placements.map((p) => {
+            const { mx, my } = w2m(p.x, p.y);
+            const isSel = selSet.has(p.id);
+            return (
+              <circle key={p.id} cx={mx} cy={my} r={isSel ? 2.5 : 1.5}
+                fill={isSel ? "var(--primary)" : "var(--foreground)"}
+                opacity={isSel ? 1 : 0.5} />
+            );
+          })}
+          {/* Viewport rectangle */}
+          <rect
+            x={Math.min(a.mx, b.mx)} y={Math.min(a.my, b.my)}
+            width={Math.abs(b.mx - a.mx)} height={Math.abs(b.my - a.my)}
+            fill="none" stroke="var(--primary)" strokeWidth={1} opacity={0.6}
+            pointerEvents="none"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}
