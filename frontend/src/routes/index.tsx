@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { BLOG_POSTS } from "@/data/blog-posts";
 import { motion, useScroll, useTransform } from "motion/react";
 import {
   ArrowRight,
@@ -317,21 +318,31 @@ function LandingPage() {
         tone="elevated"
       >
         <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {POSTS.map((p) => (
-            <a
-              key={p.title}
-              href="#"
+          {BLOG_POSTS.slice(0, 4).map((p) => (
+            <Link
+              key={p.slug}
+              to="/blog/$slug"
+              params={{ slug: p.slug }}
               className="group rounded-2xl border border-border bg-card p-5 transition-all hover:-translate-y-1 hover:shadow-[0_20px_60px_-20px_rgba(242,107,58,0.25)]"
               style={{ boxShadow: "var(--shadow-card)" }}
             >
-              <div className="aspect-[16/9] w-full rounded-lg bg-gradient-to-br from-[#0A0A0F] via-[#8A7B25] to-[#F26B3A]" />
+              <div className="aspect-[16/9] w-full overflow-hidden rounded-lg bg-[#0A0A0F] border border-border flex items-center justify-center">
+                <img
+                  src={POST_IMAGES[p.slug] ?? "/images/shadow_hamiltonian_complexity.png"}
+                  alt={p.title}
+                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "https://via.placeholder.com/600x340";
+                  }}
+                />
+              </div>
               <p className="mt-3 text-[11px] font-medium uppercase tracking-wider text-[#F26B3A]">
                 {p.tag}
               </p>
               <h3 className="mt-1 text-sm font-semibold leading-snug text-foreground group-hover:text-[#F26B3A]">
                 {p.title}
               </h3>
-            </a>
+            </Link>
           ))}
         </div>
       </Section>
@@ -454,9 +465,9 @@ function SiteNav({
           <Link to="/community" className="transition-colors hover:text-foreground">
             Community
           </Link>
-          <a href="/blog" className="transition-colors hover:text-foreground">
+          <Link to="/blog" className="transition-colors hover:text-foreground">
             Blog
-          </a>
+          </Link>
           <Link to="/our-team" className="transition-colors hover:text-foreground">
             Team
           </Link>
@@ -686,9 +697,10 @@ const DEMO_OUTPUTS = [
   { icon: FileCode2, title: "Files", value: "qasm + verilog + gds", detail: "Ready to export" },
 ];
 
-const POSTS = [
-  { tag: "Research", title: "AI in quantum chip design: the next decade" },
-  { tag: "Quantum", title: "The future of fault-tolerant quantum chips" },
-  { tag: "Engineering", title: "Automated qubit-layout generation, end to end" },
-  { tag: "Industry", title: "Insights from leading quantum labs on AI workflows" },
-] as const;
+const POST_IMAGES: Record<string, string> = {
+  "shadow-hamiltonian-simulation": "/images/shadow_hamiltonian_complexity.png",
+  "surface-codes-qec-architecture": "/images/surface_codes_threshold.png",
+  "squadds-qubit-design": "/images/squadds_validation.png",
+  "cudaq-qec-decoders": "/images/cudaq_relaybp_throughput.png",
+  "quantum-supremacy": "/images/quantum_supremacy_scaling.png",
+};
