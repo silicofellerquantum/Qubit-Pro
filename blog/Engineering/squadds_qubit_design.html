@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQuADDS: Accelerating Superconducting Qubit Design | Quantum Blog</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #161b26;
+            --bg-tertiary: #1f2533;
+            --accent-color: #38bdf8;
+            --accent-secondary: #818cf8;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --border-color: #2d3748;
+            --code-bg: #0e121a;
+            --success-color: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            margin-bottom: 40px;
+        }
+
+        .category-tag {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--accent-secondary), var(--accent-color));
+            color: #0b0f19;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 4px 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.25;
+            margin-bottom: 20px;
+            background: linear-gradient(to right, #ffffff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .meta-section {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 24px;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .author-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .author-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: var(--bg-tertiary);
+            border: 2px solid var(--accent-color);
+            object-fit: cover;
+        }
+
+        .meta-info {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .meta-info .author-names {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .meta-info .publish-date {
+            margin-top: 2px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .content-body {
+            font-size: 1.1rem;
+            font-weight: 400;
+            color: #d1d5db;
+        }
+
+        .content-body p {
+            margin-bottom: 24px;
+        }
+
+        .content-body h2 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 40px 0 20px;
+            color: #ffffff;
+            border-left: 4px solid var(--accent-color);
+            padding-left: 16px;
+        }
+
+        .content-body h3 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin: 30px 0 16px;
+            color: #ffffff;
+        }
+
+        .callout-box {
+            background-color: var(--bg-secondary);
+            border-left: 4px solid var(--accent-secondary);
+            border-radius: 4px;
+            padding: 20px;
+            margin: 32px 0;
+        }
+
+        .callout-box p {
+            margin-bottom: 0;
+            font-style: italic;
+            color: var(--text-primary);
+        }
+
+        .visualization-container {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            margin: 32px 0;
+            text-align: center;
+        }
+
+        .visualization-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        .visualization-caption {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 12px;
+            font-style: italic;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            overflow-x: auto;
+            margin: 24px 0;
+            position: relative;
+        }
+
+        pre::before {
+            content: "PYTHON";
+            position: absolute;
+            top: 0;
+            right: 0;
+            background-color: var(--bg-tertiary);
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-bottom-left-radius: 6px;
+            border-left: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            color: #38bdf8;
+        }
+
+        .inline-code {
+            background-color: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--accent-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 32px 0;
+            font-size: 0.95rem;
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 14px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-tertiary);
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .author-card-section {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 32px;
+            margin-top: 60px;
+        }
+
+        .author-card-section h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 24px;
+            color: #ffffff;
+        }
+
+        .author-card {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+            align-items: flex-start;
+        }
+
+        .author-card:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .author-card-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background-color: var(--bg-tertiary);
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 2px solid var(--accent-color);
+        }
+
+        .author-card-info h4 {
+            font-size: 1.1rem;
+            color: #ffffff;
+            margin-bottom: 6px;
+        }
+
+        .author-card-info p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .related-posts {
+            margin-top: 60px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 40px;
+        }
+
+        .related-posts h3 {
+            font-size: 1.5rem;
+            margin-bottom: 24px;
+        }
+
+        .related-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .related-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .related-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-color);
+        }
+
+        .related-card h4 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .related-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="category-tag">Hardware Engineering</span>
+            <h1>SQuADDS: A Validated Design Database and Simulation Workflow for Superconducting Qubits</h1>
+            <div class="meta-section">
+                <div class="author-group">
+                    <img class="author-avatar" src="../images/authors/sadman_shanto.jpg" alt="Sadman Ahmed Shanto" onerror="this.src='https://via.placeholder.com/150'">
+                    <div class="meta-info">
+                        <div class="author-names">Sadman Ahmed Shanto, Andre Kuo, Clark Miyamoto, Haimeng Zhang, Vivek Maurya, Evangelos Vlachos, Malida Hecht, Chung Wa Shum, Eli M. Levenson-Falk</div>
+                        <div class="publish-date">Published in Quantum (Volume 8, page 1465, 2024) / arXiv:2312.13483</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <article class="content-body">
+            <p>
+                Fabricating superconducting quantum processors is a highly complex physical process that demands precise control over the device's Hamiltonian parameters. Key parameters like qubit frequency, anharmonicity, and coupling rates with read-out resonators dictate the system's performance and gate fidelity.
+            </p>
+            <p>
+                However, mapping the desired physical target parameters back to a specific geometric layout (such as capacitor gap, finger widths, and Josephson junction area) is extremely difficult. Because no simple analytical formulas exist, engineers traditionally play a game of "guess and check"—running computationally heavy 3D electromagnetic finite-element simulations, adjusting dimensions, and repeating.
+            </p>
+
+            <div class="callout-box">
+                <p>
+                    "SQuADDS (Superconducting Qubit And Device Design and Simulation) solves this bottleneck by providing the community with an open-source database of validated designs, paired with a front-end interface for inverse qubit design."
+                </p>
+            </div>
+
+            <h2>Programmatic Generation and Simulation</h2>
+            <p>
+                The SQuADDS workflow leverages <strong>Qiskit Metal</strong>, an open-source package for programmatic quantum device layouts, and connects it to high-accuracy finite-element solvers like Ansys HFSS.
+            </p>
+            <p>
+                Through this pipeline, the team generated thousands of transmon qubit and resonator designs. By sweeping key dimensions, they mapped out the design space, extracting capacitances, inductances, and coupling coefficients to calculate Hamiltonian parameters.
+            </p>
+
+            <div class="visualization-container">
+                <img src="../images/squadds_validation.png" alt="SQuADDS Validation: Sim vs Exp" onerror="this.src='https://via.placeholder.com/600x400/161b26/ffffff?text=SQuADDS+Validation+Scatter+Plot'">
+                <div class="visualization-caption">Figure 1: Comparison between simulated resonance frequency and experimentally measured frequency. The database designs demonstrate strong agreement (within the ±1.5% margin), ensuring high predictability for fabricators.</div>
+            </div>
+
+            <h2>Experimentally Validated Database</h2>
+            <p>
+                What makes SQuADDS unique is that a significant subset of the database contains experimentally validated parameters. Qubits fabricated from these designs were cooled down in dilution refrigerators and measured, showing excellent agreement with electromagnetic simulations. This gives researchers a highly trustworthy starting point when designing new QPUs.
+            </p>
+
+            <h2>Using the SQuADDS Python API for Inverse Design</h2>
+            <p>
+                SQuADDS provides a front-end API that allows engineers to perform "inverse design." Instead of drawing a shape and simulating it, engineers query the database with their target Hamiltonian parameters (such as a 5.0 GHz qubit frequency) and retrieve the exact geometry coordinates to construct the qubit.
+            </p>
+            <p>
+                Here is a Python demonstration showing how to use the SQuADDS library to retrieve a transmon design:
+            </p>
+
+<pre><code>import squadds
+import numpy as np
+
+# Instantiate the SQuADDS database client
+db_client = squadds.SQuADDS_DB()
+
+# Define the target Hamiltonian parameters for a Transmon Qubit
+target_parameters = {
+    "qubit_frequency_GHz": 5.2,    # Target resonant frequency
+    "anharmonicity_MHz": -250.0,   # Target anharmonicity (alpha)
+    "coupling_strength_MHz": 120.0 # Target coupling to read-out resonator
+}
+
+print("Querying SQuADDS database for matching transmon geometry...")
+
+# Find the closest design matching target parameters
+best_match = db_client.find_closest_design(
+    component_type="transmon",
+    targets=target_parameters,
+    metric="euclidean"
+)
+
+# Extract and display the geometry parameters
+geometry = best_match["geometry"]
+print("\nClosest Match Found in Database:")
+print(f"Matched Frequency: {best_match['simulated_frequency_GHz']:.3f} GHz")
+print(f"Matched Anharmonicity: {best_match['simulated_anharmonicity_MHz']:.1f} MHz")
+print(f"Retrieve Qiskit Metal Geometry Config:")
+for param, val in geometry.items():
+    print(f"  - {param}: {val}")
+</code></pre>
+
+            <p>
+                Once retrieved, the geometry dictionary can be passed directly into Qiskit Metal components to generate the GDSII mask file for physical chip lithography. This database reduces the device design cycle time from weeks to minutes, opening up hardware research to smaller laboratories and universities.
+            </p>
+        </article>
+
+        <section class="author-card-section">
+            <h3>About the Authors</h3>
+            <div class="author-card">
+                <img class="author-card-avatar" src="../images/authors/sadman_shanto.jpg" alt="Sadman Ahmed Shanto" onerror="this.src='https://via.placeholder.com/150'">
+                <div class="author-card-info">
+                    <h4>Sadman Ahmed Shanto</h4>
+                    <p>Sadman Ahmed Shanto is a PhD candidate in Physics at the University of Southern California (USC), working at the Levenson-Falk Lab. His research focuses on superconducting hardware design, automation, and microwave engineering.</p>
+                </div>
+            </div>
+            <div class="author-card">
+                <img class="author-card-avatar" src="../images/authors/eli_levenson_falk.jpg" alt="Eli M. Levenson-Falk" onerror="this.src='https://via.placeholder.com/150'">
+                <div class="author-card-info">
+                    <h4>Eli M. Levenson-Falk</h4>
+                    <p>Eli Levenson-Falk is an Assistant Professor of Physics and Astronomy at USC and Director of the Levenson-Falk Lab. Previously a postdoctoral researcher at UC Berkeley, his group studies the dynamics of superconducting quantum circuits, noise mitigation, and quantum sensing.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="related-posts">
+            <h3>Related Reads</h3>
+            <div class="related-grid">
+                <a href="../Research/shadow_hamiltonian.html" class="related-card">
+                    <h4>Shadow Hamiltonian Simulation</h4>
+                    <p>Learn how compressed quantum states bypass traditional simulation bounds.</p>
+                </a>
+                <a href="../Industry/quantum_supremacy.html" class="related-card">
+                    <h4>Google Sycamore & Quantum Supremacy</h4>
+                    <p>A look at the landmark 53-qubit superconducting processor experiment.</p>
+                </a>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

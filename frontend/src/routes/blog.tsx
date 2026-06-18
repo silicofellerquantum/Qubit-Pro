@@ -1,87 +1,104 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import { SilicofellerLogo } from "@/components/silicofeller-logo";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/blog")({
-  head: () => ({
-    meta: [
-      { title: "Blog — SilicoFeller" },
-      {
-        name: "description",
-        content: "Research, insights, and updates from the SilicoFeller team.",
-      },
-    ],
-  }),
-  component: BlogPage,
+  component: BlogLayout,
 });
 
-const POSTS = [
-  {
-    slug: "ai-quantum-chip-design-next-decade",
-    tag: "Research",
-    title: "AI in quantum chip design: the next decade",
-    excerpt:
-      "How large language models are reshaping the way engineers approach qubit topology and error-correction layout generation.",
-    date: "May 2025",
-  },
-  {
-    slug: "fault-tolerant-quantum-chips",
-    tag: "Quantum",
-    title: "The future of fault-tolerant quantum chips",
-    excerpt:
-      "Surface codes, cat qubits, and the race to build error-corrected processors at scale.",
-    date: "Apr 2025",
-  },
-  {
-    slug: "automated-qubit-layout-generation",
-    tag: "Engineering",
-    title: "Automated qubit-layout generation, end to end",
-    excerpt:
-      "A deep dive into how SilicoFeller generates production-ready GDS files from a single natural-language prompt.",
-    date: "Mar 2025",
-  },
-  {
-    slug: "insights-from-quantum-labs",
-    tag: "Industry",
-    title: "Insights from leading quantum labs on AI workflows",
-    excerpt:
-      "We spoke to researchers at five national labs. Here's what they said about adopting AI-assisted design tools.",
-    date: "Feb 2025",
-  },
-] as const;
-
-const TAG_COLORS: Record<string, string> = {
-  Research: "#F26B3A",
-  Quantum: "#8A7B25",
-  Engineering: "#F26B3A",
-  Industry: "#8A7B25",
-};
-
-function BlogPage() {
+function BlogLayout() {
   const { user } = useAuth();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white">
-      {/* Nav */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0A0A0F]/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
+    <div className="relative min-h-screen bg-[#F8F7F2] text-[#0F172A] selection:bg-[#7C3AED]/20 selection:text-[#0F172A] font-sans">
+      {/* Grid background pattern */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.25]"
+        style={{ backgroundImage: "var(--grid-pattern)", backgroundSize: "32px 32px" }}
+      />
+
+      {/* Header — identical to landing page SiteNav */}
+      <header
+        className={`sticky top-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? "border-b border-black/10 bg-[#E8E6DE]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+            : "border-b border-transparent bg-[#E8E6DE]/40 backdrop-blur-md"
+        }`}
+      >
+        <div className="flex items-center justify-between px-6 py-4 lg:px-10">
           <Link to="/" aria-label="SilicoFeller home" className="flex items-center">
-            <SilicofellerLogo className="h-7 w-auto" />
+            <SilicofellerLogo />
           </Link>
-          <div className="flex items-center gap-3">
+          <nav className="hidden items-center gap-7 text-sm text-foreground/65 md:flex">
+            <a href="/#about" className="transition-colors hover:text-foreground">
+              About Us
+            </a>
+            <a href="/#technology" className="transition-colors hover:text-foreground">
+              Technology
+            </a>
+            <a href="/#features" className="transition-colors hover:text-foreground">
+              Features
+            </a>
+            <Link to="/documentation" className="transition-colors hover:text-foreground">
+              Documentation
+            </Link>
+            <Link to="/community" className="transition-colors hover:text-foreground">
+              Community
+            </Link>
+            <Link to="/blog" className="transition-colors hover:text-foreground font-medium text-[#7C3AED]">
+              Blog
+            </Link>
+            <Link to="/our-team" className="transition-colors hover:text-foreground">
+              Team
+            </Link>
+            <a href="/#contact" className="transition-colors hover:text-foreground">
+              Contact
+            </a>
+          </nav>
+          <div className="flex items-center gap-2">
             {user ? (
-              <Button asChild size="sm" className="rounded-full bg-white text-black hover:bg-white/90">
-                <Link to="/dashboard">Dashboard</Link>
-              </Button>
+              <>
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="h-9 rounded-full px-4 text-sm text-foreground hover:bg-black/5"
+                >
+                  <Link to="/dashboard">Dashboard</Link>
+                </Button>
+                <Button
+                  asChild
+                  className="h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
+                >
+                  <Link to="/dashboard">Open designer</Link>
+                </Button>
+              </>
             ) : (
               <>
-                <Button asChild variant="ghost" size="sm" className="text-white/70 hover:text-white">
+                <Button
+                  asChild
+                  variant="ghost"
+                  className="h-9 rounded-full px-4 text-sm text-foreground hover:bg-black/5"
+                >
                   <Link to="/sign-in">Sign in</Link>
                 </Button>
-                <Button asChild size="sm" className="rounded-full bg-white text-black hover:bg-white/90">
-                  <Link to="/sign-up">Get started</Link>
+                <Button
+                  asChild
+                  className="h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
+                >
+                  <Link to="/sign-up">
+                    Sign up <ArrowRight className="ml-1 h-4 w-4" />
+                  </Link>
                 </Button>
               </>
             )}
@@ -89,50 +106,9 @@ function BlogPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-16">
-        {/* Back link */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-white/50 transition-colors hover:text-white"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to home
-        </Link>
-
-        <h1 className="mt-8 text-4xl font-semibold tracking-tight">
-          From the SilicoFeller blog.
-        </h1>
-        <p className="mt-3 text-white/60">
-          Research, engineering, and industry insights from our team.
-        </p>
-
-        {/* Posts grid */}
-        <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2">
-          {POSTS.map((p) => (
-            <div
-              key={p.slug}
-              className="group rounded-2xl border border-white/10 bg-white/[0.04] p-6 transition-all hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_20px_60px_-20px_rgba(242,107,58,0.2)]"
-            >
-              <div className="aspect-[16/9] w-full rounded-lg bg-gradient-to-br from-[#0A0A0F] via-[#8A7B25] to-[#F26B3A]" />
-              <div className="mt-4 flex items-center justify-between">
-                <p
-                  className="text-[11px] font-semibold uppercase tracking-wider"
-                  style={{ color: TAG_COLORS[p.tag] ?? "#F26B3A" }}
-                >
-                  {p.tag}
-                </p>
-                <span className="text-xs text-white/40">{p.date}</span>
-              </div>
-              <h2 className="mt-2 text-base font-semibold leading-snug text-white group-hover:text-[#F26B3A] transition-colors">
-                {p.title}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-white/55">{p.excerpt}</p>
-              <div className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-[#F26B3A]">
-                Read more <ArrowRight className="h-3 w-3" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </main>
+      <div className="relative z-10">
+        <Outlet />
+      </div>
     </div>
   );
 }
