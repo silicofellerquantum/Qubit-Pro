@@ -1,4 +1,11 @@
 """
+TOMBSTONE: simulation_corrector.py
+===================================
+This module is V1-only dead code in the V2 pipeline world. It is no longer
+imported by any active code path. It will be deleted once the V1 /generate
+endpoint is fully retired. Do NOT add new imports of this module.
+
+Original docstring below:
 simulation_corrector.py — Quantum Studio Global Simulation Fix
 ==============================================================
 Rule-based correction system that resolves ALL simulation issues:

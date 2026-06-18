@@ -142,22 +142,14 @@ async def generate(
 @sub_router.post("/generate/metal-code")
 async def generate_metal_code(body: MetalCodeRequest) -> dict[str, Any]:
     """Generate runnable Qiskit Metal Python from Quantum Editor JSON."""
-    from app.services.metal_codegen.adapter import editor_state_to_design
-    from app.services.metal_codegen.metal_codegen import MetalCodeGenerator
+    from app.services.codegen_service import generate_from_editor_state
 
-    design = editor_state_to_design(
+    result = generate_from_editor_state(
         components=body.components,
         connections=body.connections,
         variables=body.variables,
     )
-    result = MetalCodeGenerator(design).generate()
-
-    return {
-        "success": True,
-        "code": result.source_code,
-        "warnings": result.warnings or [],
-        "component_count": result.component_count,
-    }
+    return {"success": True, **result}
 
 # ── Frequency plan ────────────────────────────────────────────────────────────
 
@@ -234,12 +226,12 @@ async def drc_check(body: DRCRequest) -> dict[str, Any]:
     try:
         from app.services.physics.frequency_planner import plan_chip
         from app.services.physics.topology_router import place_qubits
-        from app.services.physics.drc import run_drc
+        from app.drc import run_drc_legacy
 
         n = max(1, min(MAX_QUBITS, body.n))
         freq_plan = plan_chip(n)
         placement = place_qubits(n, topology=body.topology, scale=body.scale)
-        report = run_drc(placement, freq_plan, body.rules)
+        report = run_drc_legacy(placement, freq_plan, body.rules)
         return {"n": n, "topology": body.topology, **report.to_dict()}
     except Exception as exc:
         return {"error": str(exc)}

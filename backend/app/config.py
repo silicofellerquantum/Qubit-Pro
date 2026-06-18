@@ -36,11 +36,12 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
 
     # Physics grounding (SQuADDS). Always-on by design — no per-request toggle.
-    # squadds_* are Increment-2 placeholders for the local dataset mirror
-    # (the source of truth; refreshed periodically; no remote calls at gen time).
+    # squadds_dataset_dir: path to the locally mirrored SQuADDS dataset.
+    # Defaults to <repo-root>/backend/squadds_mirror (created by ensure_mirror()).
+    # Set to "" to disable SQuADDS provider and fall back to analytic.
     physics_grounding_enabled: bool = True
-    squadds_dataset_dir: str = ""
-    squadds_refresh_hours: int = 168
+    squadds_dataset_dir: str = ""        # "" → auto-resolve to squadds_mirror/
+    squadds_refresh_hours: int = 168     # Periodic mirror refresh interval
 
     @property
     def cors_origins_list(self) -> list[str]:

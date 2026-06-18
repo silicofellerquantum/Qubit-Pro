@@ -92,8 +92,8 @@ def build_graph_from_constraints(
         )
         coupler.component_id = ontology.grounded_default(ontology.COUPLER_ROLE)
         g.add_node(coupler)
-        g.add_edge(DesignEdge(qa_id, coupler.id, EdgeKind.COUPLING, pin_source="a", pin_target="in"))
-        g.add_edge(DesignEdge(coupler.id, qb_id, EdgeKind.COUPLING, pin_source="out", pin_target="b"))
+        g.add_edge(DesignEdge(qa_id, coupler.id, EdgeKind.COUPLING))
+        g.add_edge(DesignEdge(coupler.id, qb_id, EdgeKind.COUPLING))
 
     # ── 3. Readout resonators ─────────────────────────────────────────────────
     ro_base = c.freq.readout_freq_min_ghz
@@ -113,7 +113,7 @@ def build_graph_from_constraints(
         )
         res.component_id = ontology.grounded_default(ontology.RESONATOR_ROLE)
         g.add_node(res)
-        g.add_edge(DesignEdge(qid, res.id, EdgeKind.READOUT, pin_source="readout", pin_target="in"))
+        g.add_edge(DesignEdge(qid, res.id, EdgeKind.READOUT, pin_source="readout"))
 
     # ── 4. Feedline + launchpads ─────────────────────────────────────────────
     fl = FeedlineNode(id="FL1", length_mm=c.chip_width_mm * 0.9)
@@ -121,7 +121,7 @@ def build_graph_from_constraints(
     g.add_node(fl)
     for i in range(n):
         res_id = f"RO_Q{i+1}"
-        g.add_edge(DesignEdge(res_id, fl.id, EdgeKind.FEEDLINE, pin_source="out", pin_target="tap"))
+        g.add_edge(DesignEdge(res_id, fl.id, EdgeKind.FEEDLINE))
 
     lp_in  = LaunchpadNode(id="LP_IN",  style=LaunchpadStyle.WIREBOND)
     lp_out = LaunchpadNode(id="LP_OUT", style=LaunchpadStyle.WIREBOND)
@@ -129,8 +129,8 @@ def build_graph_from_constraints(
     lp_in.component_id = _lp_family
     lp_out.component_id = _lp_family
     g.add_node(lp_in);  g.add_node(lp_out)
-    g.add_edge(DesignEdge(lp_in.id,  fl.id, EdgeKind.IO, pin_source="tie", pin_target="start"))
-    g.add_edge(DesignEdge(fl.id, lp_out.id, EdgeKind.IO, pin_source="end", pin_target="tie"))
+    g.add_edge(DesignEdge(lp_in.id,  fl.id, EdgeKind.IO))
+    g.add_edge(DesignEdge(fl.id, lp_out.id, EdgeKind.IO))
 
     return g
 

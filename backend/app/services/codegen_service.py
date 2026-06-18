@@ -101,6 +101,37 @@ class CodegenService:
 codegen_service = CodegenService()
 
 
+def generate_from_editor_state(
+    components: list,
+    connections: list,
+    variables: dict | None = None,
+) -> dict:
+    """
+    Generate Qiskit Metal Python from a legacy editor-state payload.
+
+    This is the single public entry point for the /generate/metal-code endpoint.
+    Internally delegates to metal_codegen.MetalCodeGenerator so callers don't need
+    to import from metal_codegen directly.
+
+    Returns a dict with keys: code, warnings, component_count, filename.
+    """
+    from app.services.metal_codegen.adapter import editor_state_to_design
+    from app.services.metal_codegen.metal_codegen import MetalCodeGenerator
+
+    design = editor_state_to_design(
+        components=components,
+        connections=connections,
+        variables=variables or {},
+    )
+    result = MetalCodeGenerator(design).generate()
+    return {
+        "code": result.source_code,
+        "warnings": result.warnings or [],
+        "component_count": result.component_count,
+        "filename": "design.py",
+    }
+
+
 def _fmt_opts(options: dict) -> str:
     if not options:
         return "dict()"

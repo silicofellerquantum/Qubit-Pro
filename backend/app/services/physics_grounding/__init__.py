@@ -7,12 +7,21 @@ Inserts physics knowledge between DesignIntent and the DesignGraph/compiler:
       -> ground_intent()        # intent-level: targets + grounded constraints
       -> DesignGraph
       -> resolve_geometry()     # node-level: design_options via GeometryOracle
+      -> PhysicsReasonablenessGate  # Increment 2: forward-verify grounded geometry
 
-Increment 1 ships analytic providers only (behavior-preserving). SQuADDS / ML
-providers (Increment 2 / V2) drop into the same GeometryOracle chain.
+Increment 1 ships analytic providers only (behavior-preserving). SQuADDS
+provider (Increment 2) and ML providers (V2) drop into the same GeometryOracle
+chain.
 """
 from app.services.physics_grounding.grounding import ground_intent, resolve_geometry
 from app.services.physics_grounding.oracle import GeometryOracle, default_providers
+from app.services.physics_grounding.reasonableness import (
+    GateReport,
+    GateResult,
+    PhysicsReasonablenessGate,
+    ReasonablenessError,
+    reasonableness_gate,
+)
 from app.services.physics_grounding.targets import (
     GroundedGeometry,
     PhysicsPlan,
@@ -32,4 +41,9 @@ __all__ = [
     "GroundedGeometry",
     "PhysicsVerifier",
     "physics_verifier",
+    "PhysicsReasonablenessGate",
+    "ReasonablenessError",
+    "GateReport",
+    "GateResult",
+    "reasonableness_gate",
 ]

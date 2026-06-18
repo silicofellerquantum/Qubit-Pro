@@ -52,14 +52,13 @@ def _placement_params(node: Any) -> Dict[str, Any]:
 
     design_options keys are already Qiskit Metal parameter names with unit
     suffixes (e.g. ``"cross_length": "200um"``).  The editor accepts these
-    directly as-is.  We strip internal keys (prefixed ``_``), the top-level
-    ``chip`` key, and any nested dicts like ``connection_pads`` (not editable
-    in the schematic editor).
+    directly as-is.  We strip internal keys (prefixed ``_``) and the top-level
+    ``chip`` key, but preserve ``connection_pads`` so claw geometry is visible.
     """
     opts = dict(getattr(node, "design_options", {}) or {})
     return {k: v for k, v in opts.items()
             if not str(k).startswith("_") and k != "chip"
-            and not isinstance(v, dict)}
+            and (not isinstance(v, dict) or k == "connection_pads")}
 
 
 class SchematicCompiler:

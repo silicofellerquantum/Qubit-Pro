@@ -13,9 +13,7 @@ import { prefixForCategory, type EditorState, type Selection, isSelected, getSin
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import {
   componentPinsQueryOptions,
-  componentPreviewQueryOptions,
   componentsQueryOptions,
-  componentMetadataQueryOptions,
 } from "@/lib/bridge/queries";
 import { defaultParamsFromMetadata } from "@/lib/bridge/adapters";
 import { bridgeClient } from "@/lib/bridge/client";
@@ -24,23 +22,26 @@ import type {
   PinSpec,
   Placement,
   Connection,
-  RenderResult,
   ComponentMetadata,
 } from "@/lib/bridge/types";
 import { cn } from "@/lib/utils";
 import { QISKIT_CATALOG } from "./qiskit-metal-catalog";
+import {
+  useCanvasViewport,
+  CHIP_W_MM,
+  CHIP_H_MM,
+  CHIP_HALF_W,
+  CHIP_HALF_H,
+  MM_TO_PX,
+  SCALE_MIN,
+  SCALE_MAX,
+} from "./use-canvas-viewport";
+import { useRouteRendering } from "./use-route-rendering";
+import { useDropHandling } from "./use-drop-handling";
+import { PlacementPreview, DropGhost, PlacementGlyph, MiniMap } from "./editor-canvas-glyphs";
 
-export const CHIP_W_MM = 9.0;
-export const CHIP_H_MM = 6.0;
-export const CHIP_HALF_W = CHIP_W_MM / 2;
-export const CHIP_HALF_H = CHIP_H_MM / 2;
-const MM_TO_PX = 80;
+export { CHIP_W_MM, CHIP_H_MM, CHIP_HALF_W, CHIP_HALF_H } from "./use-canvas-viewport"; // re-export for consumers
 const UM_TO_MM = 0.001;
-const RULER_L = 28;
-const RULER_B = 28;
-const SCALE_MIN = 0.25;
-const SCALE_MAX = 5.0;
-const SCALE_STEP = 0.1;
 const UI_SCALE_KEY = "_uiScale";
 
 // Hit-area tuning constants — generous padding so components are easy to
@@ -69,7 +70,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   const state = activeTab.state;
   const dispatch = dispatchActive;
   const doc = { placements: state.placements, connections: state.connections };
-  const qc = useQueryClient();
+
   const uniqueName = useCallback(
     (prefix: string) => {
       let n = 0;
@@ -80,15 +81,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     [state.placements],
   );
 
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ w: 800, h: 600 });
   const [drag, setDrag] = useState<DragState>(null);
   const [dragStartPos, setDragStartPos] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [panDrag, setPanDrag] = useState<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null);
-  const [dropPrev, setDropPrev] = useState<{ componentId: string; x: number; y: number } | null>(
-    null,
-  );
   const [hovered, setHovered] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -96,22 +90,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     y: number;
     items: { label: string; action: () => void; disabled?: boolean; destructive?: boolean }[];
   } | null>(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    let raf = 0;
-    const ro = new ResizeObserver(() => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
-    });
-    ro.observe(el);
-    setSize({ w: el.clientWidth, h: el.clientHeight });
-    return () => {
-      ro.disconnect();
-      cancelAnimationFrame(raf);
-    };
-  }, []);
 
   // Close context menu on any click outside
   useEffect(() => {
@@ -143,20 +121,15 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     return m;
   }, [compsQ.data]);
 
-  // Per-route incremental rendering: only fetch routes whose hash has changed
-  const docRef = useRef(doc);
-  docRef.current = doc;
+  // ── Viewport hook (resize, pan, zoom, w2s/s2w, fit, ticks) ──────────────────
+  const vp = useCanvasViewport(state, dispatch);
+  const { size, containerRef, svgRef, panDrag, setPanDrag,
+    cx, cy, scale, baseScale, bw, bh, left, right, top, bottom,
+    w2s, s2w, fitToContent, zoomToSelection,
+    hTicks, vTicks, RULER_B, RULER_L } = vp;
 
-  const routeHashes = useMemo(() => {
-    const m = new Map<string, string>();
-    state.connections.forEach((c) => {
-      const fromP = state.placements.find((p) => p.id === c.from.placementId);
-      const toP = state.placements.find((p) => p.id === c.to.placementId);
-      if (!fromP || !toP) { m.set(c.id, "none"); return; }
-      m.set(c.id, `${fromP.x.toFixed(6)},${fromP.y.toFixed(6)}:${c.from.pinName}:${toP.x.toFixed(6)},${toP.y.toFixed(6)}:${c.to.pinName}:${JSON.stringify(c.routeOverrides ?? {})}`);
-    });
-    return m;
-  }, [state.connections, state.placements]);
+  // ── Route rendering hook ────────────────────────────────────────────────────
+  const { routeQueries, routeSvg } = useRouteRendering(state, doc, drag, dispatch);
 
   const needsRouteRender = useMemo(() => {
     const m = new Map<string, boolean>();
@@ -230,13 +203,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     queries: state.placements.map((p) => componentPinsQueryOptions(p.componentId, p.params)),
   });
 
-  // Base auto-fit scale (chip fills viewport); user zoom multiplies on top
-  const baseScale = useMemo(() => {
-    return Math.max(0.4, Math.min((size.w - 100) / 720, (size.h - 100) / 480));
-  }, [size.w, size.h]);
-
-  const scale = baseScale * state.zoom;
-
   // Map placementId -> pins for quick lookup
   const pinMap = useMemo(() => {
     const m = new Map<string, PinSpec[]>();
@@ -280,31 +246,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     }
     return ids;
   }, [state.placements]);
-
-  const cx = size.w / 2 + state.pan.x;
-  const cy = size.h / 2 + state.pan.y;
-  const bw = 720 * scale;
-  const bh = 480 * scale;
-  const left = cx - bw / 2;
-  const right = cx + bw / 2;
-  const top = cy - bh / 2;
-  const bottom = cy + bh / 2;
-
-  const w2s = useCallback(
-    (x: number, y: number) => ({
-      px: cx + x * MM_TO_PX * scale,
-      py: cy - y * MM_TO_PX * scale,
-    }),
-    [cx, cy, scale],
-  );
-
-  const s2w = useCallback(
-    (px: number, py: number) => ({
-      x: (px - cx) / (MM_TO_PX * scale),
-      y: -(py - cy) / (MM_TO_PX * scale),
-    }),
-    [cx, cy, scale],
-  );
 
   // Canvas-specific keyboard handling removed to schematic-editor to prevent duplicates
 
@@ -386,156 +327,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
       dispatch({ type: "ZOOM", zoom: newZoom });
     }
   };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDropPrev(null);
-    const cid = e.dataTransfer.getData("application/x-silicofeller-component");
-    if (!cid) return;
-    const summary = compsById.get(cid);
-    if (!summary) return;
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const w = s2w(e.clientX - rect.left, e.clientY - rect.top),
-      snap = state.snap;
-    const snapX = parseFloat((Math.round(w.x / snap) * snap).toFixed(3));
-    const snapY = parseFloat((Math.round(w.y / snap) * snap).toFixed(3));
-    const constrainedX = Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, snapX));
-    const constrainedY = Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, snapY));
-
-    const queryKey = ["bridge", "components", cid, "metadata"] as const;
-    const cachedMetadata = qc.getQueryData<ComponentMetadata>(queryKey);
-    let params: Record<string, string | number> = {};
-
-    if (cachedMetadata) {
-      params = defaultParamsFromMetadata(cachedMetadata);
-    } else {
-      const catalogEntry = QISKIT_CATALOG.find((c) => c.className === cid);
-      if (catalogEntry) {
-        params = Object.fromEntries(
-          Object.entries(catalogEntry.defaultParams).map(([k, v]) => [k, String(v)]),
-        );
-      }
-    }
-
-    const name = uniqueName(prefixForCategory(summary.category));
-    const placementId = `pl_${name}_${Date.now()}`;
-
-    dispatch({
-      type: "ADD_PLACEMENT",
-      placement: {
-        id: placementId,
-        componentId: cid,
-        name,
-        x: parseFloat(constrainedX.toFixed(3)),
-        y: parseFloat(constrainedY.toFixed(3)),
-        rotation: 0,
-        params,
-      },
-    });
-
-    // Track recent component usage
-    try {
-      const recent = JSON.parse(localStorage.getItem("sf_recent_components") || "[]") as string[];
-      const next = [cid, ...recent.filter((id) => id !== cid)].slice(0, 10);
-      localStorage.setItem("sf_recent_components", JSON.stringify(next));
-    } catch { /* ignore */ }
-
-    if (!cachedMetadata) {
-      bridgeClient
-        .getMetadata(cid)
-        .then((metaRes) => {
-          if (metaRes.data) {
-            const liveParams = defaultParamsFromMetadata(metaRes.data);
-            dispatch({
-              type: "UPDATE_PLACEMENT",
-              id: placementId,
-              patch: { params: liveParams },
-            });
-          }
-        })
-        .catch(console.error);
-    }
-  };
-
-  const onDragOver = (e: React.DragEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-    const cid = e.dataTransfer.types.includes("application/x-silicofeller-component")
-      ? e.dataTransfer.getData("application/x-silicofeller-component")
-      : "";
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!cid || !rect) return;
-    const w = s2w(e.clientX - rect.left, e.clientY - rect.top),
-      snap = state.snap;
-    const snapX = parseFloat((Math.round(w.x / snap) * snap).toFixed(3));
-    const snapY = parseFloat((Math.round(w.y / snap) * snap).toFixed(3));
-    const constrainedX = Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, snapX));
-    const constrainedY = Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, snapY));
-    setDropPrev({ componentId: cid, x: constrainedX, y: constrainedY });
-  };
-
-  const fitToContent = useCallback(() => {
-    if (state.placements.length === 0) {
-      dispatch({ type: "ZOOM", zoom: 1 });
-      dispatch({ type: "PAN", x: 0, y: 0 });
-      return;
-    }
-    const xs = state.placements.map((p) => p.x);
-    const ys = state.placements.map((p) => p.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    const padding = 1.0;
-    const contentW = (maxX - minX + 2 * padding) * MM_TO_PX;
-    const contentH = (maxY - minY + 2 * padding) * MM_TO_PX;
-    const newZoom = Math.min((size.w - 100) / contentW, (size.h - 100) / contentH) / baseScale;
-    const clampedZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, newZoom));
-    const k = MM_TO_PX * baseScale * clampedZoom;
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    dispatch({ type: "ZOOM", zoom: clampedZoom });
-    dispatch({ type: "PAN", x: -centerX * k, y: centerY * k });
-  }, [state.placements, size.w, size.h, baseScale, dispatch]);
-
-  const zoomToSelection = useCallback(() => {
-    const selPlacements = state.selection
-      .filter((s) => s.kind === "placement")
-      .map((s) => state.placements.find((p) => p.id === s.id))
-      .filter(Boolean) as Placement[];
-    const selConnections = state.selection
-      .filter((s) => s.kind === "connection")
-      .map((s) => state.connections.find((c) => c.id === s.id))
-      .filter(Boolean) as Connection[];
-    if (selPlacements.length === 0 && selConnections.length === 0) {
-      fitToContent();
-      return;
-    }
-    const xs: number[] = [];
-    const ys: number[] = [];
-    selPlacements.forEach((p) => { xs.push(p.x); ys.push(p.y); });
-    selConnections.forEach((c) => {
-      const a = state.placements.find((p) => p.id === c.from.placementId);
-      const b = state.placements.find((p) => p.id === c.to.placementId);
-      if (a) { xs.push(a.x); ys.push(a.y); }
-      if (b) { xs.push(b.x); ys.push(b.y); }
-    });
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    const padding = 1.0;
-    const contentW = (maxX - minX + 2 * padding) * MM_TO_PX;
-    const contentH = (maxY - minY + 2 * padding) * MM_TO_PX;
-    const newZoom = Math.min((size.w - 100) / contentW, (size.h - 100) / contentH) / baseScale;
-    const clampedZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, newZoom));
-    const k = MM_TO_PX * baseScale * clampedZoom;
-    const centerX = (minX + maxX) / 2;
-    const centerY = (minY + maxY) / 2;
-    dispatch({ type: "ZOOM", zoom: clampedZoom });
-    dispatch({ type: "PAN", x: -centerX * k, y: centerY * k });
-  }, [state.selection, state.placements, state.connections, size.w, size.h, baseScale, dispatch, fitToContent]);
 
   const cancelDrag = useCallback(() => {
     if (drag && dragStartPos) {
@@ -738,14 +529,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         onPointerUp={onPUp}
         onPointerCancel={onPUp}
         onWheel={onWheel}
-        onDragEnter={onDragOver}
-        onDragOver={onDragOver}
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-            setDropPrev(null);
-          }
-        }}
-        onDrop={onDrop}
+        onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+        onDragOver={(e) => _onDragOver(e, svgRef, s2w, state.snap)}
+        onDragLeave={onDragLeave}
+        onDrop={(e) => _onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
       >
         <defs>
           <clipPath id="boardClip">
