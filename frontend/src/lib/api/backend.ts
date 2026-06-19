@@ -272,6 +272,10 @@ export async function fetchProjects(): Promise<Project[]> {
   return api<Project[]>("/api/projects");
 }
 
+export async function fetchProject(id: string): Promise<Project> {
+  return api<Project>(`/api/projects/${id}`);
+}
+
 export async function createProject(data: {
   name: string;
   description?: string;
@@ -305,6 +309,18 @@ export async function saveDesignToProject(
   await api(`/api/projects/${projectId}/save-design`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getProjectWorkspace(projectId: string): Promise<unknown> {
+  const res = await api<{ workspace: unknown }>(`/api/projects/${projectId}/workspace`);
+  return res.workspace;
+}
+
+export async function saveProjectWorkspace(projectId: string, workspace: unknown): Promise<void> {
+  await api(`/api/projects/${projectId}/workspace`, {
+    method: "PUT",
+    body: JSON.stringify({ workspace }),
   });
 }
 
@@ -392,15 +408,103 @@ export async function registerUser(
   email: string,
   password: string,
   organization: string,
-  role?: string,
-) {
-  const data = await api("/api/auth/register", {
+): Promise<{ detail: string }> {
+  const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
     method: "POST",
-    body: JSON.stringify({ name, email, password, organization, role }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, password, organization }),
   });
-  const d = data as { access_token?: string };
-  if (d.access_token && typeof window !== "undefined") {
-    localStorage.setItem("qs_token", d.access_token);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Registration failed" }));
+    throw new Error(body.detail ?? "Registration failed");
+  }
+  return res.json();
+}
+
+interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    organization: string;
+    initials: string;
+  };
+}
+
+export async function verifyOTP(email: string, otp: string): Promise<AuthResponse> {
+  const res = await fetch(`${BACKEND_URL}/api/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, otp }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Verification failed" }));
+    throw new Error(body.detail ?? "Verification failed");
+  }
+  const data: AuthResponse = await res.json();
+  try {
+    if (data.access_token && typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("qs_token", data.access_token);
+      console.log("[API] verifyOTP: token stored in localStorage");
+    }
+  } catch (e) {
+    console.warn("[API] verifyOTP: failed to store token", e);
   }
   return data;
+}
+
+export async function resendOTP(email: string): Promise<{ detail: string }> {
+  const res = await fetch(`${BACKEND_URL}/api/auth/resend-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Failed to resend code" }));
+    throw new Error(body.detail ?? "Failed to resend code");
+  }
+  return res.json();
+}
+
+export async function loginWithGoogle(idToken: string): Promise<AuthResponse> {
+  const res = await fetch(`${BACKEND_URL}/api/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: idToken }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Google login failed" }));
+    throw new Error(body.detail ?? "Google login failed");
+  }
+  const data: AuthResponse = await res.json();
+  try {
+    if (data.access_token && typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("qs_token", data.access_token);
+      console.log("[API] loginWithGoogle: token stored in localStorage");
+    }
+  } catch (e) {
+    console.warn("[API] loginWithGoogle: failed to store token", e);
+  }
+  return data;
+}
+
+export async function getCurrentUser(token: string): Promise<AuthResponse["user"]> {
+  const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("Session expired");
+  }
+  return res.json();
+}
+
+export function initiateGithubLogin(): void {
+  const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(
+    /\/$/,
+    "",
+  );
+  window.location.href = `${backendUrl}/api/auth/github/authorize`;
 }

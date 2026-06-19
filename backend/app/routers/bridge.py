@@ -26,9 +26,15 @@ import json
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Depends, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth import get_current_user
+from app.database import get_db
+from app.models import User, UserFeatureUsage, FeatureKey
 
 from app.core.editor_models import (
     ComponentMetadata, ComponentPins, ComponentPreview, ComponentSummary,
@@ -156,7 +162,26 @@ class RunCodeResponse(BaseModel):
 
 
 @router.post("/design/run-code", response_model=RunCodeResponse)
-async def run_code(body: RunCodeRequest) -> JSONResponse:
+async def run_code(
+    body: RunCodeRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> JSONResponse:
+    # 1. Premium check: if not premium, check if already ran code
+    if not getattr(user, "is_premium", False):
+        result = await db.execute(
+            select(UserFeatureUsage).where(
+                UserFeatureUsage.user_id == user.id,
+                UserFeatureUsage.feature_key == FeatureKey.run_code
+            )
+        )
+        usage = result.scalar_one_or_none()
+        if usage:
+            return JSONResponse(
+                status_code=403,
+                content={"ok": False, "design": None, "error": "Upgrade to Pro for unlimited access."}
+            )
+
     try:
         from app.routers.bridge_worker import run_code_subprocess
         loop = asyncio.get_running_loop()

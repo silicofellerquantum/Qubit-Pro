@@ -37,9 +37,14 @@ async function call<T>(
   init?: RequestInit & { signal?: AbortSignal },
 ): Promise<BridgeResult<T>> {
   try {
+    const token = typeof window !== "undefined" ? localStorage.getItem("qs_token") : null;
     const res = await fetch(`${BASE_URL}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
     });
     if (!res.ok) {
       let detail = `HTTP ${res.status}`;

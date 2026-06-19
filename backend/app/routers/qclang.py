@@ -344,6 +344,8 @@ async def save_qclang(
         )
         db.add(qc_file)
 
+    await db.flush()
+    await db.commit()
     return {"saved": True, "is_valid": is_valid, "errors": errors, "dialect": dialect}
 
 

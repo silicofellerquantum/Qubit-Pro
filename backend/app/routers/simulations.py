@@ -85,6 +85,7 @@ async def create_simulation(
     )
     db.add(sim)
     await db.flush()
+    await db.commit()
     await db.refresh(sim)
     return _sim_out(sim)
 
@@ -138,6 +139,8 @@ async def run_simulation(
         sim.error_message = str(e)
         sim.finished_at = datetime.utcnow()
 
+    await db.flush()
+    await db.commit()
     return _sim_out(sim)
 
 

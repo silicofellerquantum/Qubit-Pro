@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { bridgeClient } from "@/lib/bridge/client";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import type { DesignDocument } from "@/lib/bridge/types";
+import { useFeatureGate } from "@/lib/hooks/use-feature-gate";
 
 export type CodePanelMode = "generate" | "write";
 
@@ -51,6 +52,8 @@ design.rebuild()
 `;
 
 export function CodeIdePanel({ mode, onClose }: Props) {
+  const downloadGate = useFeatureGate();
+  const runGate = useFeatureGate();
   const { activeTab, workspace, newCanvas, loadIntoCanvas } = useWorkspace();
   const queryClient = useQueryClient();
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
@@ -113,7 +116,16 @@ export function CodeIdePanel({ mode, onClose }: Props) {
 
   const onMount = (editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
     editorRef.current = editor;
-    if (mode === "write") editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => { if (!runMu.isPending) { setRunResult(null); runMu.mutate(); } });
+    if (mode === "write") {
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+        if (!runMu.isPending && !runGate.isChecking) {
+          runGate.checkAndRun("run_code", () => {
+            setRunResult(null);
+            runMu.mutate();
+          });
+        }
+      });
+    }
   };
 
   const isPending = mode === "generate" ? genMu.isPending : runMu.isPending;
@@ -134,22 +146,22 @@ export function CodeIdePanel({ mode, onClose }: Props) {
         <div className="ml-auto flex items-center gap-1">
           {mode === "write" && (
             <div className="flex items-center">
-              <Button size="sm" onClick={() => { setRunResult(null); runMu.mutate(); }} disabled={runMu.isPending}
+              <Button size="sm" onClick={() => runGate.checkAndRun("run_code", () => { setRunResult(null); runMu.mutate(); })} disabled={runMu.isPending || runGate.isChecking}
                 className="h-7 gap-1.5 rounded-r-none bg-emerald-600 text-[11px] text-white hover:bg-emerald-700">
-                {runMu.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                {runMu.isPending || runGate.isChecking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                 Run {runTarget === "new" ? "→ New" : "→ Current"}
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="sm" disabled={runMu.isPending} className="h-7 rounded-l-none border-l border-emerald-700 bg-emerald-600 px-1.5 text-white hover:bg-emerald-700">
+                  <Button size="sm" disabled={runMu.isPending || runGate.isChecking} className="h-7 rounded-l-none border-l border-emerald-700 bg-emerald-600 px-1.5 text-white hover:bg-emerald-700">
                     <ChevronDown className="h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem className="text-[11px] gap-2" onSelect={() => setRunTarget("current")}>
+                  <DropdownMenuItem className="text-[11px] gap-2 cursor-pointer" onSelect={() => setRunTarget("current")}>
                     <span className={cn("h-2 w-2 rounded-full", runTarget === "current" ? "bg-emerald-500" : "bg-muted-foreground/30")} /> Run → Current Canvas
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-[11px] gap-2" onSelect={() => setRunTarget("new")}>
+                  <DropdownMenuItem className="text-[11px] gap-2 cursor-pointer" onSelect={() => setRunTarget("new")}>
                     <span className={cn("h-2 w-2 rounded-full", runTarget === "new" ? "bg-emerald-500" : "bg-muted-foreground/30")} /> Run → New Canvas
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -165,8 +177,8 @@ export function CodeIdePanel({ mode, onClose }: Props) {
           <Button size="sm" variant="ghost" onClick={copy} disabled={!activeCode} className="h-7 gap-1.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white">
             <Copy className="h-3 w-3" /> Copy
           </Button>
-          <Button size="sm" variant="ghost" onClick={dl} disabled={!activeCode} className="h-7 gap-1.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white">
-            <Download className="h-3 w-3" /> Download
+          <Button size="sm" variant="ghost" onClick={() => downloadGate.checkAndRun("download_code", dl)} disabled={!activeCode || downloadGate.isChecking} className="h-7 gap-1.5 text-[11px] text-white/70 hover:bg-white/10 hover:text-white">
+            {downloadGate.isChecking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />} Download
           </Button>
           <div className="mx-1 h-4 w-px bg-white/10" />
           <button type="button" onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded text-white/50 hover:bg-white/10 hover:text-white">
@@ -207,6 +219,9 @@ export function CodeIdePanel({ mode, onClose }: Props) {
         <span>{mode === "generate" ? "Read-only · auto-synced" : "'design' + all QComponents pre-loaded · Ctrl+Enter to run"}</span>
         {activeCode && <><span>·</span><span>{activeCode.split("\n").length} lines</span></>}
       </div>
+
+      <downloadGate.GateDialog />
+      <runGate.GateDialog />
     </div>
   );
 }

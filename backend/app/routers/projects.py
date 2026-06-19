@@ -43,19 +43,28 @@ class ProjectUpdate(BaseModel):
 
 
 def _project_out(p: Project) -> dict:
+    # Safely get status string — handles both enum objects and raw strings
+    status_val = p.status
+    if hasattr(status_val, "value"):
+        status_val = status_val.value
+    elif status_val is None:
+        status_val = "draft"
+    else:
+        status_val = str(status_val)
+
     return {
         "id": p.id,
         "name": p.name,
-        "description": p.description,
-        "topology": p.topology,
-        "num_qubits": p.num_qubits,
-        "target_frequency_ghz": p.target_frequency_ghz,
-        "status": p.status.value,
-        "substrate_material": p.substrate_material,
-        "metal_layer": p.metal_layer,
-        "has_design": p.design_payload is not None,
-        "created_at": p.created_at.isoformat(),
-        "updated_at": p.updated_at.isoformat(),
+        "description": p.description or "",
+        "topology": p.topology or "custom",
+        "num_qubits": p.num_qubits or 0,
+        "target_frequency_ghz": p.target_frequency_ghz or 5.0,
+        "status": status_val,
+        "substrate_material": p.substrate_material or "silicon",
+        "metal_layer": p.metal_layer or "aluminum",
+        "has_design": p.design_payload is not None and bool(p.design_payload),
+        "created_at": p.created_at.isoformat() if p.created_at else datetime.utcnow().isoformat(),
+        "updated_at": p.updated_at.isoformat() if p.updated_at else datetime.utcnow().isoformat(),
         "owner_id": p.owner_id,
     }
 
@@ -92,6 +101,7 @@ async def create_project(
     )
     db.add(project)
     await db.flush()
+    await db.commit()
     await db.refresh(project)
     return _project_out(project)
 
@@ -130,6 +140,9 @@ async def update_project(
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(project, field, value)
     project.updated_at = datetime.utcnow()
+    await db.flush()
+    await db.commit()
+    await db.refresh(project)
 
     return _project_out(project)
 
@@ -147,6 +160,7 @@ async def delete_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     await db.delete(project)
+    await db.commit()
 
 
 @router.post("/{project_id}/save-design")
@@ -168,6 +182,55 @@ async def save_design(
     project.num_qubits = body.get("num_qubits", project.num_qubits)
     project.topology = body.get("topology", project.topology)
     project.updated_at = datetime.utcnow()
+    await db.flush()
+    await db.commit()
+
+    return {"saved": True}
+
+
+# ── Workspace save / load ────────────────────────────────────────────────────
+
+@router.get("/{project_id}/workspace")
+async def get_workspace(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Load the full multi-tab canvas workspace for a project."""
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.owner_id == user.id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    payload = project.design_payload or {}
+    workspace = payload.get("_workspace", None)
+    return {"workspace": workspace}
+
+
+@router.put("/{project_id}/workspace")
+async def save_workspace(
+    project_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Persist the full multi-tab canvas workspace for a project."""
+    result = await db.execute(
+        select(Project).where(Project.id == project_id, Project.owner_id == user.id)
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Merge workspace into design_payload without overwriting other keys
+    existing = dict(project.design_payload or {})
+    existing["_workspace"] = body.get("workspace")
+    project.design_payload = existing
+    project.updated_at = datetime.utcnow()
+    await db.flush()
+    await db.commit()
 
     return {"saved": True}
 
@@ -195,6 +258,7 @@ async def create_version(
     )
     db.add(version)
     await db.flush()
+    await db.commit()
 
     return {
         "id": version.id,

@@ -2,8 +2,9 @@ import { type RefObject, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Undo2, Redo2, MousePointer2, Hand, Code2, Maximize,
-  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map,
+  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map, Loader2,
 } from "lucide-react";
+import { useFeatureGate } from "@/lib/hooks/use-feature-gate";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -34,6 +35,7 @@ function triggerDownload(url: string, filename: string) {
 }
  
 export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, canvasRef }: Props) {
+  const featureGate = useFeatureGate();
   const { activeTab, dispatchActive, saveAll } = useWorkspace();
   const state    = activeTab.state;
   const dispatch = dispatchActive;
@@ -179,17 +181,18 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 gap-1.5 text-[11px]">
-                    <Download className="h-3.5 w-3.5" /> <span className="hidden md:inline">Download</span> <ChevronDown className="h-3 w-3 opacity-60" />
+                  <Button variant="ghost" size="sm" disabled={featureGate.isChecking} className="h-8 gap-1.5 text-[11px]">
+                    {featureGate.isChecking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    <span className="hidden md:inline">Download</span> <ChevronDown className="h-3 w-3 opacity-60" />
                   </Button>
                 </DropdownMenuTrigger>
               </TooltipTrigger>
               <TooltipContent>Export canvas as image</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem className="gap-2 text-[12px]" onSelect={downloadSVG}><Download className="h-3.5 w-3.5" /> SVG</DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 text-[12px]" onSelect={() => downloadRaster("png")}><Download className="h-3.5 w-3.5" /> PNG</DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 text-[12px]" onSelect={() => downloadRaster("jpg")}><Download className="h-3.5 w-3.5" /> JPG</DropdownMenuItem>
+              <DropdownMenuItem className="gap-2 text-[12px] cursor-pointer" onSelect={() => featureGate.checkAndRun("download_svg", downloadSVG)}><Download className="h-3.5 w-3.5" /> SVG</DropdownMenuItem>
+              <DropdownMenuItem className="gap-2 text-[12px] cursor-pointer" onSelect={() => featureGate.checkAndRun("download_png", () => downloadRaster("png"))}><Download className="h-3.5 w-3.5" /> PNG</DropdownMenuItem>
+              <DropdownMenuItem className="gap-2 text-[12px] cursor-pointer" onSelect={() => featureGate.checkAndRun("download_jpeg", () => downloadRaster("jpg"))}><Download className="h-3.5 w-3.5" /> JPG</DropdownMenuItem>
               <DropdownMenuItem className="gap-2 text-[12px]" onSelect={exportDoc}><FileJson className="h-3.5 w-3.5" /> Export JSON</DropdownMenuItem>
               <DropdownMenuItem className="gap-2 text-[12px]" onSelect={importDoc}><Upload className="h-3.5 w-3.5" /> Import JSON</DropdownMenuItem>
             </DropdownMenuContent>
@@ -242,6 +245,7 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <featureGate.GateDialog />
     </TooltipProvider>
   );
 }

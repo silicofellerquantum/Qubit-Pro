@@ -21,6 +21,7 @@ import {
   FileCode, Scissors
 } from "lucide-react";
 import { useDesign } from "@/lib/design-context";
+import { useProject } from "@/lib/project-context";
 import type { GenerateResponse } from "@/lib/api/backend";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -1100,8 +1101,9 @@ const LAYER_STACK = [
 
 function LayoutViewerPage() {
   const navigate = useNavigate();
+  const { activeProject } = useProject();
   const { activeConversation } = useDesign();
-  const result = activeConversation?.result ?? null;
+  const result = activeProject?.design_payload ?? activeConversation?.result ?? null;
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 

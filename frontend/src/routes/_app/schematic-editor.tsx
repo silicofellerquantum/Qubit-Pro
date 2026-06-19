@@ -14,6 +14,7 @@ import { EditorCanvas, type EditorCanvasHandle, CHIP_HALF_W, CHIP_HALF_H } from 
 import { EditorToolbar } from "@/components/quantum-editor/editor-toolbar";
 import { CodeIdePanel, type CodePanelMode } from "@/components/quantum-editor/code-ide-panel";
 import { useDesign } from "@/lib/design-context";
+import { useProject } from "@/lib/project-context";
 import type { GenerateResponse } from "@/lib/api/backend";
 import type { DesignDocument, Placement, Connection } from "@/lib/bridge/types";
 
@@ -172,8 +173,9 @@ export function toGenerateResponse(
 // ---------- Shell Component ----------
 
 function SchematicEditorRoute() {
+  const { activeProject } = useProject();
   return (
-    <WorkspaceProvider>
+    <WorkspaceProvider activeProjectId={activeProject?.id ?? null}>
       <SchematicEditorShell />
     </WorkspaceProvider>
   );
@@ -183,6 +185,8 @@ function SchematicEditorShell() {
   const { conversationId, highlight } = Route.useSearch();
   const navigate = useNavigate();
   const { conversations, activeId, setActiveId, updateConversationResult } = useDesign();
+  // Get project context to save design to Supabase when active project exists
+  const { activeProject, saveDesign: saveDesignToProject } = useProject();
 
   const targetId = conversationId ?? activeId;
   const conversation = useMemo(
@@ -196,6 +200,11 @@ function SchematicEditorShell() {
   const [showPalette, setShowPalette] = useState(false);
   const canvasRef = useRef<EditorCanvasHandle>(null);
   const { workspace, activeTab, newCanvas, loadIntoCanvas, saveAll, dispatch } = useWorkspace();
+  // Ref so closures always see latest project
+  const activeProjectRef = useRef(activeProject);
+  activeProjectRef.current = activeProject;
+  const saveDesignToProjectRef = useRef(saveDesignToProject);
+  saveDesignToProjectRef.current = saveDesignToProject;
 
   const handleFitView = useCallback(() => {
     canvasRef.current?.fitToContent();
@@ -284,7 +293,7 @@ function SchematicEditorShell() {
     }
   }, [activeTab.id, activeId, setActiveId]);
 
-  // Push changes back to parent conversation context
+  // Push changes back to parent conversation context AND save to active project
   const lastDocRef = useRef("");
   useEffect(() => {
     if (!conversation || activeTab.id !== `conv_${conversation.id}`) return;
@@ -304,10 +313,44 @@ function SchematicEditorShell() {
       prevResultRef.current = next;
       lastSyncedResultRef.current = { id: conversation.id, result: next };
       lastDocRef.current = docKey;
-    }, 200);
+      // Persist to active project in Supabase (fire-and-forget)
+      if (activeProjectRef.current) {
+        saveDesignToProjectRef.current(next).catch(() => {});
+      }
+    }, 800);
 
     return () => clearTimeout(t);
   }, [activeTab.state.placements, activeTab.state.connections, activeTab.id, conversation?.id, updateConversationResult]);
+  // Save standalone canvas (non-conversation tabs) to active project when canvas changes
+  const lastStandaloneDocRef = useRef("");
+  useEffect(() => {
+    // Only run for non-conversation tabs (standalone canvases like "Untitled1")
+    if (activeTab.id.startsWith("conv_")) return;
+    if (!activeProjectRef.current) return;
+    if (!activeTab.dirty) return;
+
+    const docKey = JSON.stringify({
+      p: activeTab.state.placements.map((p) => [p.id, p.x, p.y, p.rotation]),
+      c: activeTab.state.connections.map((c) => [c.id, c.from.placementId, c.from.pinName, c.to.placementId, c.to.pinName]),
+    });
+    if (docKey === lastStandaloneDocRef.current) return;
+
+    const t = setTimeout(() => {
+      const doc: DesignDocument = {
+        placements: activeTab.state.placements,
+        connections: activeTab.state.connections,
+      };
+      const next = toGenerateResponse(doc, prevResultRef.current);
+      prevResultRef.current = next;
+      lastStandaloneDocRef.current = docKey;
+      // Persist to active project in Supabase
+      if (activeProjectRef.current) {
+        saveDesignToProjectRef.current(next).catch(() => {});
+      }
+    }, 800);
+
+    return () => clearTimeout(t);
+  }, [activeTab.state.placements, activeTab.state.connections, activeTab.id, activeTab.dirty]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -318,6 +361,16 @@ function SchematicEditorShell() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         saveAll();
+        // Also persist design payload to active project
+        if (activeProjectRef.current) {
+          const doc: DesignDocument = {
+            placements: activeTab.state.placements,
+            connections: activeTab.state.connections,
+          };
+          const next = toGenerateResponse(doc, prevResultRef.current);
+          prevResultRef.current = next;
+          saveDesignToProjectRef.current(next).catch(() => {});
+        }
       }
 
       if ((e.ctrlKey || e.metaKey) && /^[1-9]$/.test(e.key)) {
@@ -680,16 +733,16 @@ function SchematicEditorShell() {
     return () => window.removeEventListener("keydown", onKey);
   }, [saveAll, activeTab.id, activeTab.state.selection, activeTab.state.zoom, activeTab.state.pan, dispatch]);
 
-  if (!conversation) {
+  if (!conversation && !activeProject) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-white">
         <div className="rounded-2xl border border-slate-200 p-6 text-center shadow-sm">
-          <p className="text-sm font-bold text-slate-700">No design session selected.</p>
+          <p className="text-sm font-bold text-slate-700">No active project or design session selected.</p>
           <button
-            onClick={() => navigate({ to: "/designer" })}
+            onClick={() => navigate({ to: "/projects" })}
             className="mt-3 text-xs font-bold text-indigo-600 hover:underline"
           >
-            Open Designer →
+            Go to Projects →
           </button>
         </div>
       </div>
