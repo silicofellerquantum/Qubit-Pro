@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { BLOG_POSTS } from "@/data/blog-posts";
 import { motion, useScroll, useTransform } from "motion/react";
 import {
   ArrowRight,
@@ -21,11 +20,6 @@ import {
   MousePointer2,
   FlaskConical,
   Code2,
-  Lock,
-  ShieldCheck,
-  Database,
-  FileText,
-  Scale,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SilicofellerLogo } from "@/components/silicofeller-logo";
@@ -35,13 +29,13 @@ import { useAuth, ROLE_LABEL } from "@/lib/auth/auth-context";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "SilicoFeller — AI Quantum Chip Design" },
+      { title: "Silicofeller — AI Quantum Chip Design" },
       {
         name: "description",
         content:
-          "SilicoFeller turns natural-language prompts into production-ready quantum chip architectures. Describe. Generate. Fabricate.",
+          "Silicofeller turns natural-language prompts into production-ready quantum chip architectures. Describe. Generate. Fabricate.",
       },
-      { property: "og:title", content: "SilicoFeller — AI Quantum Chip Design" },
+      { property: "og:title", content: "Silicofeller — AI Quantum Chip Design" },
       {
         property: "og:description",
         content: "AI-powered quantum chip design. From prompt to fabricated qubit array.",
@@ -54,7 +48,7 @@ export const Route = createFileRoute("/")({
 const ROTATING_HEADLINES = [
   "Design Quantum Chips With Natural Language",
   "AI-Powered Quantum Chip Design",
-  "From Prompt to Silicon",
+  "From Prompt to Quantum Chip",
   "The Future of Quantum Engineering",
   "Describe. Generate. Fabricate.",
 ];
@@ -98,18 +92,14 @@ function LandingPage() {
           className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[#0A0A0F]"
         />
 
-        <div className="relative z-10 grid grid-cols-1 gap-10 px-6 pb-28 pt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:px-10 lg:pt-20">
+        <div className="relative z-10 grid grid-cols-1 gap-10 px-6 pb-28 pt-8 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:px-10 lg:pt-12">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="flex flex-col justify-center"
           >
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-black/10 bg-white/60 px-3 py-1 text-xs font-medium text-foreground/70 backdrop-blur">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#F26B3A]" />
-              AI-native quantum chip design
-            </div>
-            <h1 className="mt-5 min-h-[1.1em] text-[2.75rem] font-semibold leading-[1.02] tracking-[-0.035em] sm:text-[3.5rem] lg:text-[4.25rem]">
+            <h1 className="text-[2.75rem] font-semibold leading-[1.35] tracking-[-0.035em] sm:text-[3.5rem] lg:text-[4.25rem]">
               <motion.span
                 key={headlineIdx}
                 initial={{ opacity: 0, y: 12 }}
@@ -121,7 +111,7 @@ function LandingPage() {
               </motion.span>
             </h1>
             <p className="mt-6 max-w-xl text-[1.0625rem] leading-relaxed text-foreground/70">
-              SilicoFeller transforms natural-language prompts into production-ready quantum chip
+              Silicofeller transforms natural-language prompts into production-ready quantum chip
               architectures — transmon arrays, error-correction layouts and superconducting qubit
               topologies, generated in seconds.
             </p>
@@ -131,9 +121,7 @@ function LandingPage() {
                 asChild
                 className="h-12 rounded-full bg-foreground px-6 text-sm font-semibold text-background hover:bg-foreground/90"
               >
-                <Link to={user ? "/dashboard" : "/designer"}>
-                  Start designing <ArrowRight className="ml-1.5 h-4 w-4" />
-                </Link>
+                <Link to="/schematic-editor">Start designing</Link>
               </Button>
               <a
                 href="#demo"
@@ -145,13 +133,13 @@ function LandingPage() {
 
             <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-xs text-foreground/55">
               <span className="flex items-center gap-1.5">
-                <Shield className="h-3.5 w-3.5" /> SOC 2 ready
+                <Shield className="h-3.5 w-3.5" />
               </span>
               <span className="flex items-center gap-1.5">
-                <Zap className="h-3.5 w-3.5" /> Generates in seconds
+                <Zap className="h-3.5 w-3.5" />
               </span>
               <span className="flex items-center gap-1.5">
-                <Cpu className="h-3.5 w-3.5" /> 128+ qubit topologies
+                <Cpu className="h-3.5 w-3.5" />
               </span>
             </div>
           </motion.div>
@@ -169,13 +157,13 @@ function LandingPage() {
       <Section
         id="about"
         eyebrow="About us"
-        title="SilicoFeller — AI for the quantum era."
+        title="Silicofeller — AI for the quantum era."
         tone="paper"
       >
         <div className="mt-2 grid grid-cols-1 gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
           <div>
             <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
-              SilicoFeller is an AI-powered quantum chip design platform. You describe the quantum
+              Silicofeller is an AI-powered quantum chip design platform. You describe the quantum
               chip you need — in plain language — and our platform turns that prompt into a
               complete, fabrication-ready design. No manual layout work, no low-level HDL, just your
               intent and an output you can build.
@@ -188,84 +176,51 @@ function LandingPage() {
               underlying design graph.
             </p>
             <p className="mt-4 text-[0.9375rem] leading-relaxed text-muted-foreground">
-              Once your design is ready, SilicoFeller automatically generates{" "}
+              Once your design is ready, Silicofeller automatically generates{" "}
               <span className="font-medium text-foreground">Qiskit Metal Python code</span> — the
               industry-standard framework for quantum chip design — so your layout is immediately
               ready for simulation, DRC verification, and tapeout submission.
             </p>
           </div>
           <div className="flex items-center justify-center">
-            <div
-              className="relative flex h-72 w-full max-w-md items-center justify-center rounded-3xl border border-border bg-white/80 p-10 backdrop-blur"
-              style={{ boxShadow: "var(--shadow-card)" }}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, rotateX: -15 }}
+              whileInView={{ opacity: 1, scale: 1, rotateX: 0 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+              style={{ perspective: 1200, transformStyle: "preserve-3d" }}
+              className="relative flex w-full max-w-lg items-center justify-center"
             >
-              <img
-                src="/logo-removebg-preview.png"
-                alt="SilicoFeller logo"
-                className="max-h-48 w-auto object-contain"
-              />
-              <img
-                src="/nvidia-inception-program-badge-rgb-1c-blk-for-screen.png"
-                alt="NVIDIA Inception Program member"
-                className="absolute bottom-4 right-4 h-10 w-auto opacity-80"
-              />
-            </div>
-          </div>
-        </div>
-
-      </Section>
-
-      {/* ───────── CAREERS — warm/paper tone ───────── */}
-      <Section
-        id="careers"
-        eyebrow="Careers"
-        title="Help us build the quantum design layer."
-        tone="paper"
-      >
-        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1.2fr]">
-          <div>
-            <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
-              At SilicoFeller, we are uniting artificial intelligence and quantum physics to democratize quantum processor design. We're a fast-moving, research-driven team building tools that make layout, simulation, and verification of superconducting qubits instantaneous.
-            </p>
-            <h3 className="mt-6 text-lg font-semibold text-foreground">Why join SilicoFeller?</h3>
-            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-[#F26B3A] shrink-0" />
-                Working at the cutting edge of AI and quantum computing.
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-[#F26B3A] shrink-0" />
-                Remote-friendly culture with flexible working hours.
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-[#F26B3A] shrink-0" />
-                Generous equity package and health benefits.
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-[#F26B3A] shrink-0" />
-                Annual learning & conference stipend.
-              </li>
-            </ul>
-          </div>
-          <div className="space-y-4">
-            <h3 className="text-base font-semibold text-foreground">Open Positions</h3>
-            {OPEN_ROLES.map((role) => (
               <div
-                key={role.title}
-                className="group flex items-center justify-between rounded-xl border border-border bg-card p-4 transition-all hover:border-[#F26B3A] hover:shadow-[0_4px_20px_rgba(242,107,58,0.05)]"
-              >
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground">{role.title}</h4>
-                  <p className="mt-1 text-xs text-muted-foreground">{role.dept} · {role.loc}</p>
-                </div>
-                <a
-                  href="#contact"
-                  className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-foreground transition-all group-hover:bg-[#F26B3A] group-hover:text-white"
-                >
-                  <ArrowRight className="h-4 w-4" />
-                </a>
-              </div>
-            ))}
+                aria-hidden
+                className="pointer-events-none absolute inset-x-8 bottom-6 h-24 rounded-[100%] blur-2xl"
+                style={{
+                  background:
+                    "radial-gradient(closest-side, rgba(59,130,246,0.45), rgba(59,130,246,0) 70%)",
+                }}
+              />
+              <motion.img
+                src="/quantum-chip-3d.png"
+                alt="Silicofeller quantum chip"
+                width={1280}
+                height={1024}
+                loading="lazy"
+                className="relative z-10 w-full max-w-lg select-none drop-shadow-[0_30px_60px_rgba(15,23,42,0.35)]"
+                style={{ transformStyle: "preserve-3d" }}
+                animate={{
+                  y: [0, -10, 0],
+                  rotateZ: [-1.2, 1.2, -1.2],
+                  rotateY: [-3, 3, -3],
+                }}
+                transition={{
+                  duration: 7,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                whileHover={{ scale: 1.04, rotateY: 6, rotateX: -4 }}
+                draggable={false}
+              />
+            </motion.div>
           </div>
         </div>
       </Section>
@@ -303,29 +258,6 @@ function LandingPage() {
         </div>
       </Section>
 
-      {/* ───────── SECURITY — dark cinematic tone ───────── */}
-      <Section
-        id="security"
-        eyebrow="Security & Trust"
-        title="Enterprise-grade security for quantum IP."
-        tone="dark"
-      >
-        <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
-          {SECURITY_PILLARS.map((p) => (
-            <div
-              key={p.title}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl transition-all hover:border-white/20"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F26B3A]/20 text-[#F26B3A]">
-                <p.icon className="h-5 w-5" />
-              </div>
-              <h3 className="mt-4 text-base font-semibold text-white">{p.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-white/60">{p.desc}</p>
-            </div>
-          ))}
-        </div>
-      </Section>
-
       {/* ───────── FEATURES — glassmorphism on dark ───────── */}
       <Section
         id="features"
@@ -354,229 +286,13 @@ function LandingPage() {
       </Section>
 
       {/* ───────── DEMO — paper ───────── */}
-      <Section id="demo" eyebrow="Live demo" title="A prompt in. A quantum chip out." tone="paper">
-        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <div
-            className="rounded-2xl border border-border bg-foreground p-5 font-mono text-sm text-background"
-            style={{ boxShadow: "var(--shadow-card)" }}
-          >
-            <div className="flex items-center gap-1.5 pb-3">
-              <span className="h-2.5 w-2.5 rounded-full bg-destructive" />
-              <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
-              <span className="h-2.5 w-2.5 rounded-full bg-success" />
-              <span className="ml-2 text-[11px] text-background/60">silicofeller / prompt</span>
-            </div>
-            <p className="text-[12px] text-background/60">$ silicofeller design</p>
-            <TypingLine
-              text={`> Design a 5-qubit transmon quantum processor with nearest-neighbor coupling.`}
-            />
-            <p className="mt-3 text-[12px] text-accent-2">[AI] analyzing requirements…</p>
-            <p className="text-[12px] text-accent-2">[AI] generating qubit topology…</p>
-            <p className="text-[12px] text-accent-2">[AI] placing readout resonators…</p>
-            <p className="text-[12px] text-success">✓ quantum chip ready</p>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {DEMO_OUTPUTS.map((o) => (
-              <div
-                key={o.title}
-                className="rounded-2xl border border-border bg-card p-5"
-                style={{ boxShadow: "var(--shadow-card)" }}
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold text-accent">
-                  <o.icon className="h-3.5 w-3.5" /> {o.title}
-                </div>
-                <p className="mt-2 text-sm font-medium text-foreground">{o.value}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{o.detail}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      {/* ───────── PRICING — grid / light layout ───────── */}
-      <Section
-        id="pricing"
-        eyebrow="Pricing"
-        title="Flexible plans for teams of all sizes."
-        tone="grid"
-      >
-        <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
-          {PRICING_PLANS.map((p) => (
-            <div
-              key={p.name}
-              className={`relative flex flex-col overflow-hidden rounded-2xl border bg-card p-6 backdrop-blur ${
-                p.featured
-                  ? "border-[#F26B3A] shadow-[0_20px_40px_-15px_rgba(242,107,58,0.15)] ring-1 ring-[#F26B3A]"
-                  : "border-border shadow-sm"
-              }`}
-            >
-              {p.featured && (
-                <span className="absolute right-4 top-4 rounded-full bg-[#F26B3A] px-2.5 py-0.5 text-[10px] font-semibold text-white">
-                  POPULAR
-                </span>
-              )}
-              <h3 className="text-lg font-semibold text-foreground">{p.name}</h3>
-              <p className="mt-1 text-xs text-muted-foreground">{p.desc}</p>
-              <div className="mt-4 flex items-baseline">
-                <span className="text-3xl font-bold tracking-tight text-foreground">{p.price}</span>
-                {p.period && <span className="ml-1 text-xs text-muted-foreground">{p.period}</span>}
-              </div>
-              <ul className="mt-6 flex-1 space-y-3 text-xs text-muted-foreground">
-                {p.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button
-                asChild
-                className={`mt-6 h-10 w-full rounded-lg text-xs font-semibold ${
-                  p.featured
-                    ? "bg-[#F26B3A] text-white hover:bg-[#F26B3A]/90"
-                    : "border border-border bg-transparent text-foreground hover:bg-muted"
-                }`}
-              >
-                {p.ctaLink.startsWith("/#") ? (
-                  <a href={p.ctaLink}>{p.ctaText}</a>
-                ) : (
-                  <Link to={p.ctaLink as any}>{p.ctaText}</Link>
-                )}
-              </Button>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* ───────── CHANGELOG — timeline style on elevated tone ───────── */}
-      <Section
-        id="changelog"
-        eyebrow="Changelog"
-        title="Product updates & releases."
-        tone="elevated"
-      >
-        <div className="mx-auto mt-10 max-w-3xl">
-          <div className="relative border-l border-border pl-6 space-y-10">
-            {CHANGES.map((item) => (
-              <div key={item.version} className="relative">
-                <span className="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-[#F26B3A]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
-                </span>
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <span className="text-sm font-semibold text-foreground">{item.version}</span>
-                  <span className="text-xs text-muted-foreground">· {item.date}</span>
-                </div>
-                <h4 className="mt-1 text-sm font-semibold text-foreground">{item.title}</h4>
-                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      {/* ───────── BLOG — elevated cards ───────── */}
-      <Section
-        id="blog"
-        eyebrow="Research & insights"
-        title="From the SilicoFeller blog."
-        tone="elevated"
-      >
-        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {BLOG_POSTS.slice(0, 4).map((p) => (
-            <Link
-              key={p.slug}
-              to="/blog/$slug"
-              params={{ slug: p.slug }}
-              className="group rounded-2xl border border-border bg-card p-5 transition-all hover:-translate-y-1 hover:shadow-[0_20px_60px_-20px_rgba(242,107,58,0.25)]"
-              style={{ boxShadow: "var(--shadow-card)" }}
-            >
-              <div className="aspect-[16/9] w-full overflow-hidden rounded-lg bg-[#0A0A0F] border border-border flex items-center justify-center">
-                <img
-                  src={POST_IMAGES[p.slug] ?? "/images/shadow_hamiltonian_complexity.png"}
-                  alt={p.title}
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "https://via.placeholder.com/600x340";
-                  }}
-                />
-              </div>
-              <p className="mt-3 text-[11px] font-medium uppercase tracking-wider text-[#F26B3A]">
-                {p.tag}
-              </p>
-              <h3 className="mt-1 text-sm font-semibold leading-snug text-foreground group-hover:text-[#F26B3A]">
-                {p.title}
-              </h3>
-            </Link>
-          ))}
-        </div>
-      </Section>
-
-      {/* ───────── LEGAL & COMPLIANCE — paper tone ───────── */}
-      <Section
-        id="legal"
-        eyebrow="Legal & Terms"
-        title="Privacy Standards & Terms of Service."
-        tone="paper"
-      >
-        <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2">
-          <div id="privacy-policy" className="scroll-mt-24 rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-[#F26B3A]" />
-              <h3 className="text-base font-semibold text-foreground">Privacy Policy</h3>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
-              We take the privacy of your designs, account details, and telemetry seriously. Under our privacy guidelines, we ensure that:
-            </p>
-            <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
-                <span>We do not sell your personal or IP data to third parties.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
-                <span>Cookies are strictly used for session authentication and billing security.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
-                <span>Design telemetry is anonymous and encrypted end-to-end.</span>
-              </li>
-            </ul>
-            <p className="mt-4 text-xs font-semibold text-[#F26B3A]">Last updated: June 15, 2026</p>
-          </div>
-
-          <div id="terms-of-service" className="scroll-mt-24 rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <div className="flex items-center gap-2">
-              <Scale className="h-5 w-5 text-[#F26B3A]" />
-              <h3 className="text-base font-semibold text-foreground">Terms of Service</h3>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
-              By using SilicoFeller's compiler, schematic editor, and AI layout generators, you agree to:
-            </p>
-            <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
-                <span>Maintain user credentials securely and report unauthorized access.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
-                <span>Use API endpoints responsibly, respecting rate limits.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-[#F26B3A] shrink-0" />
-                <span>Ensure your generated files comply with export regulations.</span>
-              </li>
-            </ul>
-            <p className="mt-4 text-xs font-semibold text-[#F26B3A]">Last updated: June 15, 2026</p>
-          </div>
-        </div>
-      </Section>
-
+     
       {/* ───────── CONTACT — dark cinematic ───────── */}
-      <Section id="contact" eyebrow="Contact" title="Let's design what's next." tone="dark">
+      <Section id="contact" eyebrow="Contact" title="Let's design what's next." tone="paper">
         <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1.2fr_1fr]">
           <form
             onSubmit={(e) => e.preventDefault()}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl"
+            className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm"
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormInput label="Name" placeholder="Ada Lovelace" />
@@ -587,43 +303,43 @@ function LandingPage() {
                 className="sm:col-span-2"
               />
               <div className="sm:col-span-2">
-                <label className="text-xs font-medium text-white/60">Message</label>
+                <label className="text-xs font-medium text-foreground/60">Message</label>
                 <textarea
                   rows={4}
                   placeholder="Tell us about your quantum chip idea…"
-                  className="mt-1.5 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#F26B3A]"
+                  className="mt-1.5 w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-foreground/40 focus:border-[#F26B3A]"
                 />
               </div>
             </div>
             <Button
               type="submit"
-              className="mt-5 h-11 rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
+              className="mt-5 h-11 rounded-full bg-foreground px-6 text-sm font-semibold text-background hover:bg-foreground/90"
             >
               Send message <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
           </form>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
-            <p className="text-sm text-white/70">
+          <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
+            <p className="text-sm text-muted-foreground">
               Talk to our quantum engineering team about pilots, integrations, and enterprise
               deployments.
             </p>
             <div className="mt-5 flex items-center gap-3">
               <a
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/15 text-white transition-colors hover:bg-white/10"
+                className="grid h-10 w-10 place-items-center rounded-full border border-black/15 text-foreground transition-colors hover:bg-black/5"
                 href="#"
                 aria-label="LinkedIn"
               >
                 <Linkedin className="h-4 w-4" />
               </a>
               <a
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/15 text-white transition-colors hover:bg-white/10"
+                className="grid h-10 w-10 place-items-center rounded-full border border-black/15 text-foreground transition-colors hover:bg-black/5"
                 href="#"
                 aria-label="GitHub"
               >
                 <Github className="h-4 w-4" />
               </a>
               <a
-                className="grid h-10 w-10 place-items-center rounded-full border border-white/15 text-white transition-colors hover:bg-white/10"
+                className="grid h-10 w-10 place-items-center rounded-full border border-black/15 text-foreground transition-colors hover:bg-black/5"
                 href="mailto:hello@silicofeller.com"
                 aria-label="Email"
               >
@@ -642,7 +358,7 @@ function LandingPage() {
           <FooterCol title="Legal" links={["Privacy Policy", "Terms of Service", "Security"]} />
         </div>
         <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center justify-between gap-2 border-t border-white/10 pt-6 text-xs text-white/50 sm:flex-row">
-          <p>© {new Date().getFullYear()} SilicoFeller, Inc. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Silicofeller, Inc. All rights reserved.</p>
           {user && (
             <p>
               Signed in as <span className="font-medium text-white">{user.name}</span> ·{" "}
@@ -665,8 +381,8 @@ function SiteNav({
   return (
     <header
       className={`sticky top-0 z-50 transition-all duration-300 ${scrolled
-          ? "border-b border-black/10 bg-[#E8E6DE]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
-          : "border-b border-transparent bg-[#E8E6DE]/40 backdrop-blur-md"
+        ? "border-b border-black/10 bg-[#E8E6DE]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+        : "border-b border-transparent bg-[#E8E6DE]/40 backdrop-blur-md"
         }`}
     >
       <div className="flex items-center justify-between px-6 py-4 lg:px-10">
@@ -683,12 +399,12 @@ function SiteNav({
           <a href="#features" className="transition-colors hover:text-foreground">
             Features
           </a>
-          <Link to="/documentation" className="transition-colors hover:text-foreground">
+          <span className="cursor-default select-none text-foreground/65">
             Documentation
-          </Link>
-          <Link to="/community" className="transition-colors hover:text-foreground">
+          </span>
+          <span className="cursor-default select-none text-foreground/65">
             Community
-          </Link>
+          </span>
           <Link to="/blog" className="transition-colors hover:text-foreground">
             Blog
           </Link>
@@ -703,9 +419,9 @@ function SiteNav({
           {user ? (
             <>
               <Button
-                asChild
                 variant="ghost"
-                className="h-9 rounded-full px-4 text-sm text-foreground hover:bg-black/5"
+                asChild
+                className="h-9 rounded-full px-4 text-sm text-foreground hover:bg-foreground/5"
               >
                 <Link to="/dashboard">Dashboard</Link>
               </Button>
@@ -713,15 +429,15 @@ function SiteNav({
                 asChild
                 className="h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
               >
-                <Link to="/dashboard">Open designer</Link>
+                <Link to="/schematic-editor">Open designer</Link>
               </Button>
             </>
           ) : (
             <>
               <Button
-                asChild
                 variant="ghost"
-                className="h-9 rounded-full px-4 text-sm text-foreground hover:bg-black/5"
+                asChild
+                className="h-9 rounded-full px-4 text-sm text-foreground hover:bg-foreground/5"
               >
                 <Link to="/sign-in">Sign in</Link>
               </Button>
@@ -806,31 +522,20 @@ function FormInput({
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; className?: string }) {
   return (
     <div className={className}>
-      <label className="text-xs font-medium text-white/60">{label}</label>
+      <label className="text-xs font-medium text-foreground/60">{label}</label>
       <input
         {...rest}
-        className="mt-1.5 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#F26B3A]"
+        className="mt-1.5 w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-foreground/40 focus:border-[#F26B3A]"
       />
     </div>
   );
 }
 
 const FOOTER_LINK_MAP: Record<string, string> = {
-  "Features": "#features",
-  "Designer": "/designer",
-  "Pricing": "#pricing",
-  "Changelog": "#changelog",
-  "About": "#about",
-  "Blog": "/blog",
-  "Careers": "#careers",
-  "Contact": "#contact",
-  "Documentation": "/documentation",
-  "API": "/documentation",
-  "Support": "#legal",
-  "Status": "#",
-  "Privacy Policy": "#privacy-policy",
-  "Terms of Service": "#terms-of-service",
-  "Security": "#security",
+  Features: "#features",
+  Designer: "#demo",
+  About: "#about",
+  Contact: "#contact",
 };
 
 function FooterCol({ title, links }: { title: string; links: string[] }) {
@@ -839,21 +544,16 @@ function FooterCol({ title, links }: { title: string; links: string[] }) {
       <p className="text-xs font-semibold uppercase tracking-wider text-white">{title}</p>
       <ul className="mt-3 space-y-2 text-sm text-white/50">
         {links.map((l) => {
-          const href = FOOTER_LINK_MAP[l] || "#";
-          if (href.startsWith("/")) {
-            return (
-              <li key={l}>
-                <Link to={href} className="transition-colors hover:text-white">
-                  {l}
-                </Link>
-              </li>
-            );
-          }
-          return (
+          const href = FOOTER_LINK_MAP[l];
+          return href ? (
             <li key={l}>
               <a href={href} className="transition-colors hover:text-white">
                 {l}
               </a>
+            </li>
+          ) : (
+            <li key={l}>
+              <span className="cursor-not-allowed opacity-40 select-none">{l}</span>
             </li>
           );
         })}
@@ -878,7 +578,6 @@ function TypingLine({ text }: { text: string }) {
     </p>
   );
 }
-
 
 const TECH = [
   {
@@ -951,106 +650,9 @@ const DEMO_OUTPUTS = [
   { icon: FileCode2, title: "Files", value: "qasm + verilog + gds", detail: "Ready to export" },
 ];
 
-const POST_IMAGES: Record<string, string> = {
-  "shadow-hamiltonian-simulation": "/images/shadow_hamiltonian_complexity.png",
-  "surface-codes-qec-architecture": "/images/surface_codes_threshold.png",
-  "squadds-qubit-design": "/images/squadds_validation.png",
-  "cudaq-qec-decoders": "/images/cudaq_relaybp_throughput.png",
-  "quantum-supremacy": "/images/quantum_supremacy_scaling.png",
-};
-
-const OPEN_ROLES = [
-  { title: "Senior Quantum Compiler Engineer", dept: "Quantum Software", loc: "Remote / Bengaluru" },
-  { title: "AI Research Scientist (Generative Layouts)", dept: "AI Engineering", loc: "Remote / SF" },
-  { title: "Senior Full-Stack Product Engineer", dept: "Product Team", loc: "Remote / Bengaluru" },
-] as const;
-
-const SECURITY_PILLARS = [
-  {
-    icon: ShieldCheck,
-    title: "SOC 2 Type II Certified",
-    desc: "Our platform processes your design graphs under strict SOC 2 compliance guidelines, ensuring top-tier corporate security controls.",
-  },
-  {
-    icon: Lock,
-    title: "IP Isolation",
-    desc: "Your synthesized transmon geometries and custom couplers are cryptographically isolated. We never train public models on your proprietary designs.",
-  },
-  {
-    icon: Database,
-    title: "Secure Cloud & On-Premise",
-    desc: "Deploy on our secure AWS cloud sandbox or run entirely on-premise within your government-grade air-gapped lab environments.",
-  },
-] as const;
-
-const PRICING_PLANS = [
-  {
-    name: "Hobby",
-    desc: "For students, academics and quantum enthusiasts.",
-    price: "$0",
-    period: "",
-    features: [
-      "Up to 5 AI designs per month",
-      "Standard component library",
-      "Basic transmon coupling maps",
-      "Qiskit Metal python exports",
-      "Community forum support",
-    ],
-    ctaText: "Get Started",
-    ctaLink: "/sign-up",
-    featured: false,
-  },
-  {
-    name: "Professional",
-    desc: "For startups and dedicated hardware design teams.",
-    price: "$450",
-    period: "/ month",
-    features: [
-      "Unlimited AI chip designs",
-      "Full parametric layout editor",
-      "Electromagnetic & frequency simulations",
-      "Auto-generated GDSII exports",
-      "Priority email support (under 12h)",
-    ],
-    ctaText: "Start 14-day Free Trial",
-    ctaLink: "/sign-up",
-    featured: true,
-  },
-  {
-    name: "Enterprise",
-    desc: "For commercial foundries and security-focused labs.",
-    price: "Custom",
-    period: "",
-    features: [
-      "Custom component templates & library",
-      "SOC 2 compliance logs",
-      "On-premise air-gapped deployment",
-      "Dedicated simulation HPC cluster",
-      "Dedicated Slack & 24/7 phone support",
-    ],
-    ctaText: "Contact Sales",
-    ctaLink: "/#contact",
-    featured: false,
-  },
-] as const;
-
-const CHANGES = [
-  {
-    version: "v1.4.0",
-    date: "June 2026",
-    title: "QClang Compiler Optimization",
-    desc: "We released QClang's secondary compiler pipeline featuring advanced crosstalk mitigations, optimizing GDS layout paths and lowering qubit frequency interference by 24%.",
-  },
-  {
-    version: "v1.3.2",
-    date: "May 2026",
-    title: "Multi-Qubit Transmon Simulator",
-    desc: "Simulation speeds improved by 4x for transmon array frequency calculations. Engineers can now model up to 27-qubit systems with full electromagnetic coupling matrix generation.",
-  },
-  {
-    version: "v1.2.0",
-    date: "April 2026",
-    title: "Vast Component Library Expansion",
-    desc: "Added 12 new launch pads, customizable coplanar waveguide resonators, and 3D transmon pocket models into the drag-and-drop Schematic Canvas.",
-  },
+const POSTS = [
+  { tag: "Research", title: "AI in quantum chip design: the next decade" },
+  { tag: "Quantum", title: "The future of fault-tolerant quantum chips" },
+  { tag: "Engineering", title: "Automated qubit-layout generation, end to end" },
+  { tag: "Industry", title: "Insights from leading quantum labs on AI workflows" },
 ] as const;
