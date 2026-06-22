@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
+import { useEffect, useState } from "react";
 import {
   Atom, Cpu, Code2, Sparkles, GitBranch, MessageSquare, LifeBuoy, Lightbulb,
   Users, MessagesSquare, Award, FolderGit2, ArrowRight, Calendar, MapPin,
-  Star, TrendingUp, Eye, Reply, Activity,
+  Star, TrendingUp, Eye, Reply, Activity, Menu, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -84,61 +85,167 @@ function CommunityPage() {
   );
 }
 
-// ─── Nav (uses existing SilicofellerLogo + auth) ──────────────────────────────
+// ─── Nav ──────────────────────────────────────────────────────────────────────
+const COMMUNITY_NAV = [
+  { label: "Channels",    href: "#channels" },
+  { label: "Discussions", href: "#discussions" },
+  { label: "Events",      href: "#events" },
+  { label: "Showcase",    href: "#showcase" },
+  { label: "Docs",        href: "/documentation" },
+];
+
 function CommunityNav() {
   const { user } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Body scroll lock
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
+  // ESC to close
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
-      <CSection className="flex h-16 items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/" aria-label="SilicoFeller home">
-            <SilicofellerLogo />
-          </Link>
-          <Badge
-            variant="secondary"
-            className="rounded-full bg-accent-soft px-2 py-0 text-[10px] font-medium text-accent"
-          >
-            Community
-          </Badge>
-        </div>
-        <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
-          <a className="hover:text-foreground" href="#channels">Channels</a>
-          <a className="hover:text-foreground" href="#discussions">Discussions</a>
-          <a className="hover:text-foreground" href="#events">Events</a>
-          <a className="hover:text-foreground" href="#showcase">Showcase</a>
-          <Link to="/documentation" className="hover:text-foreground">Docs</Link>
-        </nav>
-        <div className="flex items-center gap-2">
-          {user ? (
-            <>
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/dashboard">Dashboard</Link>
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                className="rounded-full bg-foreground text-background hover:bg-foreground/90"
-              >
-                <Link to="/designer">Open Designer</Link>
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/sign-in">Sign in</Link>
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                className="rounded-full bg-foreground text-background hover:bg-foreground/90"
-              >
-                <Link to="/sign-up">Join Community</Link>
-              </Button>
-            </>
-          )}
-        </div>
-      </CSection>
-    </header>
+    <>
+      <div className="h-[64px]" aria-hidden />
+      <header className="fixed inset-x-0 top-0 z-[9999] border-b border-border/60 bg-background/90 backdrop-blur-xl shadow-sm">
+        <CSection className="flex h-16 items-center justify-between">
+          {/* Logo + badge */}
+          <div className="flex items-center gap-3">
+            <Link to="/" aria-label="SilicoFeller home" className="flex items-center min-h-[44px]">
+              <SilicofellerLogo />
+            </Link>
+            <Badge variant="secondary" className="rounded-full bg-accent-soft px-2 py-0 text-[10px] font-medium text-accent">
+              Community
+            </Badge>
+          </div>
+
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex" aria-label="Community navigation">
+            {COMMUNITY_NAV.map((item) => (
+              <a key={item.label} className="min-h-[44px] flex items-center hover:text-foreground transition-colors" href={item.href}>
+                {item.label}
+              </a>
+            ))}
+          </nav>
+
+          {/* Desktop CTAs + hamburger */}
+          <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
+              {user ? (
+                <>
+                  <Button asChild variant="ghost" size="sm" className="min-h-[44px]">
+                    <Link to="/dashboard">Dashboard</Link>
+                  </Button>
+                  <Button asChild size="sm" className="min-h-[44px] rounded-full bg-foreground text-background hover:bg-foreground/90">
+                    <Link to="/designer">Open Designer</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild variant="ghost" size="sm" className="min-h-[44px]">
+                    <Link to="/sign-in">Sign in</Link>
+                  </Button>
+                  <Button asChild size="sm" className="min-h-[44px] rounded-full bg-foreground text-background hover:bg-foreground/90">
+                    <Link to="/sign-up">Join Community</Link>
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Hamburger — mobile only */}
+            <button
+              type="button"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+              aria-controls="community-mobile-nav"
+              className="md:hidden inline-flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-lg text-foreground hover:bg-foreground/5 transition-colors"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {mobileOpen ? (
+                  <motion.span key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <X className="h-5 w-5" />
+                  </motion.span>
+                ) : (
+                  <motion.span key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <Menu className="h-5 w-5" />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
+        </CSection>
+      </header>
+
+      {/* ── Mobile drawer + backdrop ─────────────────────────────────── */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden fixed inset-0 top-[64px] z-40 bg-black/30 backdrop-blur-[2px]"
+              aria-hidden
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.div
+              key="drawer"
+              id="community-mobile-nav"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation"
+              initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="md:hidden fixed inset-x-0 top-[64px] z-50 max-h-[calc(100svh-64px)] overflow-y-auto bg-background shadow-xl pb-safe"
+            >
+              <nav className="flex flex-col px-4 sm:px-6 pt-2 pb-8" aria-label="Mobile community navigation">
+                {COMMUNITY_NAV.map((item, i) => (
+                  <motion.div key={item.label} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04, duration: 0.2 }}>
+                    <a
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className="w-full flex items-center border-b border-border py-4 text-base font-medium text-foreground min-h-[44px] transition-colors hover:text-accent"
+                    >
+                      {item.label}
+                    </a>
+                  </motion.div>
+                ))}
+                <motion.div className="mt-6 flex flex-col gap-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: COMMUNITY_NAV.length * 0.04 + 0.05 }}>
+                  {user ? (
+                    <>
+                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-border text-sm font-medium">
+                        <Link to="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                      </Button>
+                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                        <Link to="/designer" onClick={() => setMobileOpen(false)}>Open Designer</Link>
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-border text-sm font-medium">
+                        <Link to="/sign-in" onClick={() => setMobileOpen(false)}>Sign in</Link>
+                      </Button>
+                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                        <Link to="/sign-up" onClick={() => setMobileOpen(false)}>Join Community</Link>
+                      </Button>
+                    </>
+                  )}
+                </motion.div>
+              </nav>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
