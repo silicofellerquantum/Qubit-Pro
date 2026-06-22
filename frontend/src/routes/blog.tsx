@@ -56,7 +56,10 @@ function BlogLayout() {
             <Link to="/community" className="transition-colors hover:text-foreground">
               Community
             </Link>
-            <Link to="/blog" className="transition-colors hover:text-foreground font-medium text-[#7C3AED]">
+            <Link
+              to="/blog"
+              className="transition-colors hover:text-foreground font-medium text-[#7C3AED]"
+            >
               Blog
             </Link>
             <Link to="/our-team" className="transition-colors hover:text-foreground">

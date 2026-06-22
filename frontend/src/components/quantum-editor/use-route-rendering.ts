@@ -41,7 +41,10 @@ export function useRouteRendering(
     state.connections.forEach((c) => {
       const fromP = state.placements.find((p) => p.id === c.from.placementId);
       const toP = state.placements.find((p) => p.id === c.to.placementId);
-      if (!fromP || !toP) { m.set(c.id, "none"); return; }
+      if (!fromP || !toP) {
+        m.set(c.id, "none");
+        return;
+      }
       m.set(
         c.id,
         `${fromP.x.toFixed(6)},${fromP.y.toFixed(6)}:${c.from.pinName}:${toP.x.toFixed(6)},${toP.y.toFixed(6)}:${c.to.pinName}:${JSON.stringify(c.routeOverrides ?? {})}`,
@@ -54,7 +57,10 @@ export function useRouteRendering(
     const m = new Map<string, boolean>();
     state.connections.forEach((c) => {
       const hash = routeHashes.get(c.id) ?? "none";
-      if (c.locked && c.cachedSvg) { m.set(c.id, false); return; }
+      if (c.locked && c.cachedSvg) {
+        m.set(c.id, false);
+        return;
+      }
       m.set(c.id, c.cachedGeometryHash !== hash);
     });
     return m;
@@ -80,7 +86,9 @@ export function useRouteRendering(
 
   const routeQueriesById = useMemo(() => {
     const m = new Map<string, (typeof routeQueries)[number]>();
-    state.connections.forEach((c, i) => { m.set(c.id, routeQueries[i]); });
+    state.connections.forEach((c, i) => {
+      m.set(c.id, routeQueries[i]);
+    });
     return m;
   }, [state.connections, routeQueries]);
 
@@ -90,7 +98,12 @@ export function useRouteRendering(
       if (q?.data?.svg) {
         const expectedHash = routeHashes.get(c.id) ?? "none";
         if (c.cachedGeometryHash !== expectedHash) {
-          dispatch({ type: "SET_CONNECTION_GEOMETRY", id: c.id, svg: q.data.svg, hash: expectedHash });
+          dispatch({
+            type: "SET_CONNECTION_GEOMETRY",
+            id: c.id,
+            svg: q.data.svg,
+            hash: expectedHash,
+          });
         }
       }
     });

@@ -82,7 +82,9 @@ function BlogIndexPage() {
             <h2 className="mt-2 text-xl font-semibold leading-snug text-[#0F172A] group-hover:text-[#7C3AED] transition-colors duration-200">
               {p.title}
             </h2>
-            <p className="mt-2.5 text-sm leading-relaxed text-[#64748B] line-clamp-2">{p.excerpt}</p>
+            <p className="mt-2.5 text-sm leading-relaxed text-[#64748B] line-clamp-2">
+              {p.excerpt}
+            </p>
             <div className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#7C3AED] group-hover:translate-x-1 transition-transform duration-200">
               Read more <ArrowRight className="h-3 w-3" />
             </div>

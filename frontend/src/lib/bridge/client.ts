@@ -11,9 +11,10 @@ import type {
   ValidationResult,
 } from "./types";
 
-const RAW_URL = (import.meta.env.VITE_BRIDGE_URL as string | undefined) ??
-                (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
-                "http://localhost:5000";
+const RAW_URL =
+  (import.meta.env.VITE_BRIDGE_URL as string | undefined) ??
+  (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
+  "http://localhost:5000";
 const BASE_URL = RAW_URL.replace(/\/$/, "");
 
 const UI_PARAM_KEYS = new Set(["_uiScale"]);
@@ -46,7 +47,9 @@ async function call<T>(
       try {
         const body = await res.json();
         if (body?.error?.message) detail = body.error.message;
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       return { data: null, error: detail };
     }
     return { data: (await res.json()) as T, error: null };
@@ -63,31 +66,59 @@ export const bridgeClient = {
     call<ComponentSummary>(`/components/${encodeURIComponent(id)}`, { method: "GET", signal }),
 
   getMetadata: (id: string, signal?: AbortSignal) =>
-    call<ComponentMetadata>(`/components/${encodeURIComponent(id)}/metadata`, { method: "GET", signal }),
+    call<ComponentMetadata>(`/components/${encodeURIComponent(id)}/metadata`, {
+      method: "GET",
+      signal,
+    }),
 
   getPins: (id: string, params?: Record<string, string | number>, signal?: AbortSignal) => {
     const qs = params ? `?params=${encodeURIComponent(JSON.stringify(params))}` : "";
-    return call<ComponentPins>(`/components/${encodeURIComponent(id)}/pins${qs}`, { method: "GET", signal });
+    return call<ComponentPins>(`/components/${encodeURIComponent(id)}/pins${qs}`, {
+      method: "GET",
+      signal,
+    });
   },
 
   getPreview: (id: string, params?: Record<string, string | number>, signal?: AbortSignal) => {
     const qs = params ? `?params=${encodeURIComponent(JSON.stringify(params))}` : "";
-    return call<ComponentPreview>(`/components/${encodeURIComponent(id)}/preview${qs}`, { method: "GET", signal });
+    return call<ComponentPreview>(`/components/${encodeURIComponent(id)}/preview${qs}`, {
+      method: "GET",
+      signal,
+    });
   },
 
   validateDesign: (doc: DesignDocument, signal?: AbortSignal) =>
-    call<ValidationResult>("/design/validate", { method: "POST", body: JSON.stringify(stripUiParams(doc)), signal }),
+    call<ValidationResult>("/design/validate", {
+      method: "POST",
+      body: JSON.stringify(stripUiParams(doc)),
+      signal,
+    }),
 
   generateCode: (doc: DesignDocument, signal?: AbortSignal) =>
-    call<GeneratedCode>("/design/generate-code", { method: "POST", body: JSON.stringify(stripUiParams(doc)), signal }),
+    call<GeneratedCode>("/design/generate-code", {
+      method: "POST",
+      body: JSON.stringify(stripUiParams(doc)),
+      signal,
+    }),
 
   renderDesign: (doc: DesignDocument, signal?: AbortSignal) =>
-    call<RenderResult>("/design/render", { method: "POST", body: JSON.stringify(stripUiParams(doc)), signal }),
+    call<RenderResult>("/design/render", {
+      method: "POST",
+      body: JSON.stringify(stripUiParams(doc)),
+      signal,
+    }),
 
   renderRoute: (doc: DesignDocument, connectionId: string, signal?: AbortSignal) =>
-    call<RouteRender>("/design/render-route", { method: "POST", body: JSON.stringify({ design: stripUiParams(doc), connectionId }), signal }),
+    call<RouteRender>("/design/render-route", {
+      method: "POST",
+      body: JSON.stringify({ design: stripUiParams(doc), connectionId }),
+      signal,
+    }),
 
   runCode: (code: string, signal?: AbortSignal) =>
-    call<{ ok: boolean; design: DesignDocument | null; error: string | null }>(
-      "/design/run-code", { method: "POST", body: JSON.stringify({ code }), signal }),
+    call<{ ok: boolean; design: DesignDocument | null; error: string | null }>("/design/run-code", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+      signal,
+    }),
 };

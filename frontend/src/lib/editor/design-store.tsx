@@ -8,11 +8,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import type {
-  Connection,
-  DesignDocument,
-  Placement,
-} from "@/lib/bridge/types";
+import type { Connection, DesignDocument, Placement } from "@/lib/bridge/types";
 import { loadDesign, saveDesign, clearDesign } from "./persistence";
 
 export { clearDesign };
@@ -21,7 +17,6 @@ const CHIP_W_MM = 9.0;
 const CHIP_H_MM = 6.0;
 const CHIP_HALF_W = CHIP_W_MM / 2;
 const CHIP_HALF_H = CHIP_H_MM / 2;
-
 
 // ---------- State ----------
 
@@ -145,7 +140,9 @@ export const initialEditorState: EditorState = {
     try {
       const saved = localStorage.getItem("editor_minimap_visible");
       return saved === null ? false : saved === "true";
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   })(),
   past: [],
   future: [],
@@ -162,7 +159,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         selection: [{ kind: "placement", id: action.placement.id }],
       };
     case "DUPLICATE_PLACEMENT": {
-      const src = state.placements.find(p => p.id === action.id);
+      const src = state.placements.find((p) => p.id === action.id);
       if (!src) return state;
       const copyId = `pl_${src.componentId}_${Date.now()}`;
       const copyName = `${src.name}_copy`;
@@ -172,7 +169,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         name: copyName,
         x: Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, src.x + 0.2)),
         y: Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, src.y - 0.2)),
-        params: { ...src.params }
+        params: { ...src.params },
       };
       return {
         ...state,
@@ -213,17 +210,13 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         ...bump(state),
-        placements: state.placements.map((p) =>
-          p.id === action.id ? { ...p, locked: true } : p,
-        ),
+        placements: state.placements.map((p) => (p.id === action.id ? { ...p, locked: true } : p)),
       };
     case "UNLOCK_PLACEMENT":
       return {
         ...state,
         ...bump(state),
-        placements: state.placements.map((p) =>
-          p.id === action.id ? { ...p, locked: false } : p,
-        ),
+        placements: state.placements.map((p) => (p.id === action.id ? { ...p, locked: false } : p)),
       };
     case "MOVE_PLACEMENT": {
       const target = state.placements.find((p) => p.id === action.id);
@@ -255,9 +248,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         connections: state.connections.filter(
           (c) => c.from.placementId !== action.id && c.to.placementId !== action.id,
         ),
-        selection: state.selection.filter(
-          (s) => !(s.kind === "placement" && s.id === action.id),
-        ),
+        selection: state.selection.filter((s) => !(s.kind === "placement" && s.id === action.id)),
       };
     }
     case "PIN_CLICK": {
@@ -279,10 +270,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       // Prevent duplicate connections between same pins (either direction)
       const alreadyExists = state.connections.some((c) => {
-        const a = c.from.placementId === state.pendingPin!.placementId && c.from.pinName === state.pendingPin!.pinName;
+        const a =
+          c.from.placementId === state.pendingPin!.placementId &&
+          c.from.pinName === state.pendingPin!.pinName;
         const b = c.to.placementId === action.placementId && c.to.pinName === action.pinName;
         const c2 = c.from.placementId === action.placementId && c.from.pinName === action.pinName;
-        const d = c.to.placementId === state.pendingPin!.placementId && c.to.pinName === state.pendingPin!.pinName;
+        const d =
+          c.to.placementId === state.pendingPin!.placementId &&
+          c.to.pinName === state.pendingPin!.pinName;
         return (a && b) || (c2 && d);
       });
       if (alreadyExists) {
@@ -310,9 +305,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         ...bump(state),
         connections: state.connections.filter((c) => c.id !== action.id),
-        selection: state.selection.filter(
-          (s) => !(s.kind === "connection" && s.id === action.id),
-        ),
+        selection: state.selection.filter((s) => !(s.kind === "connection" && s.id === action.id)),
       };
     case "UPDATE_CONNECTION":
       return {
@@ -335,7 +328,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         ...bump(state),
         connections: state.connections.map((c) =>
-          c.id === action.id ? { ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined } : c,
+          c.id === action.id
+            ? { ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined }
+            : c,
         ),
       };
     case "SET_CONNECTION_GEOMETRY":
@@ -349,15 +344,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, selection: action.selection ?? [], pendingPin: null };
     case "TOGGLE_SELECT": {
       const sel = state.selection ?? [];
-      const exists = sel.some(
-        (s) => s.kind === action.item.kind && s.id === action.item.id,
-      );
+      const exists = sel.some((s) => s.kind === action.item.kind && s.id === action.item.id);
       return {
         ...state,
         selection: exists
-          ? sel.filter(
-              (s) => !(s.kind === action.item.kind && s.id === action.item.id),
-            )
+          ? sel.filter((s) => !(s.kind === action.item.kind && s.id === action.item.id))
           : [...sel, action.item],
         pendingPin: null,
       };
@@ -382,7 +373,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, showHUD: !state.showHUD };
     case "TOGGLE_MINIMAP": {
       const next = !state.showMiniMap;
-      try { localStorage.setItem("editor_minimap_visible", String(next)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem("editor_minimap_visible", String(next));
+      } catch {
+        /* ignore */
+      }
       return { ...state, showMiniMap: next };
     }
     case "UNDO": {
@@ -481,7 +476,6 @@ export function DesignStoreProvider({ children }: { children: ReactNode }) {
   }, [state.rev, state.placements, state.connections]);
 
   const uniqueName = useCallback(
-
     (prefix: string) => {
       let n = 0;
       const taken = new Set(state.placements.map((p) => p.name));

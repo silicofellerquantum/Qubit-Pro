@@ -24,6 +24,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { SilicofellerLogo } from "@/components/silicofeller-logo";
 import { QuantumBurst } from "@/components/landing/quantum-burst";
+import { InteractiveTechShowcase } from "@/components/landing/interactive-tech-showcase";
+import { ContactForm } from "@/components/landing/ContactForm";
 import { useAuth, ROLE_LABEL } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/")({
@@ -77,11 +79,7 @@ function LandingPage() {
       <SiteNav scrolled={scrolled} user={user} />
 
       {/* ───────── HERO — light canvas, network animation ───────── */}
-      <section
-        id="top"
-        className="relative isolate overflow-hidden text-foreground"
-        style={{ background: "#E8E6DE" }}
-      >
+      <section id="top" className="relative isolate overflow-hidden text-foreground bg-cream section-light">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-[0.05]"
@@ -89,10 +87,10 @@ function LandingPage() {
         />
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[#0A0A0F]"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[#F1EFE8]"
         />
 
-        <div className="relative z-10 grid grid-cols-1 gap-10 px-6 pb-28 pt-8 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:px-10 lg:pt-12">
+        <div className="content-container relative z-10 grid grid-cols-1 gap-12 pb-[100px] pt-8 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pt-12">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -105,21 +103,21 @@ function LandingPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="block bg-gradient-to-r from-[#0A0A0A] via-[#0A0A0A] to-[#F26B3A] bg-clip-text text-transparent"
+                className="block bg-gradient-to-r from-[#1a1a1a] via-[#1a1a1a] to-[#7c3aed] bg-clip-text text-transparent"
               >
                 {ROTATING_HEADLINES[headlineIdx]}
               </motion.span>
             </h1>
-            <p className="mt-6 max-w-xl text-[1.0625rem] leading-relaxed text-foreground/70">
+            <p className="mt-6 max-w-xl text-base leading-relaxed text-[#555]">
               Silicofeller transforms natural-language prompts into production-ready quantum chip
               architectures — transmon arrays, error-correction layouts and superconducting qubit
               topologies, generated in seconds.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center gap-4">
               <Button
                 asChild
-                className="h-12 rounded-full bg-foreground px-6 text-sm font-semibold text-background hover:bg-foreground/90"
+                className="h-12 rounded-full bg-[#1a1a1a] px-6 text-sm font-semibold text-white hover:bg-[#1a1a1a]/90"
               >
                 <Link to="/schematic-editor">Start designing</Link>
               </Button>
@@ -131,15 +129,18 @@ function LandingPage() {
               </a>
             </div>
 
-            <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-xs text-foreground/55">
+            <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-4 text-xs text-[#555]">
               <span className="flex items-center gap-1.5">
                 <Shield className="h-3.5 w-3.5" />
+                Fault Tolerant
               </span>
               <span className="flex items-center gap-1.5">
                 <Zap className="h-3.5 w-3.5" />
+                Instant Generation
               </span>
               <span className="flex items-center gap-1.5">
                 <Cpu className="h-3.5 w-3.5" />
+                Tapeout Ready
               </span>
             </div>
           </motion.div>
@@ -160,24 +161,25 @@ function LandingPage() {
         title="Silicofeller — AI for the quantum era."
         tone="paper"
       >
-        <div className="mt-2 grid grid-cols-1 gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+        <div className="mt-8 grid grid-cols-1 gap-12 lg:grid-cols-[1.1fr_1fr] lg:items-center">
           <div>
-            <p className="text-[0.9375rem] leading-relaxed text-muted-foreground">
+            <p>
               Silicofeller is an AI-powered quantum chip design platform. You describe the quantum
               chip you need — in plain language — and our platform turns that prompt into a
               complete, fabrication-ready design. No manual layout work, no low-level HDL, just your
               intent and an output you can build.
             </p>
-            <p className="mt-4 text-[0.9375rem] leading-relaxed text-muted-foreground">
-              The platform includes a full <span className="font-medium text-foreground">Schematic Editor</span> where
-              you can drag and drop qubits, couplers, resonators, and readout lines onto a live
-              canvas — composing quantum chip topologies interactively, the same way a PCB designer
-              would lay out a board. Every component placed on the canvas stays in sync with the
-              underlying design graph.
+            <p className="mt-4">
+              The platform includes a full{" "}
+              <span className="font-medium text-[#1a1a1a]">Schematic Editor</span> where you can
+              drag and drop qubits, couplers, resonators, and readout lines onto a live canvas —
+              composing quantum chip topologies interactively, the same way a PCB designer would lay
+              out a board. Every component placed on the canvas stays in sync with the underlying
+              design graph.
             </p>
-            <p className="mt-4 text-[0.9375rem] leading-relaxed text-muted-foreground">
+            <p className="mt-4">
               Once your design is ready, Silicofeller automatically generates{" "}
-              <span className="font-medium text-foreground">Qiskit Metal Python code</span> — the
+              <span className="font-medium text-[#1a1a1a]">Qiskit Metal Python code</span> — the
               industry-standard framework for quantum chip design — so your layout is immediately
               ready for simulation, DRC verification, and tapeout submission.
             </p>
@@ -227,35 +229,7 @@ function LandingPage() {
 
       {/* ───────── TECHNOLOGY — circuit-grid background ───────── */}
       <Section id="technology" eyebrow="Technology" title="Built on quantum-aware AI." tone="grid">
-        <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
-          {TECH.map((t) => (
-            <motion.div
-              key={t.title}
-              initial={{ opacity: 0, y: 14 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5 }}
-              className="overflow-hidden rounded-2xl border border-border bg-card/95 backdrop-blur"
-              style={{ boxShadow: "var(--shadow-card)" }}
-            >
-              <div className="aspect-[16/10] w-full overflow-hidden border-b border-border bg-muted">
-                <img
-                  src={t.image}
-                  alt={t.title}
-                  loading="lazy"
-                  className="h-full w-full object-cover object-left-top"
-                />
-              </div>
-              <div className="p-6">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#F26B3A]">
-                  {t.eyebrow}
-                </p>
-                <h3 className="mt-2 text-base font-semibold text-foreground">{t.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t.desc}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+        <InteractiveTechShowcase />
       </Section>
 
       {/* ───────── FEATURES — glassmorphism on dark ───────── */}
@@ -265,7 +239,7 @@ function LandingPage() {
         title="Everything you need to ship quantum silicon faster."
         tone="dark"
       >
-        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
             <motion.div
               key={f.title}
@@ -278,52 +252,29 @@ function LandingPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F26B3A] text-white transition-transform group-hover:scale-110">
                 <f.icon className="h-4 w-4" />
               </div>
-              <h3 className="mt-4 text-base font-semibold text-white">{f.title}</h3>
-              <p className="mt-1.5 text-sm leading-relaxed text-white/60">{f.desc}</p>
+              <h3 className="mt-4 text-lg font-semibold text-white">{f.title}</h3>
+              <p className="mt-2 text-base leading-relaxed text-[#F0F0F0]">
+                {f.desc}
+              </p>
             </motion.div>
           ))}
         </div>
       </Section>
 
       {/* ───────── DEMO — paper ───────── */}
-     
+
       {/* ───────── CONTACT — dark cinematic ───────── */}
       <Section id="contact" eyebrow="Contact" title="Let's design what's next." tone="paper">
-        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1.2fr_1fr]">
-          <form
-            onSubmit={(e) => e.preventDefault()}
-            className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm"
-          >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormInput label="Name" placeholder="Ada Lovelace" />
-              <FormInput label="Email" type="email" placeholder="you@company.com" />
-              <FormInput
-                label="Company"
-                placeholder="Acme Semiconductors"
-                className="sm:col-span-2"
-              />
-              <div className="sm:col-span-2">
-                <label className="text-xs font-medium text-foreground/60">Message</label>
-                <textarea
-                  rows={4}
-                  placeholder="Tell us about your quantum chip idea…"
-                  className="mt-1.5 w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-foreground/40 focus:border-[#F26B3A]"
-                />
-              </div>
+        <div className="mt-8 grid grid-cols-1 gap-12 lg:grid-cols-[1.3fr_1fr] lg:items-center">
+          <ContactForm />
+          <div className="flex flex-col gap-6 lg:pl-4">
+            <div>
+              <p className="text-lg leading-relaxed text-[#555]">
+                Talk to our quantum engineering team about pilots, integrations, and enterprise
+                deployments.
+              </p>
             </div>
-            <Button
-              type="submit"
-              className="mt-5 h-11 rounded-full bg-foreground px-6 text-sm font-semibold text-background hover:bg-foreground/90"
-            >
-              Send message <ArrowRight className="ml-1.5 h-4 w-4" />
-            </Button>
-          </form>
-          <div className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm">
-            <p className="text-sm text-muted-foreground">
-              Talk to our quantum engineering team about pilots, integrations, and enterprise
-              deployments.
-            </p>
-            <div className="mt-5 flex items-center gap-3">
+            <div className="flex items-center gap-3">
               <a
                 className="grid h-10 w-10 place-items-center rounded-full border border-black/15 text-foreground transition-colors hover:bg-black/5"
                 href="#"
@@ -350,21 +301,26 @@ function LandingPage() {
         </div>
       </Section>
 
-      <footer className="relative z-10 border-t border-white/10 bg-[#050507] px-6 py-10 text-white lg:px-10">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 sm:grid-cols-4">
-          <FooterCol title="Product" links={["Features", "Designer", "Pricing", "Changelog"]} />
-          <FooterCol title="Company" links={["About", "Blog", "Careers", "Contact"]} />
-          <FooterCol title="Resources" links={["Documentation", "API", "Support", "Status"]} />
-          <FooterCol title="Legal" links={["Privacy Policy", "Terms of Service", "Security"]} />
-        </div>
-        <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center justify-between gap-2 border-t border-white/10 pt-6 text-xs text-white/50 sm:flex-row">
-          <p>© {new Date().getFullYear()} Silicofeller, Inc. All rights reserved.</p>
-          {user && (
-            <p>
-              Signed in as <span className="font-medium text-white">{user.name}</span> ·{" "}
-              {ROLE_LABEL[user.role]}
+      <footer className="relative z-10 border-t border-white/10 bg-dark-footer footer-padding text-white">
+        <div className="content-container pb-12">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
+            <FooterCol title="Product" links={["Features", "Designer", "Pricing", "Changelog"]} />
+            <FooterCol title="Company" links={["About", "Blog", "Careers", "Contact"]} />
+            <FooterCol title="Resources" links={["Documentation", "API", "Support", "Status"]} />
+            <FooterCol title="Legal" links={["Privacy Policy", "Terms of Service", "Security"]} />
+          </div>
+          <div className="mt-8 flex flex-col items-center justify-center gap-4 border-t border-white/10 pt-6 text-center text-xs">
+            <p className="text-white/80 font-medium tracking-wider">
+              © {new Date().getFullYear()} Silicofeller, Inc. All rights reserved.
             </p>
-          )}
+            {user && (
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-white/50">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Signed in as <span className="text-white/80 font-medium">{user.name}</span> ·{" "}
+                {ROLE_LABEL[user.role]}
+              </div>
+            )}
+          </div>
         </div>
       </footer>
     </main>
@@ -381,8 +337,8 @@ function SiteNav({
   return (
     <header
       className={`sticky top-0 z-50 transition-all duration-300 ${scrolled
-        ? "border-b border-black/10 bg-[#E8E6DE]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
-        : "border-b border-transparent bg-[#E8E6DE]/40 backdrop-blur-md"
+          ? "border-b border-black/10 bg-[#F1EFE8]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+          : "border-b border-transparent bg-[#F1EFE8]/40 backdrop-blur-md"
         }`}
     >
       <div className="flex items-center justify-between px-6 py-4 lg:px-10">
@@ -399,12 +355,8 @@ function SiteNav({
           <a href="#features" className="transition-colors hover:text-foreground">
             Features
           </a>
-          <span className="cursor-default select-none text-foreground/65">
-            Documentation
-          </span>
-          <span className="cursor-default select-none text-foreground/65">
-            Community
-          </span>
+          <span className="cursor-default select-none text-foreground/65">Documentation</span>
+          <span className="cursor-default select-none text-foreground/65">Community</span>
           <Link to="/blog" className="transition-colors hover:text-foreground">
             Blog
           </Link>
@@ -470,23 +422,15 @@ function Section({
   children: React.ReactNode;
   tone?: "default" | "paper" | "grid" | "dark" | "elevated";
 }) {
-  const toneClass =
-    tone === "dark"
-      ? "bg-[#0A0A0F] text-white"
-      : tone === "paper"
-        ? "bg-[#F4F2EC]"
-        : tone === "elevated"
-          ? "bg-gradient-to-b from-[#FAFAFA] to-[#EEECE6]"
-          : tone === "grid"
-            ? "bg-[#F8F7F2]"
-            : "bg-background";
-  const titleClass = tone === "dark" ? "text-white" : "text-foreground";
-  const eyebrowClass = tone === "dark" ? "text-[#F26B3A]" : "text-accent";
+  const isDark = tone === "dark";
+  const toneClass = isDark
+    ? "bg-black-features section-padding-dark section-dark-typography section-dark"
+    : "bg-cream section-padding-light section-light-typography section-light";
+
+  const eyebrowClass = isDark ? "text-[#F26B3A]" : "text-accent";
+
   return (
-    <section
-      id={id}
-      className={`relative z-10 scroll-mt-20 overflow-hidden px-6 py-24 lg:px-10 ${toneClass}`}
-    >
+    <section id={id} className={`relative z-10 scroll-mt-20 overflow-hidden ${toneClass}`}>
       {tone === "grid" && (
         <div
           aria-hidden
@@ -499,16 +443,12 @@ function Section({
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="relative mx-auto max-w-6xl"
+        className="content-container relative"
       >
         <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${eyebrowClass}`}>
           {eyebrow}
         </p>
-        <h2
-          className={`mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl ${titleClass}`}
-        >
-          {title}
-        </h2>
+        <h2 className="mt-4 max-w-3xl">{title}</h2>
         {children}
       </motion.div>
     </section>
@@ -522,10 +462,10 @@ function FormInput({
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string; className?: string }) {
   return (
     <div className={className}>
-      <label className="text-xs font-medium text-foreground/60">{label}</label>
+      <label className="text-xs font-medium text-[#555]">{label}</label>
       <input
         {...rest}
-        className="mt-1.5 w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-foreground/40 focus:border-[#F26B3A]"
+        className="mt-2 w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-foreground/40 focus:border-[#F26B3A]"
       />
     </div>
   );
@@ -536,13 +476,14 @@ const FOOTER_LINK_MAP: Record<string, string> = {
   Designer: "#demo",
   About: "#about",
   Contact: "#contact",
+  "Privacy Policy": "/privacy",
 };
 
 function FooterCol({ title, links }: { title: string; links: string[] }) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wider text-white">{title}</p>
-      <ul className="mt-3 space-y-2 text-sm text-white/50">
+      <ul className="mt-4 space-y-2 text-sm text-white/65">
         {links.map((l) => {
           const href = FOOTER_LINK_MAP[l];
           return href ? (
@@ -578,27 +519,6 @@ function TypingLine({ text }: { text: string }) {
     </p>
   );
 }
-
-const TECH = [
-  {
-    eyebrow: "Schematic Editor",
-    title: "Drag-and-drop quantum layout canvas",
-    desc: "Compose transmons, couplers and resonators on a live canvas with a synced Qiskit Metal IDE.",
-    image: "/tech/schematic-editor.png",
-  },
-  {
-    eyebrow: "AI Chatbot",
-    title: "Natural-language design assistant",
-    desc: "Prompt the AI to synthesize full QPUs — topology, frequencies and DRC checks generated in seconds.",
-    image: "/tech/chatbot.png",
-  },
-  {
-    eyebrow: "Export & Reports",
-    title: "Tapeout-ready verification & exports",
-    desc: "Design summaries, frequency plans, DRC reports and Qiskit Metal code packaged for fabrication.",
-    image: "/tech/export-reports.png",
-  },
-] as const;
 
 const FEATURES = [
   {

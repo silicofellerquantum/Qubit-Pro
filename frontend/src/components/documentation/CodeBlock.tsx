@@ -22,7 +22,7 @@ export function CodeBlock({ title, code, className }: CodeBlockProps) {
     <div
       className={cn(
         "code-card overflow-hidden border border-[var(--line)] rounded-[18px] bg-[var(--code)] shadow-[var(--shadow)] my-5 mb-7",
-        className
+        className,
       )}
     >
       <div className="code-title flex items-center justify-between border-b border-[var(--line)] px-[18px] py-3 text-[14px] text-[var(--muted)] bg-[#e4edf2]">

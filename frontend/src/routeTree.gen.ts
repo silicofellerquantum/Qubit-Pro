@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as OurTeamRouteImport } from './routes/our-team'
 import { Route as DocumentationRouteImport } from './routes/documentation'
 import { Route as CommunityRouteImport } from './routes/community'
@@ -43,6 +44,11 @@ import { Route as AppArchitectureExplorerRouteImport } from './routes/_app/archi
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as AppAboutRouteImport } from './routes/_app/about'
 
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OurTeamRoute = OurTeamRouteImport.update({
   id: '/our-team',
   path: '/our-team',
@@ -213,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/community': typeof CommunityRoute
   '/documentation': typeof DocumentationRoute
   '/our-team': typeof OurTeamRoute
+  '/privacy': typeof PrivacyRoute
   '/about': typeof AppAboutRoute
   '/admin': typeof AppAdminRoute
   '/architecture-explorer': typeof AppArchitectureExplorerRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/community': typeof CommunityRoute
   '/documentation': typeof DocumentationRoute
   '/our-team': typeof OurTeamRoute
+  '/privacy': typeof PrivacyRoute
   '/about': typeof AppAboutRoute
   '/admin': typeof AppAdminRoute
   '/architecture-explorer': typeof AppArchitectureExplorerRoute
@@ -281,6 +289,7 @@ export interface FileRoutesById {
   '/community': typeof CommunityRoute
   '/documentation': typeof DocumentationRoute
   '/our-team': typeof OurTeamRoute
+  '/privacy': typeof PrivacyRoute
   '/_app/about': typeof AppAboutRoute
   '/_app/admin': typeof AppAdminRoute
   '/_app/architecture-explorer': typeof AppArchitectureExplorerRoute
@@ -316,6 +325,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/documentation'
     | '/our-team'
+    | '/privacy'
     | '/about'
     | '/admin'
     | '/architecture-explorer'
@@ -348,6 +358,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/documentation'
     | '/our-team'
+    | '/privacy'
     | '/about'
     | '/admin'
     | '/architecture-explorer'
@@ -383,6 +394,7 @@ export interface FileRouteTypes {
     | '/community'
     | '/documentation'
     | '/our-team'
+    | '/privacy'
     | '/_app/about'
     | '/_app/admin'
     | '/_app/architecture-explorer'
@@ -419,10 +431,18 @@ export interface RootRouteChildren {
   CommunityRoute: typeof CommunityRoute
   DocumentationRoute: typeof DocumentationRoute
   OurTeamRoute: typeof OurTeamRoute
+  PrivacyRoute: typeof PrivacyRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/our-team': {
       id: '/our-team'
       path: '/our-team'
@@ -741,6 +761,7 @@ const rootRouteChildren: RootRouteChildren = {
   CommunityRoute: CommunityRoute,
   DocumentationRoute: DocumentationRoute,
   OurTeamRoute: OurTeamRoute,
+  PrivacyRoute: PrivacyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

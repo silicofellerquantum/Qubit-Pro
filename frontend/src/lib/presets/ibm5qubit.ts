@@ -23,7 +23,13 @@ export const IBM5QubitPreset: DesignDocument = {
       x: 0,
       y: 1.8,
       rotation: 0,
-      params: { pad_width: "455um", pad_height: "90um", pad_gap: "30um", pocket_width: "650um", pocket_height: "650um" },
+      params: {
+        pad_width: "455um",
+        pad_height: "90um",
+        pad_gap: "30um",
+        pocket_width: "650um",
+        pocket_height: "650um",
+      },
     },
     {
       id: "pl_Q1",
@@ -32,7 +38,13 @@ export const IBM5QubitPreset: DesignDocument = {
       x: -1.5,
       y: 0,
       rotation: 0,
-      params: { pad_width: "455um", pad_height: "90um", pad_gap: "30um", pocket_width: "650um", pocket_height: "650um" },
+      params: {
+        pad_width: "455um",
+        pad_height: "90um",
+        pad_gap: "30um",
+        pocket_width: "650um",
+        pocket_height: "650um",
+      },
     },
     {
       id: "pl_Q2",
@@ -41,7 +53,13 @@ export const IBM5QubitPreset: DesignDocument = {
       x: 1.5,
       y: 0,
       rotation: 0,
-      params: { pad_width: "455um", pad_height: "90um", pad_gap: "30um", pocket_width: "650um", pocket_height: "650um" },
+      params: {
+        pad_width: "455um",
+        pad_height: "90um",
+        pad_gap: "30um",
+        pocket_width: "650um",
+        pocket_height: "650um",
+      },
     },
     {
       id: "pl_Q3",
@@ -50,7 +68,13 @@ export const IBM5QubitPreset: DesignDocument = {
       x: 0,
       y: -1.2,
       rotation: 0,
-      params: { pad_width: "455um", pad_height: "90um", pad_gap: "30um", pocket_width: "650um", pocket_height: "650um" },
+      params: {
+        pad_width: "455um",
+        pad_height: "90um",
+        pad_gap: "30um",
+        pocket_width: "650um",
+        pocket_height: "650um",
+      },
     },
     {
       id: "pl_Q4",
@@ -59,7 +83,13 @@ export const IBM5QubitPreset: DesignDocument = {
       x: 0,
       y: -2.8,
       rotation: 0,
-      params: { pad_width: "455um", pad_height: "90um", pad_gap: "30um", pocket_width: "650um", pocket_height: "650um" },
+      params: {
+        pad_width: "455um",
+        pad_height: "90um",
+        pad_gap: "30um",
+        pocket_width: "650um",
+        pocket_height: "650um",
+      },
     },
   ],
   connections: [

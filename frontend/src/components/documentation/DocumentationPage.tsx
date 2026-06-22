@@ -24,15 +24,22 @@ const TABS = [
 // Helper to check if a hash ID is a primary section or subsection
 const getParentSectionId = (hashId: string): string => {
   const cleanId = hashId.replace("#", "");
-  
+
   if (SECTIONS_DATA[cleanId]) return cleanId;
 
   // List of superconducting materials (they are full sections)
   const materialsSections = [
-    "material-aluminum-al", "material-niobium-nb", "material-silicon-si-substrate",
-    "material-sapphire-al2o3-substrate", "material-titanium-nitride-tin", "material-niobium-nitride-nbn",
-    "material-niobium-titanium-nitride-nbtin", "material-aluminum-oxide-alox-tunnel-barrier",
-    "material-molybdenum-rhenium-more", "material-indium-in-bump-bonds", "materials-summary"
+    "material-aluminum-al",
+    "material-niobium-nb",
+    "material-silicon-si-substrate",
+    "material-sapphire-al2o3-substrate",
+    "material-titanium-nitride-tin",
+    "material-niobium-nitride-nbn",
+    "material-niobium-titanium-nitride-nbtin",
+    "material-aluminum-oxide-alox-tunnel-barrier",
+    "material-molybdenum-rhenium-more",
+    "material-indium-in-bump-bonds",
+    "materials-summary",
   ];
   if (materialsSections.includes(cleanId)) return cleanId;
 
@@ -53,11 +60,20 @@ const getParentSectionId = (hashId: string): string => {
 const getActiveTabForSection = (sectionId: string): string => {
   if (sectionId === "home") return "home";
 
-  if ([
-    "getting-started", "hello-world", "installation", "using-python",
-    "qclang-overview", "syntax-part-1", "syntax-part-2", "synthesis-tutorial",
-    "execution-part-1", "execution-part-2"
-  ].includes(sectionId)) {
+  if (
+    [
+      "getting-started",
+      "hello-world",
+      "installation",
+      "using-python",
+      "qclang-overview",
+      "syntax-part-1",
+      "syntax-part-2",
+      "synthesis-tutorial",
+      "execution-part-1",
+      "execution-part-2",
+    ].includes(sectionId)
+  ) {
     return "getting-started";
   }
 
@@ -71,25 +87,41 @@ const getActiveTabForSection = (sectionId: string): string => {
     return "compiler-reference";
   }
 
-  if ([
-    "chip-synthesis", "superconducting-materials", "materials-summary",
-    "material-aluminum-al", "material-niobium-nb", "material-silicon-si-substrate",
-    "material-sapphire-al2o3-substrate", "material-titanium-nitride-tin",
-    "material-niobium-nitride-nbn", "material-niobium-titanium-nitride-nbtin",
-    "material-aluminum-oxide-alox-tunnel-barrier", "material-molybdenum-rhenium-more",
-    "material-indium-in-bump-bonds"
-  ].includes(sectionId)) {
+  if (
+    [
+      "chip-synthesis",
+      "superconducting-materials",
+      "materials-summary",
+      "material-aluminum-al",
+      "material-niobium-nb",
+      "material-silicon-si-substrate",
+      "material-sapphire-al2o3-substrate",
+      "material-titanium-nitride-tin",
+      "material-niobium-nitride-nbn",
+      "material-niobium-titanium-nitride-nbtin",
+      "material-aluminum-oxide-alox-tunnel-barrier",
+      "material-molybdenum-rhenium-more",
+      "material-indium-in-bump-bonds",
+    ].includes(sectionId)
+  ) {
     return "chip-synthesis";
   }
 
-  if ([
-    "hfss-tutorial", "q3d-tutorial", "epr-tutorial",
-    "simulation-dashboard", "results-reports"
-  ].includes(sectionId)) {
+  if (
+    [
+      "hfss-tutorial",
+      "q3d-tutorial",
+      "epr-tutorial",
+      "simulation-dashboard",
+      "results-reports",
+    ].includes(sectionId)
+  ) {
     return "hfss-tutorial";
   }
 
-  if (["hfss-results-analysis", "q3d-results-analysis", "epr-results-analysis"].includes(sectionId)) {
+  if (
+    ["hfss-results-analysis", "q3d-results-analysis", "epr-results-analysis"].includes(sectionId)
+  ) {
     return "hfss-results-analysis";
   }
 
@@ -102,10 +134,10 @@ const getActiveTabForSection = (sectionId: string): string => {
 export function DocumentationPage() {
   const [activeHash, setActiveHash] = useState("#home");
   const [activeSectionId, setActiveSectionId] = useState("home");
-  
+
   // Theme state: default "light" (Blue accent) vs "soft" (Teal/Lime accent)
   const [theme, setTheme] = useState<"light" | "soft">("light");
-  
+
   // Modals visibility states
   const [searchOpen, setSearchOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -133,7 +165,7 @@ export function DocumentationPage() {
   useEffect(() => {
     const hashId = activeHash.replace("#", "");
     const parentId = getParentSectionId(hashId);
-    
+
     // Set active section ID
     setActiveSectionId(parentId);
 
@@ -144,7 +176,7 @@ export function DocumentationPage() {
         const targetEl = document.getElementById(hashId);
         if (targetEl) {
           targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-          
+
           // Auto-expand if the targeted sub-element is a details element or inside one
           if (targetEl.tagName === "DETAILS") {
             (targetEl as HTMLDetailsElement).open = true;
@@ -247,7 +279,10 @@ export function DocumentationPage() {
       </header>
 
       {/* Tabs Navigation Bar */}
-      <nav className="tabs flex items-center flex-wrap gap-7.5 min-h-[60px] border-t border-b border-[var(--line)] text-[var(--muted)] text-[16px]" aria-label="Primary navigation">
+      <nav
+        className="tabs flex items-center flex-wrap gap-7.5 min-h-[60px] border-t border-b border-[var(--line)] text-[var(--muted)] text-[16px]"
+        aria-label="Primary navigation"
+      >
         {TABS.map((tab) => {
           const isActive = activeTabSection === tab.section;
           return (
@@ -259,7 +294,7 @@ export function DocumentationPage() {
                 "relative whitespace-nowrap py-5 hover:text-[var(--text)] transition-colors cursor-pointer",
                 isActive
                   ? "active text-[var(--text)] font-bold after:absolute after:left-0 after:right-0 after:bottom-[-1px] after:h-[2px] after:bg-[var(--accent)]"
-                  : ""
+                  : "",
               )}
             >
               {tab.label}
@@ -271,16 +306,13 @@ export function DocumentationPage() {
       {/* Main Grid Layout */}
       <div className="layout grid grid-cols-[340px_1fr] gap-3 pt-5.5">
         {/* Sidebar Nav panel */}
-        <DocumentationSidebar
-          activeHash={activeHash}
-          onNavigate={handleNavigate}
-        />
+        <DocumentationSidebar activeHash={activeHash} onNavigate={handleNavigate} />
 
         {/* Content Stream panel */}
         <main className="content pb-12 max-w-none ml-0">
           {Object.entries(SECTIONS_DATA).map(([sectionId, Component]) => {
             const isCurrent = activeSectionId === sectionId;
-            
+
             // Reconstruct classes from parsing
             let sectionClass = "";
             if (sectionId === "home") {
@@ -288,7 +320,7 @@ export function DocumentationPage() {
             } else if (sectionId.startsWith("material-")) {
               sectionClass = "material-doc-section";
             }
-            
+
             return (
               <DocumentationSection
                 key={sectionId}
@@ -297,10 +329,7 @@ export function DocumentationPage() {
                 isCurrent={isCurrent}
                 onNavigate={handleNavigate}
               >
-                <Component
-                  activeHash={activeHash}
-                  onNavigate={handleNavigate}
-                />
+                <Component activeHash={activeHash} onNavigate={handleNavigate} />
               </DocumentationSection>
             );
           })}

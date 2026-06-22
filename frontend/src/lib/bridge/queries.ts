@@ -27,10 +27,7 @@ export const componentMetadataQueryOptions = (id: string) =>
     enabled: id.length > 0,
   });
 
-export const componentPinsQueryOptions = (
-  id: string,
-  params?: Record<string, string | number>,
-) => {
+export const componentPinsQueryOptions = (id: string, params?: Record<string, string | number>) => {
   const sortedParams = params
     ? Object.fromEntries(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)))
     : null;

@@ -4,8 +4,16 @@ import { motion } from "motion/react";
 import { ChevronDown, ChevronRight, Search, Box, Loader2, WifiOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { componentsQueryOptions, componentMetadataQueryOptions, componentPreviewQueryOptions } from "@/lib/bridge/queries";
-import { QISKIT_CATALOG, QISKIT_CATEGORY_ORDER, QISKIT_CATEGORY_LABEL } from "./qiskit-metal-catalog";
+import {
+  componentsQueryOptions,
+  componentMetadataQueryOptions,
+  componentPreviewQueryOptions,
+} from "@/lib/bridge/queries";
+import {
+  QISKIT_CATALOG,
+  QISKIT_CATEGORY_ORDER,
+  QISKIT_CATEGORY_LABEL,
+} from "./qiskit-metal-catalog";
 
 import type { ComponentCategory, ComponentSummary } from "@/lib/bridge/types";
 import type { QiskitCategory } from "./qiskit-metal-catalog";
@@ -50,7 +58,9 @@ function useRecentComponents(all: ComponentSummary[]) {
     try {
       const stored = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]") as string[];
       setRecentIds(stored);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
   const recent = useMemo(() => {
     const byId = new Map(all.map((c) => [c.id, c]));
@@ -164,7 +174,10 @@ function LibraryContent() {
                 <button
                   type="button"
                   className="text-[10px] text-muted-foreground hover:text-destructive"
-                  onClick={() => { localStorage.removeItem(RECENT_KEY); setRecentIds([]); }}
+                  onClick={() => {
+                    localStorage.removeItem(RECENT_KEY);
+                    setRecentIds([]);
+                  }}
                 >
                   Clear
                 </button>

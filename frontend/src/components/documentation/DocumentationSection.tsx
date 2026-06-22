@@ -46,11 +46,11 @@ export function DocumentationSection({
 
         try {
           await navigator.clipboard.writeText(textToCopy);
-          
+
           const originalText = copyBtn.textContent;
           copyBtn.textContent = "Copied";
           copyBtn.classList.add("bg-emerald-50", "text-emerald-700", "border-emerald-200");
-          
+
           setTimeout(() => {
             copyBtn.textContent = originalText;
             copyBtn.classList.remove("bg-emerald-50", "text-emerald-700", "border-emerald-200");
@@ -71,7 +71,7 @@ export function DocumentationSection({
       className={cn(
         "doc-section border-b border-[var(--line)] py-7 pb-12 transition-all duration-150 scroll-mt-[160px]",
         isCurrent ? "current-section block" : "hidden",
-        sectionClass
+        sectionClass,
       )}
     >
       {children}

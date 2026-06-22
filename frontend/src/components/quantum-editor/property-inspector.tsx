@@ -24,7 +24,8 @@ import { metadataToFields } from "@/lib/bridge/adapters";
 import type { Placement, Connection, ValidationResult } from "@/lib/bridge/types";
 
 export function PropertyInspector() {
-  const { activeTab, dispatchActive: dispatch } = useWorkspace(); const state = activeTab.state;
+  const { activeTab, dispatchActive: dispatch } = useWorkspace();
+  const state = activeTab.state;
   const sel = getSingleSelection(state.selection);
 
   if (state.selection.length === 0) {
@@ -54,26 +55,29 @@ function useLocalValue<T>(propValue: T, onCommit: (v: T) => void) {
   const [local, setLocal] = useState<T>(propValue);
   useEffect(() => setLocal(propValue), [propValue]);
   const commit = useCallback(() => onCommit(local), [local, onCommit]);
-  const onKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === "Enter") commit(); }, [commit]);
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") commit();
+    },
+    [commit],
+  );
   return { local, setLocal, commit, onKeyDown };
 }
 
 function PlacementInspector({ placement }: { placement: Placement }) {
-  const { activeTab, dispatchActive: dispatch } = useWorkspace(); const state = activeTab.state;
+  const { activeTab, dispatchActive: dispatch } = useWorkspace();
+  const state = activeTab.state;
   const metaQ = useQuery(componentMetadataQueryOptions(placement.componentId));
   const pinsQ = useQuery(componentPinsQueryOptions(placement.componentId));
 
-  const fields = useMemo(
-    () => (metaQ.data ? metadataToFields(metaQ.data) : []),
-    [metaQ.data],
-  );
+  const fields = useMemo(() => (metaQ.data ? metadataToFields(metaQ.data) : []), [metaQ.data]);
 
-  const update = useCallback((patch: Partial<Placement>) =>
-    dispatch({ type: "UPDATE_PLACEMENT", id: placement.id, patch }),
+  const update = useCallback(
+    (patch: Partial<Placement>) => dispatch({ type: "UPDATE_PLACEMENT", id: placement.id, patch }),
     [dispatch, placement.id],
   );
-  const updateParam = useCallback((k: string, v: string) =>
-    update({ params: { ...placement.params, [k]: v } }),
+  const updateParam = useCallback(
+    (k: string, v: string) => update({ params: { ...placement.params, [k]: v } }),
     [update, placement.params],
   );
 
@@ -97,8 +101,7 @@ function PlacementInspector({ placement }: { placement: Placement }) {
 
   const isOverlapping = state.placements.some(
     (p) =>
-      p.id !== placement.id &&
-      Math.sqrt((p.x - placement.x) ** 2 + (p.y - placement.y) ** 2) < 0.4,
+      p.id !== placement.id && Math.sqrt((p.x - placement.x) ** 2 + (p.y - placement.y) ** 2) < 0.4,
   );
 
   return (
@@ -117,7 +120,9 @@ function PlacementInspector({ placement }: { placement: Placement }) {
           <p className="text-[10px] text-muted-foreground">
             {placement.componentId}
             {(() => {
-              const connCount = state.connections.filter((c) => c.from.placementId === placement.id || c.to.placementId === placement.id).length;
+              const connCount = state.connections.filter(
+                (c) => c.from.placementId === placement.id || c.to.placementId === placement.id,
+              ).length;
               return connCount > 0 ? ` · ${connCount} connection${connCount > 1 ? "s" : ""}` : "";
             })()}
           </p>
@@ -145,7 +150,11 @@ function PlacementInspector({ placement }: { placement: Placement }) {
             className="h-7 gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             title={placement.locked ? "Unlock placement" : "Lock placement"}
           >
-            {placement.locked ? <Lock className="h-3 w-3 text-amber-500" /> : <Unlock className="h-3 w-3" />}
+            {placement.locked ? (
+              <Lock className="h-3 w-3 text-amber-500" />
+            ) : (
+              <Unlock className="h-3 w-3" />
+            )}
           </Button>
           <Button
             variant="ghost"
@@ -242,31 +251,25 @@ function PlacementInspector({ placement }: { placement: Placement }) {
               checked={placement.mirrorX ?? false}
               onCheckedChange={() => dispatch({ type: "MIRROR_PLACEMENT", id: placement.id })}
             />
-            <span className="text-[11px] text-muted-foreground">{placement.mirrorX ? "Mirrored" : "Normal"}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {placement.mirrorX ? "Mirrored" : "Normal"}
+            </span>
           </div>
         </Field>
       </Section>
 
       <Section title="Parameters (from bridge)">
         {metaQ.isLoading && <p className="text-muted-foreground">Loading metadata…</p>}
-        {metaQ.error && (
-          <p className="text-destructive">Bridge error: {String(metaQ.error)}</p>
-        )}
+        {metaQ.error && <p className="text-destructive">Bridge error: {String(metaQ.error)}</p>}
         {fields.length === 0 && !metaQ.isLoading && !metaQ.error && (
           <p className="text-muted-foreground">No parameters declared.</p>
         )}
-        <ParamFields
-          fields={fields}
-          placement={placement}
-          updateParam={updateParam}
-        />
+        <ParamFields fields={fields} placement={placement} updateParam={updateParam} />
       </Section>
 
       <Section title="Pins">
         {pinsQ.isLoading && <p className="text-muted-foreground">Loading pins…</p>}
-        {pinsQ.error && (
-          <p className="text-destructive">Bridge error: {String(pinsQ.error)}</p>
-        )}
+        {pinsQ.error && <p className="text-destructive">Bridge error: {String(pinsQ.error)}</p>}
         {pinsQ.data && pinsQ.data.pins.length === 0 && (
           <p className="text-muted-foreground">No pins defined.</p>
         )}
@@ -286,7 +289,10 @@ function PlacementInspector({ placement }: { placement: Placement }) {
                   <td className="px-1 py-1 uppercase text-muted-foreground">{p.direction}</td>
                   <td className="px-1 py-1 text-right">
                     {pinNets.has(p.name) ? (
-                      <span className="inline-flex items-center gap-1 text-primary" title={pinNets.get(p.name)}>
+                      <span
+                        className="inline-flex items-center gap-1 text-primary"
+                        title={pinNets.get(p.name)}
+                      >
                         <Plug className="h-3 w-3 shrink-0" />
                         <span className="max-w-[80px] truncate">{pinNets.get(p.name)}</span>
                       </span>
@@ -304,7 +310,11 @@ function PlacementInspector({ placement }: { placement: Placement }) {
   );
 }
 
-function ParamFields({ fields, placement, updateParam }: {
+function ParamFields({
+  fields,
+  placement,
+  updateParam,
+}: {
   fields: ReturnType<typeof metadataToFields>;
   placement: Placement;
   updateParam: (k: string, v: string) => void;
@@ -400,7 +410,8 @@ function ParamFields({ fields, placement, updateParam }: {
 }
 
 function ConnectionInspector({ connection }: { connection: Connection }) {
-  const { activeTab, dispatchActive: dispatch } = useWorkspace(); const state = activeTab.state;
+  const { activeTab, dispatchActive: dispatch } = useWorkspace();
+  const state = activeTab.state;
   const fromP = state.placements.find((p) => p.id === connection.from.placementId);
   const toP = state.placements.find((p) => p.id === connection.to.placementId);
   // Pull supported route components from the originating placement's metadata.
@@ -424,7 +435,12 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => dispatch({ type: connection.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION", id: connection.id })}
+            onClick={() =>
+              dispatch({
+                type: connection.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
+                id: connection.id,
+              })
+            }
             className="h-7 gap-1 px-2"
           >
             {connection.locked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
@@ -492,25 +508,39 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
           label="Fillet"
           placeholder="e.g. 99um"
           value={String(connection.routeOverrides?.fillet ?? "")}
-          onCommit={(v) => updateRouteOverride(connection.id, "fillet", v, dispatch, connection.routeOverrides)}
+          onCommit={(v) =>
+            updateRouteOverride(connection.id, "fillet", v, dispatch, connection.routeOverrides)
+          }
         />
         <RouteOverrideField
           label="Lead length"
           placeholder="e.g. 50um"
           value={String(connection.routeOverrides?.lead ?? "")}
-          onCommit={(v) => updateRouteOverride(connection.id, "lead", v, dispatch, connection.routeOverrides)}
+          onCommit={(v) =>
+            updateRouteOverride(connection.id, "lead", v, dispatch, connection.routeOverrides)
+          }
         />
         <RouteOverrideField
           label="Trace width"
           placeholder="e.g. 10um"
           value={String(connection.routeOverrides?.trace_width ?? "")}
-          onCommit={(v) => updateRouteOverride(connection.id, "trace_width", v, dispatch, connection.routeOverrides)}
+          onCommit={(v) =>
+            updateRouteOverride(
+              connection.id,
+              "trace_width",
+              v,
+              dispatch,
+              connection.routeOverrides,
+            )
+          }
         />
         <RouteOverrideField
           label="Trace gap"
           placeholder="e.g. 6um"
           value={String(connection.routeOverrides?.trace_gap ?? "")}
-          onCommit={(v) => updateRouteOverride(connection.id, "trace_gap", v, dispatch, connection.routeOverrides)}
+          onCommit={(v) =>
+            updateRouteOverride(connection.id, "trace_gap", v, dispatch, connection.routeOverrides)
+          }
         />
       </Section>
     </div>
@@ -523,7 +553,9 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
 
   // Only show common params if all same component type
   const allSameType = placements.every((p) => p.componentId === placements[0].componentId);
-  const metaQ = useQuery(componentMetadataQueryOptions(allSameType ? placements[0].componentId : ""));
+  const metaQ = useQuery(
+    componentMetadataQueryOptions(allSameType ? placements[0].componentId : ""),
+  );
   const fields = useMemo(() => (metaQ.data ? metadataToFields(metaQ.data) : []), [metaQ.data]);
 
   // Compute shared value per field: single value if all same, "—" if mixed
@@ -609,9 +641,13 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
           </p>
           {(() => {
             const state = activeTab.state;
-            const connCount = state.connections.filter((c) => ids.includes(c.from.placementId) || ids.includes(c.to.placementId)).length;
+            const connCount = state.connections.filter(
+              (c) => ids.includes(c.from.placementId) || ids.includes(c.to.placementId),
+            ).length;
             return connCount > 0 ? (
-              <p className="text-[10px] text-muted-foreground">{connCount} connection{connCount > 1 ? "s" : ""}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {connCount} connection{connCount > 1 ? "s" : ""}
+              </p>
             ) : null;
           })()}
         </div>
@@ -621,7 +657,9 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
             size="sm"
             onClick={() => {
               const defaults = defaultParamsFromMetadata(metaQ.data!);
-              ids.forEach((id) => dispatch({ type: "UPDATE_PLACEMENT", id, patch: { params: defaults } }));
+              ids.forEach((id) =>
+                dispatch({ type: "UPDATE_PLACEMENT", id, patch: { params: defaults } }),
+              );
             }}
             className="h-7 gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             title="Reset all params to defaults"
@@ -642,13 +680,18 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
                 <Field key={f.name} label={`${f.label}${f.unit ? ` (${f.unit})` : ""}`}>
                   <div className="flex items-center gap-1">
                     {f.kind === "enum" && f.options ? (
-                      <Select value={mixed ? "" : value} onValueChange={(v) => updateParamBulk(f.name, v)}>
+                      <Select
+                        value={mixed ? "" : value}
+                        onValueChange={(v) => updateParamBulk(f.name, v)}
+                      >
                         <SelectTrigger className="h-7 flex-1 text-[11px]">
                           <SelectValue placeholder={mixed ? "— mixed —" : undefined} />
                         </SelectTrigger>
                         <SelectContent>
                           {f.options.map((o) => (
-                            <SelectItem key={o} value={o}>{o}</SelectItem>
+                            <SelectItem key={o} value={o}>
+                              {o}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -663,7 +706,9 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
                         placeholder={mixed ? "— mixed —" : undefined}
                         onChange={(e) => setVal(f.name, e.target.value)}
                         onBlur={() => commit(f.name)}
-                        onKeyDown={(e) => { if (e.key === "Enter") commit(f.name); }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commit(f.name);
+                        }}
                         className="h-7 flex-1 font-mono text-[11px]"
                       />
                     )}
@@ -688,10 +733,14 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
         {(() => {
           const xs = placements.map((p) => p.x);
           const ys = placements.map((p) => p.y);
-          const minX = Math.min(...xs), maxX = Math.max(...xs);
-          const minY = Math.min(...ys), maxY = Math.max(...ys);
-          const w = maxX - minX, h = maxY - minY;
-          const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+          const minX = Math.min(...xs),
+            maxX = Math.max(...xs);
+          const minY = Math.min(...ys),
+            maxY = Math.max(...ys);
+          const w = maxX - minX,
+            h = maxY - minY;
+          const cx = (minX + maxX) / 2,
+            cy = (minY + maxY) / 2;
           return (
             <div className="grid grid-cols-2 gap-1 text-[11px]">
               <span className="text-muted-foreground">Count</span>
@@ -701,7 +750,9 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
               <span className="text-muted-foreground">Height</span>
               <span className="font-mono text-right">{h.toFixed(3)} mm</span>
               <span className="text-muted-foreground">Center</span>
-              <span className="font-mono text-right">{cx.toFixed(3)}, {cy.toFixed(3)}</span>
+              <span className="font-mono text-right">
+                {cx.toFixed(3)}, {cy.toFixed(3)}
+              </span>
             </div>
           );
         })()}
@@ -816,9 +867,8 @@ function ValidationPanel() {
 
   const stats = useMemo(() => {
     const locked = state.placements.filter((p) => p.locked).length;
-    const avgConnections = state.placements.length > 0
-      ? (state.connections.length * 2) / state.placements.length
-      : 0;
+    const avgConnections =
+      state.placements.length > 0 ? (state.connections.length * 2) / state.placements.length : 0;
     return { locked, avgConnections: avgConnections.toFixed(1) };
   }, [state.placements, state.connections]);
 
@@ -833,7 +883,9 @@ function ValidationPanel() {
         </div>
         {counts.length > 0 && (
           <div className="rounded-md border border-border bg-card p-2">
-            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Design stats</p>
+            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+              Design stats
+            </p>
             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
               <span className="text-muted-foreground">Placements</span>
               <span className="font-mono text-right">{state.placements.length}</span>
@@ -844,7 +896,9 @@ function ValidationPanel() {
               <span className="text-muted-foreground">Avg conn/placement</span>
               <span className="font-mono text-right">{stats.avgConnections}</span>
             </div>
-            <p className="mt-2 mb-1 text-[10px] font-bold uppercase text-muted-foreground">Component counts</p>
+            <p className="mt-2 mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+              Component counts
+            </p>
             <ul className="flex flex-col gap-0.5">
               {counts.map(([cid, count]) => (
                 <li key={cid} className="flex justify-between text-[11px] text-foreground">
@@ -857,14 +911,17 @@ function ValidationPanel() {
         )}
         {state.connections.length > 0 && (
           <div className="rounded-md border border-border bg-card p-2">
-            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Connections ({state.connections.length})</p>
+            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+              Connections ({state.connections.length})
+            </p>
             <ul className="flex flex-col gap-0.5 max-h-40 overflow-y-auto">
               {state.connections.map((c) => {
                 const fromP = state.placements.find((p) => p.id === c.from.placementId);
                 const toP = state.placements.find((p) => p.id === c.to.placementId);
                 return (
                   <li key={c.id} className="text-[11px] text-foreground truncate">
-                    {fromP?.name ?? c.from.placementId}.{c.from.pinName} → {toP?.name ?? c.to.placementId}.{c.to.pinName}
+                    {fromP?.name ?? c.from.placementId}.{c.from.pinName} →{" "}
+                    {toP?.name ?? c.to.placementId}.{c.to.pinName}
                   </li>
                 );
               })}
@@ -884,30 +941,42 @@ function ValidationPanel() {
     <div className="flex flex-col gap-2 text-xs">
       {errors.length > 0 && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2">
-          <p className="mb-1 text-[10px] font-bold uppercase text-destructive">Errors ({errors.length})</p>
+          <p className="mb-1 text-[10px] font-bold uppercase text-destructive">
+            Errors ({errors.length})
+          </p>
           <ul className="flex flex-col gap-1">
             {errors.map((e, i) => (
-              <li key={i} className="text-[11px] text-destructive">{e.message}</li>
+              <li key={i} className="text-[11px] text-destructive">
+                {e.message}
+              </li>
             ))}
           </ul>
         </div>
       )}
       {warnings.length > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
-          <p className="mb-1 text-[10px] font-bold uppercase text-amber-700">Warnings ({warnings.length})</p>
+          <p className="mb-1 text-[10px] font-bold uppercase text-amber-700">
+            Warnings ({warnings.length})
+          </p>
           <ul className="flex flex-col gap-1">
             {warnings.map((w, i) => (
-              <li key={i} className="text-[11px] text-amber-800">{w.message}</li>
+              <li key={i} className="text-[11px] text-amber-800">
+                {w.message}
+              </li>
             ))}
           </ul>
         </div>
       )}
       {infos.length > 0 && (
         <div className="rounded-md border border-blue-100 bg-blue-50 p-2">
-          <p className="mb-1 text-[10px] font-bold uppercase text-blue-700">Info ({infos.length})</p>
+          <p className="mb-1 text-[10px] font-bold uppercase text-blue-700">
+            Info ({infos.length})
+          </p>
           <ul className="flex flex-col gap-1">
             {infos.map((info, i) => (
-              <li key={i} className="text-[11px] text-blue-800">{info.message}</li>
+              <li key={i} className="text-[11px] text-blue-800">
+                {info.message}
+              </li>
             ))}
           </ul>
         </div>
@@ -916,7 +985,15 @@ function ValidationPanel() {
   );
 }
 
-function Field({ label, geo, children }: { label: string; geo?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  geo,
+  children,
+}: {
+  label: string;
+  geo?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <Label className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

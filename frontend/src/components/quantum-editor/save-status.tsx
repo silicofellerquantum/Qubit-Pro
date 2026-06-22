@@ -10,22 +10,22 @@ export function SaveStatus() {
     saveStatus === "saved"
       ? "All changes saved"
       : saveStatus === "unsaved"
-      ? "Unsaved changes"
-      : "Saving…";
+        ? "Unsaved changes"
+        : "Saving…";
 
   return (
     <div
       title={title}
       className={cn(
         "flex items-center justify-center transition-all",
-        saveStatus === "saved"   && "text-emerald-600",
+        saveStatus === "saved" && "text-emerald-600",
         saveStatus === "unsaved" && "text-amber-500",
-        saveStatus === "saving"  && "text-muted-foreground",
+        saveStatus === "saving" && "text-muted-foreground",
       )}
     >
-      {saveStatus === "saved"   && <CheckCircle2 className="h-3.5 w-3.5" />}
-      {saveStatus === "unsaved" && <Circle       className="h-3.5 w-3.5 fill-amber-500/30" />}
-      {saveStatus === "saving"  && <Loader2      className="h-3.5 w-3.5 animate-spin" />}
+      {saveStatus === "saved" && <CheckCircle2 className="h-3.5 w-3.5" />}
+      {saveStatus === "unsaved" && <Circle className="h-3.5 w-3.5 fill-amber-500/30" />}
+      {saveStatus === "saving" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
     </div>
   );
 }

@@ -66,13 +66,13 @@ export function SearchModal({ isOpen, onClose, searchItems, onNavigate }: Search
   if (!isOpen) return null;
 
   const cleanQuery = query.trim().toLowerCase();
-  
+
   // Filter search items
   const results = cleanQuery
     ? searchItems.filter(
         (item) =>
           item.text.toLowerCase().includes(cleanQuery) ||
-          item.title.toLowerCase().includes(cleanQuery)
+          item.title.toLowerCase().includes(cleanQuery),
       )
     : searchItems.filter((item) => QUICK_LINKS.includes(item.title));
 
@@ -118,13 +118,12 @@ export function SearchModal({ isOpen, onClose, searchItems, onNavigate }: Search
           ) : (
             <>
               <div className="search-hint px-1 py-0.5 text-[var(--accent)] text-[13px] font-bold uppercase tracking-wider">
-                {cleanQuery ? `${results.length} matching topic${results.length === 1 ? "" : "s"}` : "Popular topics"}
+                {cleanQuery
+                  ? `${results.length} matching topic${results.length === 1 ? "" : "s"}`
+                  : "Popular topics"}
               </div>
               {results.map((item) => {
-                const snippet = item.text
-                  .replace(item.title, "")
-                  .trim()
-                  .slice(0, 210);
+                const snippet = item.text.replace(item.title, "").trim().slice(0, 210);
                 return (
                   <button
                     key={item.id}
@@ -137,9 +136,7 @@ export function SearchModal({ isOpen, onClose, searchItems, onNavigate }: Search
                     <strong className="text-[var(--text)] text-[17px] font-bold block">
                       {item.title}
                     </strong>
-                    <span className="text-sm leading-relaxed">
-                      {snippet}...
-                    </span>
+                    <span className="text-sm leading-relaxed">{snippet}...</span>
                   </button>
                 );
               })}
@@ -173,7 +170,8 @@ export function AssistantModal({ isOpen, onClose, searchItems, onNavigate }: Ass
     {
       id: "welcome",
       role: "bot",
-      content: "Ask me about Josephson junctions, HFSS simulations, python routing, or kinetic inductance.",
+      content:
+        "Ask me about Josephson junctions, HFSS simulations, python routing, or kinetic inductance.",
       title: "How can I help you compile or design today?",
       suggestions: [
         "How to compile a hello world chip?",
@@ -234,11 +232,25 @@ export function AssistantModal({ isOpen, onClose, searchItems, onNavigate }: Ass
 
     // Rule-based filters matching app.js
     if (lower.includes("install") || lower.includes("setup") || lower.includes("start")) {
-      matches = searchItems.filter((item) => ["installation", "using-python", "getting-started"].includes(item.id)).slice(0, 3);
-    } else if (lower.includes("compile") || lower.includes("compiler") || lower.includes("workflow")) {
-      matches = searchItems.filter((item) => ["compiler-reference", "using-python", "synthesis-tutorial"].includes(item.id)).slice(0, 3);
+      matches = searchItems
+        .filter((item) => ["installation", "using-python", "getting-started"].includes(item.id))
+        .slice(0, 3);
+    } else if (
+      lower.includes("compile") ||
+      lower.includes("compiler") ||
+      lower.includes("workflow")
+    ) {
+      matches = searchItems
+        .filter((item) =>
+          ["compiler-reference", "using-python", "synthesis-tutorial"].includes(item.id),
+        )
+        .slice(0, 3);
     } else if (lower.includes("api") || lower.includes("endpoint") || lower.includes("parse")) {
-      matches = searchItems.filter((item) => ["api-reference", "execution-part-1", "execution-part-2"].includes(item.id)).slice(0, 3);
+      matches = searchItems
+        .filter((item) =>
+          ["api-reference", "execution-part-1", "execution-part-2"].includes(item.id),
+        )
+        .slice(0, 3);
     } else if (
       lower.includes("material") ||
       lower.includes("aluminum") ||
@@ -247,20 +259,46 @@ export function AssistantModal({ isOpen, onClose, searchItems, onNavigate }: Ass
       lower.includes("alox") ||
       lower.includes("tin")
     ) {
-      matches = searchItems.filter((item) => ["superconducting-materials", "chip-synthesis", "hfss-tutorial"].includes(item.id)).slice(0, 3);
-    } else if (lower.includes("hfss") || lower.includes("electromagnetic") || lower.includes("eigenmode")) {
-      matches = searchItems.filter((item) => ["hfss-results-analysis", "hfss-tutorial", "simulation-dashboard"].includes(item.id)).slice(0, 3);
+      matches = searchItems
+        .filter((item) =>
+          ["superconducting-materials", "chip-synthesis", "hfss-tutorial"].includes(item.id),
+        )
+        .slice(0, 3);
+    } else if (
+      lower.includes("hfss") ||
+      lower.includes("electromagnetic") ||
+      lower.includes("eigenmode")
+    ) {
+      matches = searchItems
+        .filter((item) =>
+          ["hfss-results-analysis", "hfss-tutorial", "simulation-dashboard"].includes(item.id),
+        )
+        .slice(0, 3);
     } else if (lower.includes("q3d") || lower.includes("capacitance") || lower.includes("matrix")) {
-      matches = searchItems.filter((item) => ["q3d-results-analysis", "q3d-tutorial", "design-rules"].includes(item.id)).slice(0, 3);
+      matches = searchItems
+        .filter((item) =>
+          ["q3d-results-analysis", "q3d-tutorial", "design-rules"].includes(item.id),
+        )
+        .slice(0, 3);
     } else if (
       lower.includes("epr") ||
       lower.includes("scqubits") ||
       lower.includes("energy") ||
       lower.includes("hamiltonian")
     ) {
-      matches = searchItems.filter((item) => ["epr-results-analysis", "epr-tutorial", "results-reports"].includes(item.id)).slice(0, 3);
-    } else if (lower.includes("integrat") || lower.includes("frontend") || lower.includes("backend")) {
-      matches = searchItems.filter((item) => ["integration", "api-reference", "user-guide"].includes(item.id)).slice(0, 3);
+      matches = searchItems
+        .filter((item) =>
+          ["epr-results-analysis", "epr-tutorial", "results-reports"].includes(item.id),
+        )
+        .slice(0, 3);
+    } else if (
+      lower.includes("integrat") ||
+      lower.includes("frontend") ||
+      lower.includes("backend")
+    ) {
+      matches = searchItems
+        .filter((item) => ["integration", "api-reference", "user-guide"].includes(item.id))
+        .slice(0, 3);
     }
 
     if (!matches.length) {
@@ -343,7 +381,7 @@ export function AssistantModal({ isOpen, onClose, searchItems, onNavigate }: Ass
                 "assistant-message w-fit max-w-[min(680px,100%)] border border-[var(--line)] rounded-2xl p-4 text-[var(--muted)] text-[15px] leading-relaxed",
                 msg.role === "user"
                   ? "assistant-message-user justify-self-end self-end bg-[#43c7d3]/12 text-[var(--text)]"
-                  : "assistant-message-bot justify-self-start self-start bg-white shadow-sm"
+                  : "assistant-message-bot justify-self-start self-start bg-white shadow-sm",
               )}
             >
               {msg.title && (

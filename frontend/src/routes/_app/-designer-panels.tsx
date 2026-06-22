@@ -205,9 +205,7 @@ export function InteractiveCADCanvas({
 
   const qubits = result.placement?.qubits ?? [];
   const placementEdges = result.placement?.edges ?? [];
-  const resonatorEntries = Object.entries(
-    result.frequency_plan?.resonator_frequencies_GHz ?? {},
-  );
+  const resonatorEntries = Object.entries(result.frequency_plan?.resonator_frequencies_GHz ?? {});
 
   const coords = useMemo(() => {
     if (qubits.length === 0) return { minX: 0, maxX: 1, minY: 0, maxY: 1, rangeX: 1, rangeY: 1 };
@@ -292,7 +290,9 @@ export function InteractiveCADCanvas({
       const currentPan = panOffsetRef.current;
       const zoomFactor = 1.15;
       const nextZoom =
-        e.deltaY < 0 ? Math.min(5, currentZoom * zoomFactor) : Math.max(0.5, currentZoom / zoomFactor);
+        e.deltaY < 0
+          ? Math.min(5, currentZoom * zoomFactor)
+          : Math.max(0.5, currentZoom / zoomFactor);
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left,
         mouseY = e.clientY - rect.top;
@@ -370,10 +370,7 @@ export function InteractiveCADCanvas({
           (edge.qubit_b === selectedQubit.name && edge.qubit_a === name),
       );
 
-    const drawMeanderPath = (
-      p1: { px: number; py: number },
-      p2: { px: number; py: number },
-    ) => {
+    const drawMeanderPath = (p1: { px: number; py: number }, p2: { px: number; py: number }) => {
       ctx.beginPath();
       ctx.moveTo(p1.px, p1.py);
       const midX = (p1.px + p2.px) / 2;
@@ -704,16 +701,24 @@ export function InteractiveCADCanvas({
                       ))}
                       <div className="grid grid-cols-2 gap-2.5">
                         <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3 text-center">
-                          <p className="text-[9px] font-extrabold text-slate-400 uppercase">EJ Energy</p>
+                          <p className="text-[9px] font-extrabold text-slate-400 uppercase">
+                            EJ Energy
+                          </p>
                           <p className="text-lg font-black text-slate-700 mt-1 font-mono">
-                            {(result.frequency_plan?.EJ_GHz?.[selectedQubit.name] ?? 13.0).toFixed(2)}{" "}
+                            {(result.frequency_plan?.EJ_GHz?.[selectedQubit.name] ?? 13.0).toFixed(
+                              2,
+                            )}{" "}
                             <span className="text-[10px] text-slate-400">GHz</span>
                           </p>
                         </div>
                         <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3 text-center">
-                          <p className="text-[9px] font-extrabold text-slate-400 uppercase">EC Energy</p>
+                          <p className="text-[9px] font-extrabold text-slate-400 uppercase">
+                            EC Energy
+                          </p>
                           <p className="text-lg font-black text-slate-700 mt-1 font-mono">
-                            {(result.frequency_plan?.EC_GHz?.[selectedQubit.name] ?? 0.28).toFixed(4)}{" "}
+                            {(result.frequency_plan?.EC_GHz?.[selectedQubit.name] ?? 0.28).toFixed(
+                              4,
+                            )}{" "}
                             <span className="text-[10px] text-slate-400">GHz</span>
                           </p>
                         </div>
@@ -957,7 +962,9 @@ export function FreqPlanView({ result }: { result: GenerateResponse }) {
               Spectrum Analyzer
             </p>
             <h3 className="text-base font-black text-slate-900">Frequency Distribution</h3>
-            <p className="text-[11px] text-slate-500 mt-0.5">Qubit and resonator resonance bands.</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Qubit and resonator resonance bands.
+            </p>
           </div>
           <Badge
             variant="secondary"
@@ -986,7 +993,11 @@ export function FreqPlanView({ result }: { result: GenerateResponse }) {
             ))}
           </div>
           <div className="flex justify-between mt-3 text-[10px] font-bold text-slate-400 select-none">
-            <span>4.0</span><span>5.0</span><span>6.0</span><span>7.0</span><span>8.0 GHz</span>
+            <span>4.0</span>
+            <span>5.0</span>
+            <span>6.0</span>
+            <span>7.0</span>
+            <span>8.0 GHz</span>
           </div>
           <div className="mt-4 flex justify-center gap-6 text-[11px] font-bold text-slate-500">
             <span className="flex items-center gap-1.5">
@@ -1016,7 +1027,9 @@ export function FreqPlanView({ result }: { result: GenerateResponse }) {
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[12px] font-black text-slate-800">{freq.toFixed(3)} GHz</span>
+                    <span className="text-[12px] font-black text-slate-800">
+                      {freq.toFixed(3)} GHz
+                    </span>
                     <div className="text-[9px] font-bold text-slate-400 mt-0.5">
                       EJ={fp.EJ_GHz?.[name]?.toFixed(1)} · EC={fp.EC_GHz?.[name]?.toFixed(4)}
                     </div>
@@ -1043,7 +1056,9 @@ export function FreqPlanView({ result }: { result: GenerateResponse }) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[12px] font-black text-slate-800">{freq.toFixed(3)} GHz</span>
+                    <span className="text-[12px] font-black text-slate-800">
+                      {freq.toFixed(3)} GHz
+                    </span>
                     <div className="text-[9px] font-bold text-accent mt-0.5">
                       Δ={fp.detunings_GHz?.[name]?.toFixed(3)} GHz
                     </div>
@@ -1061,7 +1076,10 @@ export function FreqPlanView({ result }: { result: GenerateResponse }) {
             </p>
             <ul className="space-y-1">
               {(fp.warnings ?? []).map((w, i) => (
-                <li key={i} className="text-[11px] text-amber-700 list-disc list-inside font-medium">
+                <li
+                  key={i}
+                  className="text-[11px] text-amber-700 list-disc list-inside font-medium"
+                >
                   {w}
                 </li>
               ))}
@@ -1150,9 +1168,15 @@ export function CodeView({ result }: { result: GenerateResponse }) {
             className="rounded-full border-slate-200 hover:bg-slate-100 text-slate-600 shadow-sm text-xs font-bold h-7 px-3 active:scale-95 transition-all"
           >
             {copied ? (
-              <><Check className="mr-1.5 h-3 w-3 text-emerald-600" />Copied</>
+              <>
+                <Check className="mr-1.5 h-3 w-3 text-emerald-600" />
+                Copied
+              </>
             ) : (
-              <><Copy className="mr-1.5 h-3 w-3" />Copy</>
+              <>
+                <Copy className="mr-1.5 h-3 w-3" />
+                Copy
+              </>
             )}
           </Button>
           <Button
@@ -1161,7 +1185,8 @@ export function CodeView({ result }: { result: GenerateResponse }) {
             onClick={download}
             className="rounded-full border-slate-200 hover:bg-slate-100 text-slate-600 shadow-sm text-xs font-bold h-7 px-3 active:scale-95 transition-all"
           >
-            <Download className="mr-1.5 h-3 w-3" />.py
+            <Download className="mr-1.5 h-3 w-3" />
+            .py
           </Button>
         </div>
       </div>

@@ -32,6 +32,24 @@ class Settings(BaseSettings):
     # CORS — localhost ports used by Vite dev server
     cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174"
 
+    # SMTP Settings
+    smtp_host: str = "smtp.office365.com"
+    smtp_port: int = 587
+    smtp_user: str = "quantum@silicofeller.com"
+    smtp_password: str = "R!201758405545ol"
+    smtp_pass: str | None = None  # fallback alias
+    mail_from: str = "quantum@silicofeller.com"
+    smtp_from: str | None = None  # fallback alias
+    admin_email: str = "privacy@silicofeller.com"
+
+    @property
+    def final_smtp_password(self) -> str:
+        return self.smtp_pass or self.smtp_password
+
+    @property
+    def final_mail_from(self) -> str:
+        return self.smtp_from or self.mail_from
+
     # Claude / Anthropic (optional — falls back to rule-based assistant if empty)
     anthropic_api_key: str = ""
 

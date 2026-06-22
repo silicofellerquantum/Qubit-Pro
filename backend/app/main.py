@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
-from app.routers import auth, claude, generate, materials, projects, qclang, simulations, tapeout, verification, bridge
+from app.routers import auth, claude, generate, materials, projects, qclang, simulations, tapeout, verification, bridge, contact
 from app.routers import design  # V2 design pipeline
 
 log = logging.getLogger(__name__)
@@ -177,6 +177,8 @@ app.include_router(materials.router)         # /api/materials/...
 app.include_router(claude.router)            # /api/claude/...
 app.include_router(design.router)            # /api/design/... (V2 pipeline)
 app.include_router(bridge.router)            # /components and /design (bridge router)
+app.include_router(contact.router)
+
 
 
 # ── Frequency plan (legacy frontend compat) ───────────────────────────────────

@@ -7,7 +7,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sparkles,
   Cpu,
@@ -128,7 +134,16 @@ function formatTime(ts: number) {
   return d.toLocaleDateString();
 }
 
-const TOPOLOGY_OPTIONS = ["custom", "heavy-hex", "surface-code", "grid", "ring", "chain", "star", "all-to-all"];
+const TOPOLOGY_OPTIONS = [
+  "custom",
+  "heavy-hex",
+  "surface-code",
+  "grid",
+  "ring",
+  "chain",
+  "star",
+  "all-to-all",
+];
 
 // Helper to estimate couplers
 function calculateConnections(topology: string, numQubits: number): number {
@@ -147,7 +162,7 @@ function calculateConnections(topology: string, numQubits: number): number {
   let edges = 0;
   edges += rows * (cols - 1);
   edges += cols * (rows - 1);
-  const missing = (cols * rows) - n;
+  const missing = cols * rows - n;
   if (missing > 0) edges -= missing;
   return Math.max(0, edges);
 }
@@ -186,7 +201,11 @@ function QCLangView({ code }: { code: string }) {
           onClick={copy}
           className="rounded-full border-slate-200 hover:bg-slate-100 text-slate-600 h-6 px-2.5 text-[10px] font-bold"
         >
-          {copied ? <Check className="h-3 w-3 mr-1 text-emerald-600" /> : <Copy className="h-3 w-3 mr-1" />}
+          {copied ? (
+            <Check className="h-3 w-3 mr-1 text-emerald-600" />
+          ) : (
+            <Copy className="h-3 w-3 mr-1" />
+          )}
           {copied ? "Copied" : "Copy"}
         </Button>
       </div>
@@ -199,29 +218,42 @@ function QCLangView({ code }: { code: string }) {
 
 function isDesignRequest(p: string): boolean {
   const text = p.toLowerCase().trim();
-  
+
   // Strong design/action commands
-  const hasActionVerb = /\b(generate|design|create|make|build|synthesize|compile|route|layout|draw|add|remove|delete|connect|shift|move|adjust|scale|modify|update)\b/.test(text);
-  
+  const hasActionVerb =
+    /\b(generate|design|create|make|build|synthesize|compile|route|layout|draw|add|remove|delete|connect|shift|move|adjust|scale|modify|update)\b/.test(
+      text,
+    );
+
   // Qubit count patterns, e.g. "5 qubits", "7q"
   const hasQubitPattern = /\b\d+\s*(qubit|q)\b/.test(text);
-  
+
   // Specific instruction patterns
-  const hasInstruction = /\b(change|set|increase|decrease|shift Q\d+|move Q\d+|connect Q\d+)\b/i.test(text);
+  const hasInstruction =
+    /\b(change|set|increase|decrease|shift Q\d+|move Q\d+|connect Q\d+)\b/i.test(text);
 
   // If it's a question but does not ask to generate/modify
-  const isQuestion = /^(what|why|how|explain|describe|tell me|who|where|define|compare|can you)\b/.test(text) || text.endsWith("?");
-  
+  const isQuestion =
+    /^(what|why|how|explain|describe|tell me|who|where|define|compare|can you)\b/.test(text) ||
+    text.endsWith("?");
+
   // If it is a question, it is only a design request if it explicitly contains action words like "generate" or "create" or "design"
   if (isQuestion) {
-    return /\b(generate|design|create|make|build|synthesize|route|layout)\b/.test(text) || hasQubitPattern;
+    return (
+      /\b(generate|design|create|make|build|synthesize|route|layout)\b/.test(text) ||
+      hasQubitPattern
+    );
   }
-  
+
   // Otherwise, if it has design actions or qubit patterns, it's a design request
   return hasActionVerb || hasQubitPattern || hasInstruction;
 }
 
-function ChipSchematicDetailed({ result }: { result: import("@/lib/api/backend").GenerateResponse }) {
+function ChipSchematicDetailed({
+  result,
+}: {
+  result: import("@/lib/api/backend").GenerateResponse;
+}) {
   const qubits = result.placement?.qubits ?? [];
   const placementEdges = result.placement?.edges ?? [];
 
@@ -252,7 +284,9 @@ function ChipSchematicDetailed({ result }: { result: import("@/lib/api/backend")
     <Card className="rounded-2xl border-slate-200/80 p-4 shadow-sm bg-white h-full flex flex-col justify-between overflow-hidden">
       <div className="flex justify-between items-center mb-3">
         <div>
-          <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Wafer Schematic View</span>
+          <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+            Wafer Schematic View
+          </span>
           <h3 className="text-xs font-black text-slate-800 leading-none mt-0.5">{result.label}</h3>
         </div>
         <Badge variant="outline" className="text-[9px] font-bold border-slate-200 text-slate-500">
@@ -272,10 +306,10 @@ function ChipSchematicDetailed({ result }: { result: import("@/lib/api/backend")
               const q1 = qubitByName.get(edge.qubit_a);
               const q2 = qubitByName.get(edge.qubit_b);
               if (!q1 || !q2) return null;
-              
+
               const p1 = getScreen(q1.x, q1.y);
               const p2 = getScreen(q2.x, q2.y);
-              
+
               const mx = (p1.px + p2.px) / 2;
               const my = (p1.py + p2.py) / 2;
 
@@ -318,7 +352,7 @@ function ChipSchematicDetailed({ result }: { result: import("@/lib/api/backend")
             {/* Draw readout couplers */}
             {qubits.map((q) => {
               const p = getScreen(q.x, q.y);
-              
+
               // Angle out for readout box (radial direction from center)
               const cx = width / 2;
               const cy = height / 2;
@@ -327,7 +361,7 @@ function ChipSchematicDetailed({ result }: { result: import("@/lib/api/backend")
               const len = Math.hypot(vx, vy) || 1;
               const ux = vx / len;
               const uy = vy / len;
-              
+
               // Readout box position (42px away from qubit node center)
               const rx = p.px + ux * 42;
               const ry = p.py + uy * 42;
@@ -440,7 +474,7 @@ function DesignerPage() {
   const { setOpen: setWorkspaceSidebarOpen } = useSidebar();
   const { saveDesign, activeProject } = useProject();
   const navigate = useNavigate();
-  
+
   const { topology: queryTopology, qubits: queryQubits } = Route.useSearch();
   const hasTriggeredQuery = useRef(false);
 
@@ -460,11 +494,15 @@ function DesignerPage() {
   const [formMetal, setFormMetal] = useState("aluminum");
   const [formCoupling, setFormCoupling] = useState("capacitive");
   const [formExpanded, setFormExpanded] = useState(false);
-  const [designStage, setDesignStage] = useState<"prompt" | "generated" | "reviewed" | "sent_to_schematic" | "layout" | "simulation">("prompt");
+  const [designStage, setDesignStage] = useState<
+    "prompt" | "generated" | "reviewed" | "sent_to_schematic" | "layout" | "simulation"
+  >("prompt");
 
   // Version evolution state
   const [selectedVersionIdx, setSelectedVersionIdx] = useState<number>(-1);
-  const [activeTab, setActiveTab] = useState<"layout" | "schematic" | "qiskit" | "qclang" | "metrics" | "evolution">("layout");
+  const [activeTab, setActiveTab] = useState<
+    "layout" | "schematic" | "qiskit" | "qclang" | "metrics" | "evolution"
+  >("layout");
 
   const [layers, setLayers] = useState({
     pockets: true,
@@ -498,7 +536,7 @@ function DesignerPage() {
       const historyList = active.resultsHistory || (active.result ? [active.result] : []);
       setSelectedVersionIdx(historyList.length - 1);
       setActiveTab("layout");
-      
+
       const currentRes = active.result;
       if (currentRes) {
         setFormTopology(currentRes.topology || "heavy-hex");
@@ -518,11 +556,12 @@ function DesignerPage() {
       hasTriggeredQuery.current = true;
       setFormTopology(queryTopology);
       setFormQubits(queryQubits);
-      
-      const pText = `Design a ${queryQubits}-qubit ${queryTopology} quantum processor. ` +
+
+      const pText =
+        `Design a ${queryQubits}-qubit ${queryTopology} quantum processor. ` +
         `Technology: Superconducting Transmon. Substrate: silicon. Metallization: aluminum. ` +
         `Target qubit frequency: 5.0 GHz. Coupling: capacitive.`;
-      
+
       setTimeout(() => {
         send(pText);
       }, 400);
@@ -534,10 +573,10 @@ function DesignerPage() {
     if (!text || !active || loading) return;
     setPrompt("");
     setLoading(true);
-    
+
     const isDesign = isDesignRequest(text);
     const loadingText = isDesign ? "Synthesizing quantum chip blueprint..." : "Thinking...";
-    
+
     const isFirst = active.messages.length <= 1;
     updateActive({
       messages: [
@@ -555,7 +594,7 @@ function DesignerPage() {
         const aiText =
           result.interpretation ??
           `Generated a ${result.num_qubits}-qubit ${result.topology} chip with DRC ${result.drc?.passed ? "PASS" : "WARNING"}.`;
-        
+
         let nextIdx = 0;
         setConversations((cs) =>
           cs.map((c) => {
@@ -605,16 +644,18 @@ function DesignerPage() {
             content: m.text,
           }));
 
-        const contextData = currentResult ? {
-          num_qubits: currentResult.num_qubits,
-          topology: currentResult.topology,
-          frequency_plan: currentResult.frequency_plan,
-          placement: currentResult.placement,
-          material: currentResult.material,
-        } : null;
+        const contextData = currentResult
+          ? {
+              num_qubits: currentResult.num_qubits,
+              topology: currentResult.topology,
+              frequency_plan: currentResult.frequency_plan,
+              placement: currentResult.placement,
+              material: currentResult.material,
+            }
+          : null;
 
         const response = await askClaude(text, "designer", contextData, mappedHistory);
-        
+
         setConversations((cs) =>
           cs.map((c) => {
             if (c.id !== activeId) return c;
@@ -646,7 +687,8 @@ function DesignerPage() {
   };
 
   const handleFormGenerate = () => {
-    const pText = `Design a ${formQubits}-qubit ${formTopology} quantum processor. ` +
+    const pText =
+      `Design a ${formQubits}-qubit ${formTopology} quantum processor. ` +
       `Technology: Superconducting Transmon. Substrate: ${formSubstrate}. Metallization: ${formMetal}. ` +
       `Target qubit frequency: ${formFreq} GHz. Coupling: ${formCoupling}.`;
     send(pText);
@@ -661,18 +703,20 @@ function DesignerPage() {
           result: res,
           updatedAt: Date.now(),
         };
-      })
+      }),
     );
     saveDesign(res);
     toast.success(`Restored active layout to Version ${idx + 1}`);
   };
 
   // Evolution history list
-  const historyList: GenerateResponse[] = active ? (active.resultsHistory || (active.result ? [active.result] : [])) : [];
+  const historyList: GenerateResponse[] = active
+    ? active.resultsHistory || (active.result ? [active.result] : [])
+    : [];
   const currentResult = active
-    ? (selectedVersionIdx >= 0 && selectedVersionIdx < historyList.length
+    ? selectedVersionIdx >= 0 && selectedVersionIdx < historyList.length
       ? historyList[selectedVersionIdx]
-      : active.result)
+      : active.result
     : null;
 
   const hasOutput = !!currentResult;
@@ -714,9 +758,13 @@ function DesignerPage() {
               <div className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
                 {conversations.map((c) => {
                   // Dynamic display title — only override when design has actual qubits
-                  const displayTitle = c.result && c.result.num_qubits > 0
-                    ? `${c.result.num_qubits}Q ${c.result.topology.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}`
-                    : c.title;
+                  const displayTitle =
+                    c.result && c.result.num_qubits > 0
+                      ? `${c.result.num_qubits}Q ${c.result.topology
+                          .split("-")
+                          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                          .join(" ")}`
+                      : c.title;
 
                   return (
                     <div
@@ -732,7 +780,9 @@ function DesignerPage() {
                       <span
                         className={cn(
                           "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-[10px] mt-0.5",
-                          c.result ? "bg-emerald-50 text-emerald-600" : "bg-sidebar-primary/10 text-slate-400",
+                          c.result
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-sidebar-primary/10 text-slate-400",
                         )}
                       >
                         {c.result ? (
@@ -844,9 +894,7 @@ function DesignerPage() {
               <Sparkles className="h-3.5 w-3.5" />
             </span>
             <div>
-              <p className="text-[11px] font-black text-slate-900 leading-tight">
-                Design Copilot
-              </p>
+              <p className="text-[11px] font-black text-slate-900 leading-tight">Design Copilot</p>
               <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Synthesizer Online
@@ -854,8 +902,6 @@ function DesignerPage() {
             </div>
           </div>
         </div>
-
-
 
         {/* Chat log refinement thread */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-slate-50/20">
@@ -898,26 +944,43 @@ function DesignerPage() {
                       </div>
                       <div>
                         <h4 className="text-xs font-black text-slate-800">Generated Design</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{currentResult.label}</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                          {currentResult.label}
+                        </p>
                       </div>
                     </div>
 
                     {/* Specifications Grid */}
                     <div className="grid grid-cols-3 gap-2 mb-4">
                       <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-2 text-center">
-                        <span className="text-[8px] text-slate-400 uppercase font-bold block">Topology</span>
-                        <span className="text-[10px] font-black text-slate-700 capitalize">{currentResult.topology.replace("-", " ")}</span>
+                        <span className="text-[8px] text-slate-400 uppercase font-bold block">
+                          Topology
+                        </span>
+                        <span className="text-[10px] font-black text-slate-700 capitalize">
+                          {currentResult.topology.replace("-", " ")}
+                        </span>
                       </div>
                       <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-2 text-center">
-                        <span className="text-[8px] text-slate-400 uppercase font-bold block">Qubits</span>
-                        <span className="text-[10px] font-black text-slate-700">{currentResult.num_qubits} Q</span>
-                      </div>
-                      <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-2 text-center">
-                        <span className="text-[8px] text-slate-400 uppercase font-bold block">Frequency</span>
+                        <span className="text-[8px] text-slate-400 uppercase font-bold block">
+                          Qubits
+                        </span>
                         <span className="text-[10px] font-black text-slate-700">
-                          {currentResult.frequency_plan?.qubit_frequencies_GHz 
-                            ? (Object.values(currentResult.frequency_plan.qubit_frequencies_GHz)[0] as number | undefined)?.toFixed(2) ?? "5.0" 
-                            : "5.0"} GHz
+                          {currentResult.num_qubits} Q
+                        </span>
+                      </div>
+                      <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-2 text-center">
+                        <span className="text-[8px] text-slate-400 uppercase font-bold block">
+                          Frequency
+                        </span>
+                        <span className="text-[10px] font-black text-slate-700">
+                          {currentResult.frequency_plan?.qubit_frequencies_GHz
+                            ? ((
+                                Object.values(
+                                  currentResult.frequency_plan.qubit_frequencies_GHz,
+                                )[0] as number | undefined
+                              )?.toFixed(2) ?? "5.0")
+                            : "5.0"}{" "}
+                          GHz
                         </span>
                       </div>
                     </div>
@@ -929,14 +992,18 @@ function DesignerPage() {
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 fill-emerald-50" />
                           <span>Layout Synthesis</span>
                         </div>
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100/60">Ready</span>
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100/60">
+                          Ready
+                        </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
                         <div className="flex items-center gap-2 font-semibold text-slate-600">
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 fill-emerald-50" />
                           <span>Qiskit Metal Code</span>
                         </div>
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100/60">Generated</span>
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100/60">
+                          Generated
+                        </span>
                       </div>
                       <div className="flex items-center justify-between text-[11px]">
                         <div className="flex items-center gap-2 font-semibold text-slate-600">
@@ -947,12 +1014,14 @@ function DesignerPage() {
                           )}
                           <span>DRC Verification</span>
                         </div>
-                        <span className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full border",
-                          currentResult.drc?.passed 
-                            ? "text-emerald-600 bg-emerald-50 border-emerald-100/60" 
-                            : "text-amber-600 bg-amber-50 border-amber-100/60"
-                        )}>
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full border",
+                            currentResult.drc?.passed
+                              ? "text-emerald-600 bg-emerald-50 border-emerald-100/60"
+                              : "text-amber-600 bg-amber-50 border-amber-100/60",
+                          )}
+                        >
                           {currentResult.drc?.passed ? "Passed" : "Warning"}
                         </span>
                       </div>
@@ -963,9 +1032,9 @@ function DesignerPage() {
                       onClick={() => {
                         setDesignStage("sent_to_schematic");
                         setTimeout(() => {
-                          navigate({ 
-                            to: "/schematic-editor", 
-                            search: { conversationId: active.id } 
+                          navigate({
+                            to: "/schematic-editor",
+                            search: { conversationId: active.id },
                           });
                         }, 250);
                       }}
@@ -989,7 +1058,8 @@ function DesignerPage() {
               </div>
               <h4 className="text-xs font-black text-slate-800">No Session Selected</h4>
               <p className="text-[10px] text-slate-400 max-w-[200px] mt-1 leading-relaxed">
-                Select an existing design session from the sidebar, or click the plus button to start a new workspace.
+                Select an existing design session from the sidebar, or click the plus button to
+                start a new workspace.
               </p>
             </div>
           )}
@@ -1113,16 +1183,25 @@ function DesignerPage() {
                 {/* Tabs Content */}
                 <div className="flex-1 overflow-y-auto min-h-0 relative bg-white">
                   {/* Layout Preview content */}
-                  <TabsContent value="layout" className="h-full mt-0 focus-visible:outline-none flex flex-col p-4">
+                  <TabsContent
+                    value="layout"
+                    className="h-full mt-0 focus-visible:outline-none flex flex-col p-4"
+                  >
                     <div className="flex-1 rounded-2xl border border-slate-200 bg-slate-50/50 overflow-hidden relative min-h-[350px]">
                       <InteractiveCADCanvas result={currentResult} layers={layers} />
                     </div>
                     {/* Layer checklist checkboxes */}
                     <div className="mt-4 flex flex-wrap items-center gap-5 text-[10px] font-bold text-slate-500 border-t border-slate-100 pt-3">
-                      <span className="text-[9px] text-slate-400 uppercase tracking-widest mr-1">Layers:</span>
+                      <span className="text-[9px] text-slate-400 uppercase tracking-widest mr-1">
+                        Layers:
+                      </span>
                       {[
                         { key: "pockets" as const, label: "Qubits (M1)", color: "bg-amber-400" },
-                        { key: "meanders" as const, label: "Resonators (M2)", color: "bg-slate-400" },
+                        {
+                          key: "meanders" as const,
+                          label: "Resonators (M2)",
+                          color: "bg-slate-400",
+                        },
                         { key: "grid" as const, label: "Grid Lines", color: "bg-slate-200" },
                         { key: "labels" as const, label: "Labels", color: "bg-accent/100" },
                       ].map((l) => (
@@ -1141,7 +1220,10 @@ function DesignerPage() {
                   </TabsContent>
 
                   {/* Wafer Schematic content */}
-                  <TabsContent value="schematic" className="h-full mt-0 focus-visible:outline-none p-4">
+                  <TabsContent
+                    value="schematic"
+                    className="h-full mt-0 focus-visible:outline-none p-4"
+                  >
                     <ChipSchematicDetailed result={currentResult} />
                   </TabsContent>
 
@@ -1149,62 +1231,101 @@ function DesignerPage() {
                   <TabsContent value="qiskit" className="mt-0 focus-visible:outline-none p-4">
                     <CodeView result={currentResult} />
                   </TabsContent>
-                  
+
                   {/* QCLang content */}
                   <TabsContent value="qclang" className="mt-0 focus-visible:outline-none p-4">
-                    <QCLangView code={currentResult.qclang_source ?? "// No QCLang source generated"} />
+                    <QCLangView
+                      code={currentResult.qclang_source ?? "// No QCLang source generated"}
+                    />
                   </TabsContent>
 
                   {/* Metrics & DRC content */}
-                  <TabsContent value="metrics" className="mt-0 focus-visible:outline-none p-4 space-y-4">
+                  <TabsContent
+                    value="metrics"
+                    className="mt-0 focus-visible:outline-none p-4 space-y-4"
+                  >
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[10px] font-semibold text-slate-600">
                       <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
-                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">Qubits</span>
-                        <span className="text-sm font-black text-slate-800">{currentResult.num_qubits}</span>
-                      </Card>
-                      <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
-                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">Topology</span>
-                        <span className="text-sm font-black text-slate-800 capitalize">{currentResult.topology.replace("-", " ")}</span>
-                      </Card>
-                      <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
-                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">Target Frequency</span>
+                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">
+                          Qubits
+                        </span>
                         <span className="text-sm font-black text-slate-800">
-                          {currentResult.frequency_plan?.qubit_frequencies_GHz 
-                            ? (Object.values(currentResult.frequency_plan.qubit_frequencies_GHz)[0] as number | undefined)?.toFixed(2) ?? "5.00" 
-                            : "5.00"} GHz
+                          {currentResult.num_qubits}
                         </span>
                       </Card>
                       <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
-                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">Couplers Count</span>
+                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">
+                          Topology
+                        </span>
+                        <span className="text-sm font-black text-slate-800 capitalize">
+                          {currentResult.topology.replace("-", " ")}
+                        </span>
+                      </Card>
+                      <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
+                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">
+                          Target Frequency
+                        </span>
+                        <span className="text-sm font-black text-slate-800">
+                          {currentResult.frequency_plan?.qubit_frequencies_GHz
+                            ? ((
+                                Object.values(
+                                  currentResult.frequency_plan.qubit_frequencies_GHz,
+                                )[0] as number | undefined
+                              )?.toFixed(2) ?? "5.00")
+                            : "5.00"}{" "}
+                          GHz
+                        </span>
+                      </Card>
+                      <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
+                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">
+                          Couplers Count
+                        </span>
                         <span className="text-sm font-black text-slate-800">
                           {calculateConnections(currentResult.topology, currentResult.num_qubits)}
                         </span>
                       </Card>
                       <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
-                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">Readout Resonators</span>
-                        <span className="text-sm font-black text-slate-800">{currentResult.num_qubits}</span>
+                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">
+                          Readout Resonators
+                        </span>
+                        <span className="text-sm font-black text-slate-800">
+                          {currentResult.num_qubits}
+                        </span>
                       </Card>
                       <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
-                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">Est. Fidelity</span>
+                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">
+                          Est. Fidelity
+                        </span>
                         <span className="text-sm font-black text-emerald-600">
-                          {currentResult.material?.metal === "tantalum" ? "99.95%" : currentResult.material?.metal === "niobium" ? "99.92%" : "99.90%"}
+                          {currentResult.material?.metal === "tantalum"
+                            ? "99.95%"
+                            : currentResult.material?.metal === "niobium"
+                              ? "99.92%"
+                              : "99.90%"}
                         </span>
                       </Card>
                       <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
-                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">Materials Spec</span>
+                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">
+                          Materials Spec
+                        </span>
                         <span className="text-sm font-black text-slate-800 capitalize">
-                          {currentResult.material?.substrate || "silicon"} / {currentResult.material?.metal || "aluminum"}
+                          {currentResult.material?.substrate || "silicon"} /{" "}
+                          {currentResult.material?.metal || "aluminum"}
                         </span>
                       </Card>
                       <Card className="p-3 border-slate-100 shadow-none bg-slate-50/50">
-                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">Cryo Coherence (T2)</span>
+                        <span className="text-slate-400 block uppercase text-[8px] tracking-wider mb-1">
+                          Cryo Coherence (T2)
+                        </span>
                         <span className="text-sm font-black text-slate-800">~180 μs</span>
                       </Card>
                     </div>
 
                     {/* DRC Violations or Pass info */}
                     <div className="mt-4">
-                      {currentResult.drc && !currentResult.drc.passed && (currentResult.drc.violations?.length ?? 0) > 0 ? (
+                      {currentResult.drc &&
+                      !currentResult.drc.passed &&
+                      (currentResult.drc.violations?.length ?? 0) > 0 ? (
                         <Card className="rounded-2xl border-amber-200/80 bg-amber-50/40 p-4 shadow-sm">
                           <p className="flex items-center gap-2 text-xs font-bold text-amber-800 mb-2">
                             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
@@ -1212,9 +1333,14 @@ function DesignerPage() {
                           </p>
                           <ul className="space-y-1.5">
                             {(currentResult.drc.violations ?? []).map((v, i) => (
-                              <li key={i} className="text-[11px] text-amber-700 list-disc list-inside font-medium">
-                                <span className="font-black">{(v.severity ?? "warn").toUpperCase()}</span> ·{" "}
-                                {v.rule}: {v.message}
+                              <li
+                                key={i}
+                                className="text-[11px] text-amber-700 list-disc list-inside font-medium"
+                              >
+                                <span className="font-black">
+                                  {(v.severity ?? "warn").toUpperCase()}
+                                </span>{" "}
+                                · {v.rule}: {v.message}
                               </li>
                             ))}
                           </ul>
@@ -1223,8 +1349,13 @@ function DesignerPage() {
                         <Card className="rounded-2xl border-emerald-200/80 bg-emerald-50/40 p-4 shadow-sm flex items-center gap-3">
                           <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
                           <div>
-                            <p className="text-xs font-black text-emerald-800">DRC Verification Passed</p>
-                            <p className="text-[10px] text-emerald-600 font-medium mt-0.5">No physical lithography or layout trace spacing violations detected on wafer.</p>
+                            <p className="text-xs font-black text-emerald-800">
+                              DRC Verification Passed
+                            </p>
+                            <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                              No physical lithography or layout trace spacing violations detected on
+                              wafer.
+                            </p>
                           </div>
                         </Card>
                       )}
@@ -1241,15 +1372,21 @@ function DesignerPage() {
                             "flex items-center justify-between p-3 rounded-2xl border text-[11px] font-bold",
                             idx === selectedVersionIdx
                               ? "bg-accent/10 border-accent/20 text-accent shadow-sm"
-                              : "bg-slate-50/50 border-slate-100 text-slate-600 hover:bg-slate-100/70"
+                              : "bg-slate-50/50 border-slate-100 text-slate-600 hover:bg-slate-100/70",
                           )}
                         >
                           <div className="flex items-center gap-3">
-                            <span className="text-slate-400 uppercase text-[9px] font-black bg-white/80 border border-slate-150 px-1.5 py-0.5 rounded-md">v{idx + 1}</span>
-                            <span>{res.num_qubits}Q {res.topology.replace("-", " ")}</span>
-                            <span className="text-slate-400 font-normal">({res.material?.substrate} / {res.material?.metal})</span>
+                            <span className="text-slate-400 uppercase text-[9px] font-black bg-white/80 border border-slate-150 px-1.5 py-0.5 rounded-md">
+                              v{idx + 1}
+                            </span>
+                            <span>
+                              {res.num_qubits}Q {res.topology.replace("-", " ")}
+                            </span>
+                            <span className="text-slate-400 font-normal">
+                              ({res.material?.substrate} / {res.material?.metal})
+                            </span>
                           </div>
-                          
+
                           <div className="flex gap-2">
                             <button
                               onClick={() => setSelectedVersionIdx(idx)}
@@ -1278,4 +1415,3 @@ function DesignerPage() {
     </motion.div>
   );
 }
-

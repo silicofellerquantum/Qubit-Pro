@@ -31,9 +31,9 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         <footer className="flex flex-col items-center justify-between gap-2 border-t border-border/60 px-6 py-5 text-xs text-muted-foreground sm:flex-row lg:px-10">
           <p>© {new Date().getFullYear()} Silicofeller, Inc. All rights reserved.</p>
           <div className="flex items-center gap-5">
-            <a href="#" className="hover:text-foreground">
+            <Link to="/privacy" className="hover:text-foreground">
               Privacy
-            </a>
+            </Link>
             <a href="#" className="hover:text-foreground">
               Terms
             </a>

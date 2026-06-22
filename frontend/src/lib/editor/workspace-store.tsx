@@ -2,13 +2,21 @@
  * workspace-store.tsx — Multi-canvas workspace state management.
  */
 import {
-  createContext, useCallback, useContext, useEffect,
-  useMemo, useReducer, useRef, type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  type ReactNode,
 } from "react";
 import { toast } from "sonner";
 import {
-  editorReducer, initialEditorState,
-  type EditorState, type EditorAction,
+  editorReducer,
+  initialEditorState,
+  type EditorState,
+  type EditorAction,
 } from "./design-store";
 import type { DesignDocument } from "@/lib/bridge/types";
 
@@ -51,7 +59,13 @@ function uniqueName(existing: string[]): string {
 }
 
 function makeTab(name: string, id?: string): CanvasTab {
-  return { id: id ?? generateId(), name, state: { ...initialEditorState }, dirty: false, savedAt: null };
+  return {
+    id: id ?? generateId(),
+    name,
+    state: { ...initialEditorState },
+    dirty: false,
+    savedAt: null,
+  };
 }
 
 // ── Initial state ─────────────────────────────────────────────────────────────
@@ -67,36 +81,55 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
   switch (action.type) {
     case "NEW_CANVAS": {
       const name = action.name?.trim() || uniqueName(state.tabs.map((t) => t.name));
-      const tab  = makeTab(name, action.id);
+      const tab = makeTab(name, action.id);
       return { ...state, tabs: [...state.tabs, tab], activeId: tab.id, saveStatus: "unsaved" };
     }
     case "CLOSE_CANVAS": {
       if (state.tabs.length === 1)
-        return { ...state, tabs: [{ ...state.tabs[0], state: { ...initialEditorState }, dirty: false }], saveStatus: "saved" };
-      const idx     = state.tabs.findIndex((t) => t.id === action.id);
+        return {
+          ...state,
+          tabs: [{ ...state.tabs[0], state: { ...initialEditorState }, dirty: false }],
+          saveStatus: "saved",
+        };
+      const idx = state.tabs.findIndex((t) => t.id === action.id);
       const newTabs = state.tabs.filter((t) => t.id !== action.id);
-      const newActive = state.activeId === action.id ? (newTabs[Math.max(0, idx - 1)]?.id ?? newTabs[0].id) : state.activeId;
+      const newActive =
+        state.activeId === action.id
+          ? (newTabs[Math.max(0, idx - 1)]?.id ?? newTabs[0].id)
+          : state.activeId;
       return { ...state, tabs: newTabs, activeId: newActive, saveStatus: "unsaved" };
     }
     case "SWITCH_CANVAS":
       return { ...state, activeId: action.id };
     case "RENAME_CANVAS":
-      return { ...state, tabs: state.tabs.map((t) => t.id === action.id ? { ...t, name: action.name, dirty: true } : t), saveStatus: "unsaved" };
+      return {
+        ...state,
+        tabs: state.tabs.map((t) =>
+          t.id === action.id ? { ...t, name: action.name, dirty: true } : t,
+        ),
+        saveStatus: "unsaved",
+      };
     case "CANVAS_ACTION": {
       const newTabs = state.tabs.map((t) =>
-        t.id !== action.id ? t : { ...t, state: editorReducer(t.state, action.action), dirty: true },
+        t.id !== action.id
+          ? t
+          : { ...t, state: editorReducer(t.state, action.action), dirty: true },
       );
       return { ...state, tabs: newTabs, saveStatus: "unsaved" };
     }
     case "LOAD_INTO_CANVAS": {
       const newTabs = state.tabs.map((t) =>
-        t.id !== action.id ? t : { ...t, state: editorReducer(t.state, { type: "LOAD", doc: action.doc }), dirty: true },
+        t.id !== action.id
+          ? t
+          : { ...t, state: editorReducer(t.state, { type: "LOAD", doc: action.doc }), dirty: true },
       );
       return { ...state, tabs: newTabs, activeId: action.id, saveStatus: "unsaved" };
     }
     case "MARK_SAVED": {
       const now = Date.now();
-      const newTabs = state.tabs.map((t) => t.id === action.id ? { ...t, dirty: false, savedAt: now } : t);
+      const newTabs = state.tabs.map((t) =>
+        t.id === action.id ? { ...t, dirty: false, savedAt: now } : t,
+      );
       const allSaved = newTabs.every((t) => !t.dirty);
       return { ...state, tabs: newTabs, saveStatus: allSaved ? "saved" : "unsaved" };
     }
@@ -204,7 +237,8 @@ function loadWorkspace(): WorkspaceState | null {
     const migrated = migrateWorkspace(parsed);
     if (!migrated) return null;
     return {
-      ...migrated, saveStatus: "saved",
+      ...migrated,
+      saveStatus: "saved",
       tabs: migrated.tabs.map((t) => ({
         ...t,
         state: {
@@ -216,7 +250,9 @@ function loadWorkspace(): WorkspaceState | null {
         } as EditorState,
       })),
     };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // ── Context ───────────────────────────────────────────────────────────────────
@@ -234,7 +270,11 @@ export interface WorkspaceContextValue {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [workspace, dispatch] = useReducer(workspaceReducer, null, () => loadWorkspace() ?? makeInitialState());
+  const [workspace, dispatch] = useReducer(
+    workspaceReducer,
+    null,
+    () => loadWorkspace() ?? makeInitialState(),
+  );
 
   const activeTab = useMemo(
     () => workspace.tabs.find((t) => t.id === workspace.activeId) ?? workspace.tabs[0],
@@ -246,14 +286,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [workspace.activeId],
   );
 
-  const newCanvas = useCallback((name?: string, doc?: DesignDocument, customId?: string): string => {
-    const existingNames = workspace.tabs.map((t) => t.name);
-    const resolvedName  = name?.trim() || uniqueName(existingNames);
-    const newId = customId ?? generateId();
-    dispatch({ type: "NEW_CANVAS", name: resolvedName, id: newId });
-    if (doc) dispatch({ type: "LOAD_INTO_CANVAS", id: newId, doc });
-    return newId;
-  }, [workspace.tabs]);
+  const newCanvas = useCallback(
+    (name?: string, doc?: DesignDocument, customId?: string): string => {
+      const existingNames = workspace.tabs.map((t) => t.name);
+      const resolvedName = name?.trim() || uniqueName(existingNames);
+      const newId = customId ?? generateId();
+      dispatch({ type: "NEW_CANVAS", name: resolvedName, id: newId });
+      if (doc) dispatch({ type: "LOAD_INTO_CANVAS", id: newId, doc });
+      return newId;
+    },
+    [workspace.tabs],
+  );
 
   const loadIntoCanvas = useCallback((canvasId: string, doc: DesignDocument) => {
     dispatch({ type: "LOAD_INTO_CANVAS", id: canvasId, doc });
@@ -264,7 +307,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "SET_SAVE_STATUS", status: "saving" });
     const ok = persistWorkspace(workspace);
     if (!ok) {
-      toast.error("Save failed: localStorage quota exceeded. Export your design to avoid data loss.");
+      toast.error(
+        "Save failed: localStorage quota exceeded. Export your design to avoid data loss.",
+      );
       dispatch({ type: "SET_SAVE_STATUS", status: "unsaved" });
       return;
     }

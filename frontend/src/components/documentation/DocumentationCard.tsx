@@ -6,9 +6,9 @@ interface DocumentationCardProps {
   title: string | React.ReactNode;
   subtitle?: string | React.ReactNode;
   number?: number; // For pipeline cards
-  tc?: string;     // For material cards
-  role?: string;   // For material cards
-  why?: string;    // For material cards
+  tc?: string; // For material cards
+  role?: string; // For material cards
+  why?: string; // For material cards
   facts?: string[]; // For material cards
   className?: string;
 }
@@ -24,13 +24,12 @@ export function DocumentationCard({
   facts,
   className,
 }: DocumentationCardProps) {
-  
   if (type === "material") {
     return (
       <article
         className={cn(
           "material-card display-grid gap-[18px] p-6 border border-[var(--line)] rounded-[22px] bg-[var(--panel)] shadow-[var(--shadow)] text-[var(--muted)]",
-          className
+          className,
         )}
       >
         <div>
@@ -43,12 +42,10 @@ export function DocumentationCard({
             {title}
           </h3>
           {subtitle && (
-            <p className="material-subtitle mt-2 mb-0 font-bold text-[var(--muted)]">
-              {subtitle}
-            </p>
+            <p className="material-subtitle mt-2 mb-0 font-bold text-[var(--muted)]">{subtitle}</p>
           )}
         </div>
-        
+
         {role && (
           <div className="material-detail pt-0.5 mt-2">
             <strong className="block mb-2 text-[var(--text)] font-semibold">
@@ -57,21 +54,17 @@ export function DocumentationCard({
             <p className="m-0 text-[16px] leading-[1.7]">{role}</p>
           </div>
         )}
-        
+
         {why && (
           <div className="material-detail pt-0.5 mt-2">
-            <strong className="block mb-2 text-[var(--text)] font-semibold">
-              Why it matters
-            </strong>
+            <strong className="block mb-2 text-[var(--text)] font-semibold">Why it matters</strong>
             <p className="m-0 text-[16px] leading-[1.7]">{why}</p>
           </div>
         )}
-        
+
         {facts && facts.length > 0 && (
           <div className="material-detail pt-0.5 mt-2">
-            <strong className="block mb-2 text-[var(--text)] font-semibold">
-              Key facts
-            </strong>
+            <strong className="block mb-2 text-[var(--text)] font-semibold">Key facts</strong>
             <ul className="m-0 pl-5.5 list-disc space-y-2 text-[16px] leading-[1.7]">
               {facts.map((fact, idx) => (
                 <li key={idx}>{fact}</li>
@@ -88,15 +81,13 @@ export function DocumentationCard({
       <article
         className={cn(
           "border border-[var(--line)] rounded-[18px] bg-[var(--panel)] p-5 shadow-[var(--shadow)]",
-          className
+          className,
         )}
       >
         <strong className="block text-[var(--lime)] text-[34px] font-extrabold leading-none mb-1.5">
           {title}
         </strong>
-        <span className="text-[var(--muted)] text-[16px] leading-[1.7]">
-          {subtitle}
-        </span>
+        <span className="text-[var(--muted)] text-[16px] leading-[1.7]">{subtitle}</span>
       </article>
     );
   }
@@ -106,7 +97,7 @@ export function DocumentationCard({
       <article
         className={cn(
           "border border-[var(--line)] rounded-[18px] bg-[var(--panel)] p-5 shadow-[var(--shadow)]",
-          className
+          className,
         )}
       >
         {number !== undefined && (
@@ -117,9 +108,7 @@ export function DocumentationCard({
         <h3 className="m-0 mb-1.5 text-[20px] font-bold text-[var(--text)] leading-tight">
           {title}
         </h3>
-        <p className="m-0 text-[var(--muted)] text-[16px] leading-[1.7]">
-          {subtitle}
-        </p>
+        <p className="m-0 text-[var(--muted)] text-[16px] leading-[1.7]">{subtitle}</p>
       </article>
     );
   }
@@ -129,16 +118,14 @@ export function DocumentationCard({
     <article
       className={cn(
         "border border-[var(--line)] rounded-[18px] bg-[var(--panel)] p-5 shadow-[var(--shadow)]",
-        className
+        className,
       )}
     >
       <strong className="block text-[var(--text)] font-bold text-[18px] mb-1.5 leading-tight">
         {title}
       </strong>
       {subtitle && (
-        <span className="block text-[var(--muted)] text-[16px] leading-[1.7]">
-          {subtitle}
-        </span>
+        <span className="block text-[var(--muted)] text-[16px] leading-[1.7]">{subtitle}</span>
       )}
     </article>
   );

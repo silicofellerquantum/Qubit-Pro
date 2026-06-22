@@ -55,7 +55,13 @@ interface AuthContextType {
   hydrated: boolean;
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   signInAs: (role: UserRole) => Promise<void>;
-  signUp: (name: string, email: string, password: string, org: string, role?: UserRole) => Promise<{ ok: boolean; error?: string }>;
+  signUp: (
+    name: string,
+    email: string,
+    password: string,
+    org: string,
+    role?: UserRole,
+  ) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
 }
 
@@ -64,12 +70,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const LOCAL_STORAGE_KEY = "silicofeller.auth.user";
 
 function _makeInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "U";
+  return (
+    name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "U"
+  );
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -141,9 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Offline fallback: match demo accounts by email (no password check — dev only)
   const _signInOffline = (email: string): { ok: boolean; error?: string } => {
-    const demo = DEMO_ACCOUNTS.find(
-      (a) => a.email.toLowerCase() === email.toLowerCase(),
-    );
+    const demo = DEMO_ACCOUNTS.find((a) => a.email.toLowerCase() === email.toLowerCase());
     if (!demo) {
       return { ok: false, error: "Backend offline and no matching demo account" };
     }

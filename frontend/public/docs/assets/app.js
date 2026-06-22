@@ -13,11 +13,17 @@ const assistantInput = document.querySelector("#assistantInput");
 const assistantForm = document.querySelector("#assistantForm");
 
 function setActive(hash) {
-  sideLinks.forEach((link) => link.classList.toggle("selected", link.getAttribute("href") === hash));
+  sideLinks.forEach((link) =>
+    link.classList.toggle("selected", link.getAttribute("href") === hash),
+  );
   const target = document.querySelector(hash);
-  const parentSection = target?.classList.contains("doc-section") ? target : target?.closest(".doc-section");
+  const parentSection = target?.classList.contains("doc-section")
+    ? target
+    : target?.closest(".doc-section");
   const sectionHash = parentSection ? `#${parentSection.id}` : hash;
-  tabLinks.forEach((link) => link.classList.toggle("active", link.getAttribute("href") === sectionHash));
+  tabLinks.forEach((link) =>
+    link.classList.toggle("active", link.getAttribute("href") === sectionHash),
+  );
   openTreeForChildHash(hash);
 }
 
@@ -58,7 +64,8 @@ function focusResultTopic(target) {
   if (resultTopic) {
     section.classList.add("result-topic-page");
     section.querySelectorAll(".result-workbook details").forEach((details) => {
-      const shouldShow = details === resultTopic || details.contains(resultTopic) || resultTopic.contains(details);
+      const shouldShow =
+        details === resultTopic || details.contains(resultTopic) || resultTopic.contains(details);
       details.hidden = !shouldShow;
       if (shouldShow) {
         details.open = true;
@@ -134,13 +141,17 @@ document.querySelectorAll("[data-copy-section]").forEach((button) => {
   });
 });
 
-const linkedSectionIds = new Set(sideLinks.map((link) => link.getAttribute("href")?.replace("#", "")).filter(Boolean));
+const linkedSectionIds = new Set(
+  sideLinks.map((link) => link.getAttribute("href")?.replace("#", "")).filter(Boolean),
+);
 
-const searchable = sections.filter((section) => linkedSectionIds.has(section.id)).map((section) => ({
-  id: section.id,
-  title: section.querySelector("h1, h2")?.textContent || section.id,
-  text: section.innerText.replace(/\s+/g, " ").trim(),
-}));
+const searchable = sections
+  .filter((section) => linkedSectionIds.has(section.id))
+  .map((section) => ({
+    id: section.id,
+    title: section.querySelector("h1, h2")?.textContent || section.id,
+    text: section.innerText.replace(/\s+/g, " ").trim(),
+  }));
 
 const quickLinks = [
   "Hello World",
@@ -192,7 +203,10 @@ function closeAssistant() {
 function renderResults(query) {
   const clean = query.trim().toLowerCase();
   const results = clean
-    ? searchable.filter((item) => item.text.toLowerCase().includes(clean) || item.title.toLowerCase().includes(clean))
+    ? searchable.filter(
+        (item) =>
+          item.text.toLowerCase().includes(clean) || item.title.toLowerCase().includes(clean),
+      )
     : searchable.filter((item) => quickLinks.includes(item.title));
 
   if (!results.length) {
@@ -209,10 +223,7 @@ function renderResults(query) {
     <div class="search-hint">${clean ? `${results.length} matching topic${results.length === 1 ? "" : "s"}` : "Popular topics"}</div>
     ${results
       .map((item) => {
-        const snippet = item.text
-          .replace(item.title, "")
-          .trim()
-          .slice(0, 210);
+        const snippet = item.text.replace(item.title, "").trim().slice(0, 210);
         return `
           <a class="search-result" href="#${item.id}">
             <strong>${item.title}</strong>
@@ -265,21 +276,69 @@ function buildAssistantAnswer(question) {
   let matches = findAssistantMatches(clean);
 
   if (lower.includes("install") || lower.includes("setup") || lower.includes("start")) {
-    matches = searchable.filter((item) => ["installation", "using-python", "getting-started"].includes(item.id)).slice(0, 3);
-  } else if (lower.includes("compile") || lower.includes("compiler") || lower.includes("workflow")) {
-    matches = searchable.filter((item) => ["compiler-reference", "using-python", "synthesis-tutorial"].includes(item.id)).slice(0, 3);
+    matches = searchable
+      .filter((item) => ["installation", "using-python", "getting-started"].includes(item.id))
+      .slice(0, 3);
+  } else if (
+    lower.includes("compile") ||
+    lower.includes("compiler") ||
+    lower.includes("workflow")
+  ) {
+    matches = searchable
+      .filter((item) =>
+        ["compiler-reference", "using-python", "synthesis-tutorial"].includes(item.id),
+      )
+      .slice(0, 3);
   } else if (lower.includes("api") || lower.includes("endpoint") || lower.includes("parse")) {
-    matches = searchable.filter((item) => ["api-reference", "execution-part-1", "execution-part-2"].includes(item.id)).slice(0, 3);
-  } else if (lower.includes("material") || lower.includes("aluminum") || lower.includes("niobium") || lower.includes("sapphire") || lower.includes("alox") || lower.includes("tin")) {
-    matches = searchable.filter((item) => ["superconducting-materials", "chip-synthesis", "hfss-tutorial"].includes(item.id)).slice(0, 3);
-  } else if (lower.includes("hfss") || lower.includes("electromagnetic") || lower.includes("eigenmode")) {
-    matches = searchable.filter((item) => ["hfss-results-analysis", "hfss-tutorial", "simulation-dashboard"].includes(item.id)).slice(0, 3);
+    matches = searchable
+      .filter((item) => ["api-reference", "execution-part-1", "execution-part-2"].includes(item.id))
+      .slice(0, 3);
+  } else if (
+    lower.includes("material") ||
+    lower.includes("aluminum") ||
+    lower.includes("niobium") ||
+    lower.includes("sapphire") ||
+    lower.includes("alox") ||
+    lower.includes("tin")
+  ) {
+    matches = searchable
+      .filter((item) =>
+        ["superconducting-materials", "chip-synthesis", "hfss-tutorial"].includes(item.id),
+      )
+      .slice(0, 3);
+  } else if (
+    lower.includes("hfss") ||
+    lower.includes("electromagnetic") ||
+    lower.includes("eigenmode")
+  ) {
+    matches = searchable
+      .filter((item) =>
+        ["hfss-results-analysis", "hfss-tutorial", "simulation-dashboard"].includes(item.id),
+      )
+      .slice(0, 3);
   } else if (lower.includes("q3d") || lower.includes("capacitance") || lower.includes("matrix")) {
-    matches = searchable.filter((item) => ["q3d-results-analysis", "q3d-tutorial", "design-rules"].includes(item.id)).slice(0, 3);
-  } else if (lower.includes("epr") || lower.includes("scqubits") || lower.includes("energy") || lower.includes("hamiltonian")) {
-    matches = searchable.filter((item) => ["epr-results-analysis", "epr-tutorial", "results-reports"].includes(item.id)).slice(0, 3);
-  } else if (lower.includes("integrat") || lower.includes("frontend") || lower.includes("backend")) {
-    matches = searchable.filter((item) => ["integration", "api-reference", "user-guide"].includes(item.id)).slice(0, 3);
+    matches = searchable
+      .filter((item) => ["q3d-results-analysis", "q3d-tutorial", "design-rules"].includes(item.id))
+      .slice(0, 3);
+  } else if (
+    lower.includes("epr") ||
+    lower.includes("scqubits") ||
+    lower.includes("energy") ||
+    lower.includes("hamiltonian")
+  ) {
+    matches = searchable
+      .filter((item) =>
+        ["epr-results-analysis", "epr-tutorial", "results-reports"].includes(item.id),
+      )
+      .slice(0, 3);
+  } else if (
+    lower.includes("integrat") ||
+    lower.includes("frontend") ||
+    lower.includes("backend")
+  ) {
+    matches = searchable
+      .filter((item) => ["integration", "api-reference", "user-guide"].includes(item.id))
+      .slice(0, 3);
   }
 
   if (!matches.length) {
@@ -289,7 +348,10 @@ function buildAssistantAnswer(question) {
   const first = matches[0];
   const snippet = first.text.replace(first.title, "").trim().slice(0, 320);
   const sources = matches
-    .map((item) => `<button class="assistant-source" type="button" data-target="#${item.id}">${escapeHtml(item.title)}</button>`)
+    .map(
+      (item) =>
+        `<button class="assistant-source" type="button" data-target="#${item.id}">${escapeHtml(item.title)}</button>`,
+    )
     .join("");
 
   return `
@@ -426,4 +488,3 @@ window.addEventListener("popstate", () => {
 });
 
 navigateToHash(location.hash || "#home", false);
-

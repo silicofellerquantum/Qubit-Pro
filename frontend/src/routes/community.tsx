@@ -1,9 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import {
-  Atom, Cpu, Code2, Sparkles, GitBranch, MessageSquare, LifeBuoy, Lightbulb,
-  Users, MessagesSquare, Award, FolderGit2, ArrowRight, Calendar, MapPin,
-  Star, TrendingUp, Eye, Reply, Activity,
+  Atom,
+  Cpu,
+  Code2,
+  Sparkles,
+  GitBranch,
+  MessageSquare,
+  LifeBuoy,
+  Lightbulb,
+  Users,
+  MessagesSquare,
+  Award,
+  FolderGit2,
+  ArrowRight,
+  Calendar,
+  MapPin,
+  Star,
+  TrendingUp,
+  Eye,
+  Reply,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -102,11 +119,21 @@ function CommunityNav() {
           </Badge>
         </div>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
-          <a className="hover:text-foreground" href="#channels">Channels</a>
-          <a className="hover:text-foreground" href="#discussions">Discussions</a>
-          <a className="hover:text-foreground" href="#events">Events</a>
-          <a className="hover:text-foreground" href="#showcase">Showcase</a>
-          <Link to="/documentation" className="hover:text-foreground">Docs</Link>
+          <a className="hover:text-foreground" href="#channels">
+            Channels
+          </a>
+          <a className="hover:text-foreground" href="#discussions">
+            Discussions
+          </a>
+          <a className="hover:text-foreground" href="#events">
+            Events
+          </a>
+          <a className="hover:text-foreground" href="#showcase">
+            Showcase
+          </a>
+          <Link to="/documentation" className="hover:text-foreground">
+            Docs
+          </Link>
         </nav>
         <div className="flex items-center gap-2">
           {user ? (
@@ -152,12 +179,7 @@ function Hero() {
       />
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[600px] bg-[radial-gradient(ellipse_at_top,theme(colors.violet.100/.5),transparent_60%)]" />
       <CSection className="relative grid gap-16 py-24 md:py-32 lg:grid-cols-12">
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={fadeUp}
-          className="lg:col-span-7"
-        >
+        <motion.div initial="hidden" animate="show" variants={fadeUp} className="lg:col-span-7">
           <SectionLabel>15,247 members online now</SectionLabel>
           <h1 className="mt-6 text-balance text-5xl font-semibold tracking-tight md:text-6xl lg:text-7xl">
             Build the future of{" "}
@@ -209,9 +231,27 @@ function Hero() {
 
 function HeroVisual() {
   const cards = [
-    { name: "Dr. Aiko Tanaka", role: "Quantum Researcher · IBM", delta: "+128 pts", top: "0%", left: "10%" },
-    { name: "Marcus Chen", role: "Chip Designer · Rigetti", delta: "Shipped QPU-v3", top: "32%", left: "55%" },
-    { name: "Sara Okonkwo", role: "AI Engineer · Anthropic", delta: "Mentor", top: "62%", left: "8%" },
+    {
+      name: "Dr. Aiko Tanaka",
+      role: "Quantum Researcher · IBM",
+      delta: "+128 pts",
+      top: "0%",
+      left: "10%",
+    },
+    {
+      name: "Marcus Chen",
+      role: "Chip Designer · Rigetti",
+      delta: "Shipped QPU-v3",
+      top: "32%",
+      left: "55%",
+    },
+    {
+      name: "Sara Okonkwo",
+      role: "AI Engineer · Anthropic",
+      delta: "Mentor",
+      top: "62%",
+      left: "8%",
+    },
   ];
   return (
     <motion.div
@@ -240,7 +280,9 @@ function HeroVisual() {
           ].map((s) => (
             <div key={s.l} className="rounded-xl border border-border bg-background p-3">
               <div className="text-lg font-semibold">{s.v}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.l}</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                {s.l}
+              </div>
             </div>
           ))}
         </div>
@@ -328,14 +370,62 @@ function Stats() {
 // ─── Channels ─────────────────────────────────────────────────────────────────
 function Channels() {
   const channels = [
-    { name: "Quantum Research", desc: "Peer-reviewed discussions on theory & experiments.", icon: Atom, members: "3.2k", activity: "12 min ago" },
-    { name: "Quantum Chip Design", desc: "Layouts, fabrication, and tape-out workflows.", icon: Cpu, members: "1.8k", activity: "4 min ago" },
-    { name: "Qiskit Metal", desc: "Open EDA for superconducting circuits.", icon: GitBranch, members: "2.1k", activity: "Just now" },
-    { name: "QCLang", desc: "Specification, compilers, and tooling.", icon: Code2, members: "960", activity: "21 min ago" },
-    { name: "AI Engineering", desc: "Quantum × ML, optimization, and inference.", icon: Sparkles, members: "4.7k", activity: "2 min ago" },
-    { name: "Open Source", desc: "Maintainers, RFCs, and contribution guides.", icon: GitBranch, members: "2.9k", activity: "8 min ago" },
-    { name: "Product Feedback", desc: "Shape the roadmap with the team.", icon: Lightbulb, members: "1.4k", activity: "1 hr ago" },
-    { name: "Help & Support", desc: "Get unblocked from the community.", icon: LifeBuoy, members: "5.3k", activity: "Just now" },
+    {
+      name: "Quantum Research",
+      desc: "Peer-reviewed discussions on theory & experiments.",
+      icon: Atom,
+      members: "3.2k",
+      activity: "12 min ago",
+    },
+    {
+      name: "Quantum Chip Design",
+      desc: "Layouts, fabrication, and tape-out workflows.",
+      icon: Cpu,
+      members: "1.8k",
+      activity: "4 min ago",
+    },
+    {
+      name: "Qiskit Metal",
+      desc: "Open EDA for superconducting circuits.",
+      icon: GitBranch,
+      members: "2.1k",
+      activity: "Just now",
+    },
+    {
+      name: "QCLang",
+      desc: "Specification, compilers, and tooling.",
+      icon: Code2,
+      members: "960",
+      activity: "21 min ago",
+    },
+    {
+      name: "AI Engineering",
+      desc: "Quantum × ML, optimization, and inference.",
+      icon: Sparkles,
+      members: "4.7k",
+      activity: "2 min ago",
+    },
+    {
+      name: "Open Source",
+      desc: "Maintainers, RFCs, and contribution guides.",
+      icon: GitBranch,
+      members: "2.9k",
+      activity: "8 min ago",
+    },
+    {
+      name: "Product Feedback",
+      desc: "Shape the roadmap with the team.",
+      icon: Lightbulb,
+      members: "1.4k",
+      activity: "1 hr ago",
+    },
+    {
+      name: "Help & Support",
+      desc: "Get unblocked from the community.",
+      icon: LifeBuoy,
+      members: "5.3k",
+      activity: "Just now",
+    },
   ];
   return (
     <CSection id="channels" className="py-20 md:py-28">
@@ -390,11 +480,51 @@ function Channels() {
 // ─── Discussions ──────────────────────────────────────────────────────────────
 function Discussions() {
   const items = [
-    { title: "Best practices for coupling qubits in Qiskit Metal layouts", author: "marcus.chen", tags: ["Qiskit", "Quantum Chips"], replies: 48, views: "2.4k", time: "12m", hot: true },
-    { title: "QCLang 0.7 RFC: pattern matching for gate sequences", author: "ai.tanaka", tags: ["QCLang", "Research"], replies: 31, views: "1.8k", time: "1h", hot: true },
-    { title: "Comparing HFSS simulation results with measured QPU data", author: "s.okonkwo", tags: ["HFSS", "Research"], replies: 22, views: "1.1k", time: "3h", hot: false },
-    { title: "Open source AI compiler for variational quantum circuits", author: "j.linwood", tags: ["AI", "QCLang"], replies: 67, views: "4.2k", time: "5h", hot: true },
-    { title: "Tape-out checklist for first-time chip designers", author: "n.patel", tags: ["Quantum Chips"], replies: 14, views: "892", time: "yesterday", hot: false },
+    {
+      title: "Best practices for coupling qubits in Qiskit Metal layouts",
+      author: "marcus.chen",
+      tags: ["Qiskit", "Quantum Chips"],
+      replies: 48,
+      views: "2.4k",
+      time: "12m",
+      hot: true,
+    },
+    {
+      title: "QCLang 0.7 RFC: pattern matching for gate sequences",
+      author: "ai.tanaka",
+      tags: ["QCLang", "Research"],
+      replies: 31,
+      views: "1.8k",
+      time: "1h",
+      hot: true,
+    },
+    {
+      title: "Comparing HFSS simulation results with measured QPU data",
+      author: "s.okonkwo",
+      tags: ["HFSS", "Research"],
+      replies: 22,
+      views: "1.1k",
+      time: "3h",
+      hot: false,
+    },
+    {
+      title: "Open source AI compiler for variational quantum circuits",
+      author: "j.linwood",
+      tags: ["AI", "QCLang"],
+      replies: 67,
+      views: "4.2k",
+      time: "5h",
+      hot: true,
+    },
+    {
+      title: "Tape-out checklist for first-time chip designers",
+      author: "n.patel",
+      tags: ["Quantum Chips"],
+      replies: 14,
+      views: "892",
+      time: "yesterday",
+      hot: false,
+    },
   ];
   return (
     <CSection id="discussions" className="py-20 md:py-28">
@@ -515,7 +645,9 @@ function Contributors() {
                 </Badge>
                 <div className="text-right">
                   <div className="text-sm font-semibold">{p.score.toLocaleString()}</div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">points</div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    points
+                  </div>
                 </div>
               </div>
             </Card>
@@ -529,9 +661,24 @@ function Contributors() {
 // ─── Events ───────────────────────────────────────────────────────────────────
 function Events() {
   const events = [
-    { title: "Quantum Chip Design Workshop", date: "Jun 24, 2026", attendees: "420 going", location: "San Francisco · In-person" },
-    { title: "QCLang 0.7 Launch Livestream", date: "Jul 02, 2026", attendees: "2,180 going", location: "Online · YouTube" },
-    { title: "Open Source Maintainers Meetup", date: "Jul 18, 2026", attendees: "260 going", location: "Berlin · In-person" },
+    {
+      title: "Quantum Chip Design Workshop",
+      date: "Jun 24, 2026",
+      attendees: "420 going",
+      location: "San Francisco · In-person",
+    },
+    {
+      title: "QCLang 0.7 Launch Livestream",
+      date: "Jul 02, 2026",
+      attendees: "2,180 going",
+      location: "Online · YouTube",
+    },
+    {
+      title: "Open Source Maintainers Meetup",
+      date: "Jul 18, 2026",
+      attendees: "260 going",
+      location: "Berlin · In-person",
+    },
   ];
   return (
     <CSection id="events" className="py-20 md:py-28">
@@ -592,9 +739,27 @@ function Events() {
 // ─── Showcase ─────────────────────────────────────────────────────────────────
 function Showcase() {
   const projects = [
-    { title: "Cryo-QPU Layout Studio", contributors: 18, stars: "1.2k", tech: ["Qiskit Metal", "HFSS"], hue: "from-violet-200 to-violet-500" },
-    { title: "QCLang VS Code Extension", contributors: 9, stars: "842", tech: ["QCLang", "TypeScript"], hue: "from-indigo-200 to-violet-500" },
-    { title: "AI Pulse Optimizer", contributors: 24, stars: "2.4k", tech: ["AI", "Quantum"], hue: "from-fuchsia-200 to-violet-500" },
+    {
+      title: "Cryo-QPU Layout Studio",
+      contributors: 18,
+      stars: "1.2k",
+      tech: ["Qiskit Metal", "HFSS"],
+      hue: "from-violet-200 to-violet-500",
+    },
+    {
+      title: "QCLang VS Code Extension",
+      contributors: 9,
+      stars: "842",
+      tech: ["QCLang", "TypeScript"],
+      hue: "from-indigo-200 to-violet-500",
+    },
+    {
+      title: "AI Pulse Optimizer",
+      contributors: 24,
+      stars: "2.4k",
+      tech: ["AI", "Quantum"],
+      hue: "from-fuchsia-200 to-violet-500",
+    },
   ];
   return (
     <CSection id="showcase" className="py-20 md:py-28">
@@ -626,10 +791,15 @@ function Showcase() {
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex -space-x-2">
                     {[...Array(4)].map((_, j) => (
-                      <div key={j} className="h-6 w-6 rounded-full border-2 border-card bg-gradient-to-br from-violet-200 to-violet-400" />
+                      <div
+                        key={j}
+                        className="h-6 w-6 rounded-full border-2 border-card bg-gradient-to-br from-violet-200 to-violet-400"
+                      />
                     ))}
                   </div>
-                  <span className="text-xs text-muted-foreground">{p.contributors} contributors</span>
+                  <span className="text-xs text-muted-foreground">
+                    {p.contributors} contributors
+                  </span>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-1.5">
                   {p.tech.map((t) => (
@@ -654,9 +824,24 @@ function Showcase() {
 // ─── Feedback ─────────────────────────────────────────────────────────────────
 function Feedback() {
   const quotes = [
-    { name: "Lena Hoffmann", company: "Principal Engineer, Rigetti", quote: "The Silicofeller community is the single best place to discuss real-world QPU design challenges." },
-    { name: "Daniel Park", company: "Research Scientist, IBM Quantum", quote: "RFC discussions here moved faster and were more rigorous than most academic forums I've been in." },
-    { name: "Priya Nair", company: "Founder, Coherent Labs", quote: "We hired three of our first engineers from connections made in the Quantum Chip Design channel." },
+    {
+      name: "Lena Hoffmann",
+      company: "Principal Engineer, Rigetti",
+      quote:
+        "The Silicofeller community is the single best place to discuss real-world QPU design challenges.",
+    },
+    {
+      name: "Daniel Park",
+      company: "Research Scientist, IBM Quantum",
+      quote:
+        "RFC discussions here moved faster and were more rigorous than most academic forums I've been in.",
+    },
+    {
+      name: "Priya Nair",
+      company: "Founder, Coherent Labs",
+      quote:
+        "We hired three of our first engineers from connections made in the Quantum Chip Design channel.",
+    },
   ];
   return (
     <CSection className="py-20 md:py-28">
@@ -701,11 +886,17 @@ function CTA() {
       <div className="relative overflow-hidden rounded-3xl border border-border bg-surface px-8 py-20 text-center md:px-16">
         <div
           className="pointer-events-none absolute inset-0"
-          style={{ background: "radial-gradient(60% 80% at 50% 100%, oklch(0.85 0.12 295 / 0.35), transparent 70%)" }}
+          style={{
+            background:
+              "radial-gradient(60% 80% at 50% 100%, oklch(0.85 0.12 295 / 0.35), transparent 70%)",
+          }}
         />
         <div
           className="pointer-events-none absolute inset-0"
-          style={{ background: "radial-gradient(40% 60% at 50% 0%, oklch(0.9 0.08 295 / 0.25), transparent 70%)" }}
+          style={{
+            background:
+              "radial-gradient(40% 60% at 50% 0%, oklch(0.9 0.08 295 / 0.25), transparent 70%)",
+          }}
         />
         <div className="relative">
           <SectionLabel>Open invitation</SectionLabel>
@@ -752,7 +943,9 @@ function CommunityFooter() {
         <div className="flex gap-6">
           <a className="hover:text-foreground cursor-pointer">Code of Conduct</a>
           <a className="hover:text-foreground cursor-pointer">Guidelines</a>
-          <a className="hover:text-foreground cursor-pointer">Privacy</a>
+          <Link to="/privacy" className="hover:text-foreground">
+            Privacy
+          </Link>
         </div>
       </CSection>
     </footer>

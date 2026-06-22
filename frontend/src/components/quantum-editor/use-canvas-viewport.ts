@@ -51,10 +51,7 @@ export interface CanvasViewport {
   RULER_L: number;
 }
 
-export function useCanvasViewport(
-  state: EditorState,
-  dispatch: Dispatch,
-): CanvasViewport {
+export function useCanvasViewport(state: EditorState, dispatch: Dispatch): CanvasViewport {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
@@ -115,8 +112,10 @@ export function useCanvasViewport(
     }
     const xs = state.placements.map((p: Placement) => p.x);
     const ys = state.placements.map((p: Placement) => p.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const minX = Math.min(...xs),
+      maxX = Math.max(...xs);
+    const minY = Math.min(...ys),
+      maxY = Math.max(...ys);
     const padding = 1.0;
     const contentW = (maxX - minX + 2 * padding) * MM_TO_PX;
     const contentH = (maxY - minY + 2 * padding) * MM_TO_PX;
@@ -140,16 +139,28 @@ export function useCanvasViewport(
       fitToContent();
       return;
     }
-    const xs: number[] = [], ys: number[] = [];
-    selPlacements.forEach((p: Placement) => { xs.push(p.x); ys.push(p.y); });
+    const xs: number[] = [],
+      ys: number[] = [];
+    selPlacements.forEach((p: Placement) => {
+      xs.push(p.x);
+      ys.push(p.y);
+    });
     selConnections.forEach((c: Connection) => {
       const a = state.placements.find((p: Placement) => p.id === c.from.placementId);
       const b = state.placements.find((p: Placement) => p.id === c.to.placementId);
-      if (a) { xs.push(a.x); ys.push(a.y); }
-      if (b) { xs.push(b.x); ys.push(b.y); }
+      if (a) {
+        xs.push(a.x);
+        ys.push(a.y);
+      }
+      if (b) {
+        xs.push(b.x);
+        ys.push(b.y);
+      }
     });
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const minX = Math.min(...xs),
+      maxX = Math.max(...xs);
+    const minY = Math.min(...ys),
+      maxY = Math.max(...ys);
     const padding = 1.0;
     const contentW = (maxX - minX + 2 * padding) * MM_TO_PX;
     const contentH = (maxY - minY + 2 * padding) * MM_TO_PX;
@@ -158,14 +169,27 @@ export function useCanvasViewport(
     const k = MM_TO_PX * baseScale * clampedZoom;
     dispatch({ type: "ZOOM", zoom: clampedZoom });
     dispatch({ type: "PAN", x: -((minX + maxX) / 2) * k, y: ((minY + maxY) / 2) * k });
-  }, [state.selection, state.placements, state.connections, size.w, size.h, baseScale, dispatch, fitToContent]);
+  }, [
+    state.selection,
+    state.placements,
+    state.connections,
+    size.w,
+    size.h,
+    baseScale,
+    dispatch,
+    fitToContent,
+  ]);
 
   const hTicks = useMemo(() => {
     const ticks: { value: number; px: number; type: "major" | "half" | "minor" }[] = [];
     for (let v = -CHIP_HALF_W; v <= CHIP_HALF_W; v = parseFloat((v + 0.1).toFixed(1))) {
       const isMajor = Math.abs(v % 1.0) < 0.01;
       const isHalf = Math.abs(v % 0.5) < 0.01;
-      ticks.push({ value: v, px: cx + v * MM_TO_PX * scale, type: isMajor ? "major" : isHalf ? "half" : "minor" });
+      ticks.push({
+        value: v,
+        px: cx + v * MM_TO_PX * scale,
+        type: isMajor ? "major" : isHalf ? "half" : "minor",
+      });
     }
     return ticks;
   }, [cx, scale]);
@@ -175,19 +199,38 @@ export function useCanvasViewport(
     for (let v = -CHIP_HALF_H; v <= CHIP_HALF_H; v = parseFloat((v + 0.1).toFixed(1))) {
       const isMajor = Math.abs(v % 1.0) < 0.01;
       const isHalf = Math.abs(v % 0.5) < 0.01;
-      ticks.push({ value: v, py: cy - v * MM_TO_PX * scale, type: isMajor ? "major" : isHalf ? "half" : "minor" });
+      ticks.push({
+        value: v,
+        py: cy - v * MM_TO_PX * scale,
+        type: isMajor ? "major" : isHalf ? "half" : "minor",
+      });
     }
     return ticks;
   }, [cy, scale]);
 
   return {
-    size, containerRef, svgRef,
-    panDrag, setPanDrag,
-    cx, cy, scale, baseScale,
-    bw, bh, left, right, top, bottom,
-    w2s, s2w,
-    fitToContent, zoomToSelection,
-    hTicks, vTicks,
-    RULER_B, RULER_L,
+    size,
+    containerRef,
+    svgRef,
+    panDrag,
+    setPanDrag,
+    cx,
+    cy,
+    scale,
+    baseScale,
+    bw,
+    bh,
+    left,
+    right,
+    top,
+    bottom,
+    w2s,
+    s2w,
+    fitToContent,
+    zoomToSelection,
+    hTicks,
+    vTicks,
+    RULER_B,
+    RULER_L,
   };
 }

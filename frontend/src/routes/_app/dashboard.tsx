@@ -5,7 +5,15 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Plus, Network, Cpu, Sparkles, Upload, CheckCircle2, Trash2, Clock, ArrowRight
+  Plus,
+  Network,
+  Cpu,
+  Sparkles,
+  Upload,
+  CheckCircle2,
+  Trash2,
+  Clock,
+  ArrowRight,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useProject } from "@/lib/project-context";
@@ -57,14 +65,14 @@ function calculateConnections(topology: string, numQubits: number): number {
   if (topo === "heavy-hex" || topo === "heavy_hex") {
     return Math.floor(1.2 * n);
   }
-  
+
   // Default grid
   const cols = Math.ceil(Math.sqrt(n));
   const rows = Math.ceil(n / cols);
   const hEdges = rows * (cols - 1);
   const vEdges = cols * (rows - 1);
-  
-  const missing = (cols * rows) - n;
+
+  const missing = cols * rows - n;
   let edges = hEdges + vEdges;
   if (missing > 0) {
     edges -= missing;
@@ -84,7 +92,8 @@ function ChipSchematic({ topology, numQubits }: { topology: string; numQubits: n
     }
   } else if (topo === "ring") {
     const r = 60;
-    const cx = 130, cy = 100;
+    const cx = 130,
+      cy = 100;
     for (let i = 0; i < n; i++) {
       const angle = (2 * Math.PI * i) / n;
       positions.push({
@@ -117,7 +126,8 @@ function ChipSchematic({ topology, numQubits }: { topology: string; numQubits: n
   }
 
   const edges: { x1: number; y1: number; x2: number; y2: number }[] = [];
-  const maxDist = topo === "chain" ? 220 / n + 10 : topo === "ring" ? (2 * Math.PI * 60) / n + 15 : 55;
+  const maxDist =
+    topo === "chain" ? 220 / n + 10 : topo === "ring" ? (2 * Math.PI * 60) / n + 15 : 55;
 
   for (let i = 0; i < positions.length; i++) {
     for (let j = i + 1; j < positions.length; j++) {
@@ -210,7 +220,7 @@ function WorkspaceHomePage() {
 
   // Sort projects by recently updated to show in Continue Working
   const sortedProjects = [...projects].sort(
-    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
   );
 
   const projectsCount = projects.length;
@@ -238,7 +248,10 @@ function WorkspaceHomePage() {
         sub: `${proj ? proj.name : "Design"} · ${s.solver}`,
         time: formatTimeAgo(s.created_at),
         icon: s.status === "completed" ? CheckCircle2 : Clock,
-        color: s.status === "completed" ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50",
+        color:
+          s.status === "completed"
+            ? "text-emerald-600 bg-emerald-50"
+            : "text-amber-600 bg-amber-50",
       };
     }),
   ];
@@ -374,7 +387,9 @@ function WorkspaceHomePage() {
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900 text-xs">{a.label}</h3>
-                      <p className="text-[10px] text-slate-500 mt-1 leading-normal font-medium">{a.desc}</p>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-normal font-medium">
+                        {a.desc}
+                      </p>
                     </div>
                   </Link>
                 ))}
@@ -561,9 +576,13 @@ function WorkspaceHomePage() {
                           <span className="text-xs font-bold text-slate-900 truncate">
                             {a.title}
                           </span>
-                          <span className="text-[9px] text-slate-500 font-semibold shrink-0">{a.time}</span>
+                          <span className="text-[9px] text-slate-500 font-semibold shrink-0">
+                            {a.time}
+                          </span>
                         </div>
-                        <div className="text-[10px] text-slate-600 font-medium truncate mt-0.5">{a.sub}</div>
+                        <div className="text-[10px] text-slate-600 font-medium truncate mt-0.5">
+                          {a.sub}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -576,4 +595,3 @@ function WorkspaceHomePage() {
     </div>
   );
 }
-

@@ -404,3 +404,25 @@ export async function registerUser(
   }
   return data;
 }
+
+// ── Contact Form ──────────────────────────────────────────────────────────────
+
+export interface ContactPayload {
+  name: string;
+  email: string;
+  company?: string;
+  message: string;
+}
+
+export interface ContactResponse {
+  success: boolean;
+  message: string;
+}
+
+export async function submitContactForm(payload: ContactPayload): Promise<ContactResponse> {
+  return api<ContactResponse>("/api/contact", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+

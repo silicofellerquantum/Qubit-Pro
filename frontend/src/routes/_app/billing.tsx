@@ -169,9 +169,7 @@ const spendData = [
   { m: "Jun", v: 0 },
 ];
 
-const invoices = [
-  { id: "INV-2026-001", date: "May 2026", amount: "$0", status: "Free" },
-];
+const invoices = [{ id: "INV-2026-001", date: "May 2026", amount: "$0", status: "Free" }];
 
 const ACCENT = "#8B5CF6";
 const MUTED = "#A3A3A3";
@@ -269,9 +267,7 @@ function PlanCard({
               <span className="text-4xl font-bold tracking-tight text-foreground">Free</span>
             ) : (
               <>
-                <span className="text-4xl font-bold tracking-tight text-foreground">
-                  ${price}
-                </span>
+                <span className="text-4xl font-bold tracking-tight text-foreground">${price}</span>
                 <span className="text-sm text-muted-foreground">/month</span>
                 {annual && (
                   <span className="ml-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
@@ -306,7 +302,11 @@ function PlanCard({
                 <Check
                   className={cn(
                     "h-4 w-4 shrink-0",
-                    isPro ? "text-fuchsia-500" : plan.key === "basic" ? "text-violet-500" : "text-slate-400",
+                    isPro
+                      ? "text-fuchsia-500"
+                      : plan.key === "basic"
+                        ? "text-violet-500"
+                        : "text-slate-400",
                   )}
                 />
               )}
@@ -471,10 +471,8 @@ const COMPARE_ROWS: {
 ];
 
 function CompareValue({ val }: { val: string | boolean }) {
-  if (val === false)
-    return <X className="mx-auto h-4 w-4 text-muted-foreground/40" />;
-  if (val === true)
-    return <Check className="mx-auto h-4 w-4 text-violet-500" />;
+  if (val === false) return <X className="mx-auto h-4 w-4 text-muted-foreground/40" />;
+  if (val === true) return <Check className="mx-auto h-4 w-4 text-violet-500" />;
   return <span className="text-sm font-medium text-foreground">{val}</span>;
 }
 
@@ -532,8 +530,7 @@ function BillingPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && !canAccess(user.role, "billing"))
-      navigate({ to: "/dashboard", replace: true });
+    if (user && !canAccess(user.role, "billing")) navigate({ to: "/dashboard", replace: true });
   }, [user, navigate]);
 
   const [annual, setAnnual] = useState(false);
@@ -557,7 +554,8 @@ function BillingPage() {
           Plans &amp; Billing
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          You're on the <strong>Free plan</strong>. Upgrade to unlock more designs and team features.
+          You're on the <strong>Free plan</strong>. Upgrade to unlock more designs and team
+          features.
         </p>
       </div>
 
@@ -583,11 +581,21 @@ function BillingPage() {
 
           {/* Annual toggle */}
           <div className="flex items-center gap-2 rounded-full border border-border bg-muted/30 px-4 py-2">
-            <span className={cn("text-sm", !annual ? "font-semibold text-foreground" : "text-muted-foreground")}>
+            <span
+              className={cn(
+                "text-sm",
+                !annual ? "font-semibold text-foreground" : "text-muted-foreground",
+              )}
+            >
               Monthly
             </span>
             <Switch checked={annual} onCheckedChange={setAnnual} />
-            <span className={cn("text-sm", annual ? "font-semibold text-foreground" : "text-muted-foreground")}>
+            <span
+              className={cn(
+                "text-sm",
+                annual ? "font-semibold text-foreground" : "text-muted-foreground",
+              )}
+            >
               Annual
             </span>
             {annual && (
@@ -647,7 +655,13 @@ function BillingPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={designsData} margin={{ left: -20, right: 8, top: 8, bottom: 0 }}>
                   <CartesianGrid stroke="#F0F0F0" vertical={false} />
-                  <XAxis dataKey="m" stroke={MUTED} fontSize={11} tickLine={false} axisLine={false} />
+                  <XAxis
+                    dataKey="m"
+                    stroke={MUTED}
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <YAxis stroke={MUTED} fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(139,92,246,0.08)" }} />
                   <Bar dataKey="v" fill={ACCENT} radius={[6, 6, 0, 0]} />
@@ -671,10 +685,22 @@ function BillingPage() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid stroke="#F0F0F0" vertical={false} />
-                  <XAxis dataKey="m" stroke={MUTED} fontSize={11} tickLine={false} axisLine={false} />
+                  <XAxis
+                    dataKey="m"
+                    stroke={MUTED}
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                  />
                   <YAxis stroke={MUTED} fontSize={11} tickLine={false} axisLine={false} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Area type="monotone" dataKey="v" stroke={ACCENT} strokeWidth={2} fill="url(#g-spend)" />
+                  <Area
+                    type="monotone"
+                    dataKey="v"
+                    stroke={ACCENT}
+                    strokeWidth={2}
+                    fill="url(#g-spend)"
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

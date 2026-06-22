@@ -128,7 +128,9 @@ function SettingsPage() {
                   : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
               }`}
             >
-              <span className={`h-1.5 w-1.5 rounded-full ${adminMode ? "bg-white" : "bg-slate-400"}`} />
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${adminMode ? "bg-white" : "bg-slate-400"}`}
+              />
               ADMIN MODE
             </button>
           </div>
@@ -149,7 +151,9 @@ function SettingsPage() {
               <div className="space-y-1">
                 {/* Row: Full Name */}
                 <div className="grid grid-cols-[1.2fr_2fr_auto] items-center py-4 border-b border-slate-100 min-h-[58px]">
-                  <span className="text-xs font-extrabold text-slate-400 select-none">Full Name</span>
+                  <span className="text-xs font-extrabold text-slate-400 select-none">
+                    Full Name
+                  </span>
                   <div className="flex items-center text-xs font-black text-slate-800">
                     {editRow === "fullName" ? (
                       <Input
@@ -162,21 +166,32 @@ function SettingsPage() {
                       <span className="truncate">{fullName}</span>
                     )}
                     {savedRow === "fullName" && (
-                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">Saved</Badge>
+                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">
+                        Saved
+                      </Badge>
                     )}
                   </div>
                   <div className="flex justify-end pl-2">
                     {editRow === "fullName" ? (
                       <div className="flex gap-1.5">
-                        <button onClick={() => saveEdit("fullName")} className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer">
+                        <button
+                          onClick={() => saveEdit("fullName")}
+                          className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer"
+                        >
                           <Check className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={cancelEdit} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer">
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer"
+                        >
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => startEdit("fullName", fullName)} className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+                      <button
+                        onClick={() => startEdit("fullName", fullName)}
+                        className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                      >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -203,21 +218,32 @@ function SettingsPage() {
                       <span className="truncate font-mono">{email}</span>
                     )}
                     {savedRow === "email" && (
-                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">Saved</Badge>
+                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">
+                        Saved
+                      </Badge>
                     )}
                   </div>
                   <div className="flex justify-end pl-2">
                     {editRow === "email" ? (
                       <div className="flex gap-1.5">
-                        <button onClick={() => saveEdit("email")} className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer">
+                        <button
+                          onClick={() => saveEdit("email")}
+                          className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer"
+                        >
                           <Check className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={cancelEdit} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer">
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer"
+                        >
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => startEdit("email", email)} className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+                      <button
+                        onClick={() => startEdit("email", email)}
+                        className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                      >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -226,7 +252,9 @@ function SettingsPage() {
 
                 {/* Row: Contact Number */}
                 <div className="grid grid-cols-[1.2fr_2fr_auto] items-center py-4 border-b border-slate-100 min-h-[58px]">
-                  <span className="text-xs font-extrabold text-slate-400 select-none">Contact Number</span>
+                  <span className="text-xs font-extrabold text-slate-400 select-none">
+                    Contact Number
+                  </span>
                   <div className="flex items-center text-xs font-black text-slate-800 gap-2">
                     <span className="text-base select-none">🇮🇳</span>
                     {editRow === "phone" ? (
@@ -240,21 +268,32 @@ function SettingsPage() {
                       <span className="font-mono">{phone}</span>
                     )}
                     {savedRow === "phone" && (
-                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">Saved</Badge>
+                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">
+                        Saved
+                      </Badge>
                     )}
                   </div>
                   <div className="flex justify-end pl-2">
                     {editRow === "phone" ? (
                       <div className="flex gap-1.5">
-                        <button onClick={() => saveEdit("phone")} className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer">
+                        <button
+                          onClick={() => saveEdit("phone")}
+                          className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer"
+                        >
                           <Check className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={cancelEdit} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer">
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer"
+                        >
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => startEdit("phone", phone)} className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+                      <button
+                        onClick={() => startEdit("phone", phone)}
+                        className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                      >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -263,7 +302,9 @@ function SettingsPage() {
 
                 {/* Row: Security Password */}
                 <div className="grid grid-cols-[1.2fr_2fr_auto] items-center py-4 last:border-0 min-h-[58px]">
-                  <span className="text-xs font-extrabold text-slate-400 select-none">Security Password</span>
+                  <span className="text-xs font-extrabold text-slate-400 select-none">
+                    Security Password
+                  </span>
                   <div className="flex items-center text-xs font-black text-slate-800 gap-2">
                     <Lock className="h-3.5 w-3.5 text-slate-400 select-none" />
                     {editRow === "password" ? (
@@ -278,21 +319,32 @@ function SettingsPage() {
                       <span className="font-mono select-none">••••••••••••</span>
                     )}
                     {savedRow === "password" && (
-                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">Saved</Badge>
+                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">
+                        Saved
+                      </Badge>
                     )}
                   </div>
                   <div className="flex justify-end pl-2">
                     {editRow === "password" ? (
                       <div className="flex gap-1.5">
-                        <button onClick={() => saveEdit("password")} className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer">
+                        <button
+                          onClick={() => saveEdit("password")}
+                          className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer"
+                        >
                           <Check className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={cancelEdit} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer">
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer"
+                        >
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => startEdit("password", "")} className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+                      <button
+                        onClick={() => startEdit("password", "")}
+                        className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                      >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -313,7 +365,9 @@ function SettingsPage() {
               <div className="space-y-1">
                 {/* Row: Organization Name */}
                 <div className="grid grid-cols-[1.2fr_2fr_auto] items-center py-4 border-b border-slate-100 min-h-[58px]">
-                  <span className="text-xs font-extrabold text-slate-400 select-none">Organization Name</span>
+                  <span className="text-xs font-extrabold text-slate-400 select-none">
+                    Organization Name
+                  </span>
                   <div className="flex items-center text-xs font-black text-slate-800">
                     {editRow === "wsName" ? (
                       <Input
@@ -326,21 +380,32 @@ function SettingsPage() {
                       <span className="truncate">{wsName}</span>
                     )}
                     {savedRow === "wsName" && (
-                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">Saved</Badge>
+                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">
+                        Saved
+                      </Badge>
                     )}
                   </div>
                   <div className="flex justify-end pl-2">
                     {editRow === "wsName" ? (
                       <div className="flex gap-1.5">
-                        <button onClick={() => saveEdit("wsName")} className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer">
+                        <button
+                          onClick={() => saveEdit("wsName")}
+                          className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer"
+                        >
                           <Check className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={cancelEdit} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer">
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer"
+                        >
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => startEdit("wsName", wsName)} className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+                      <button
+                        onClick={() => startEdit("wsName", wsName)}
+                        className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                      >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -349,7 +414,9 @@ function SettingsPage() {
 
                 {/* Row: Active Project */}
                 <div className="grid grid-cols-[1.2fr_2fr_auto] items-center py-4 border-b border-slate-100 min-h-[58px]">
-                  <span className="text-xs font-extrabold text-slate-400 select-none">Active Project</span>
+                  <span className="text-xs font-extrabold text-slate-400 select-none">
+                    Active Project
+                  </span>
                   <div className="flex items-center text-xs font-black text-slate-800">
                     {activeProject ? (
                       <div className="flex items-center gap-1.5">
@@ -357,7 +424,9 @@ function SettingsPage() {
                         <span className="truncate">{activeProject.name}</span>
                       </div>
                     ) : (
-                      <span className="text-slate-400 font-bold select-none">No active project</span>
+                      <span className="text-slate-400 font-bold select-none">
+                        No active project
+                      </span>
                     )}
                   </div>
                   <div className="w-7 h-7" /> {/* Empty spacer */}
@@ -365,7 +434,9 @@ function SettingsPage() {
 
                 {/* Row: Max Qubits */}
                 <div className="grid grid-cols-[1.2fr_2fr_auto] items-center py-4 last:border-0 min-h-[58px]">
-                  <span className="text-xs font-extrabold text-slate-400 select-none">Max Qubit Limit</span>
+                  <span className="text-xs font-extrabold text-slate-400 select-none">
+                    Max Qubit Limit
+                  </span>
                   <div className="flex items-center text-xs font-black text-slate-800">
                     {editRow === "maxQubits" ? (
                       <Input
@@ -379,21 +450,32 @@ function SettingsPage() {
                       <span>{maxQubits} Qubits</span>
                     )}
                     {savedRow === "maxQubits" && (
-                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">Saved</Badge>
+                      <Badge className="ml-2 bg-emerald-50 text-emerald-600 border-emerald-100 text-[9px]">
+                        Saved
+                      </Badge>
                     )}
                   </div>
                   <div className="flex justify-end pl-2">
                     {editRow === "maxQubits" ? (
                       <div className="flex gap-1.5">
-                        <button onClick={() => saveEdit("maxQubits")} className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer">
+                        <button
+                          onClick={() => saveEdit("maxQubits")}
+                          className="p-1 rounded-md hover:bg-slate-100 text-emerald-600 cursor-pointer"
+                        >
                           <Check className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={cancelEdit} className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer">
+                        <button
+                          onClick={cancelEdit}
+                          className="p-1 rounded-md hover:bg-slate-100 text-slate-400 cursor-pointer"
+                        >
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     ) : (
-                      <button onClick={() => startEdit("maxQubits", maxQubits)} className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+                      <button
+                        onClick={() => startEdit("maxQubits", maxQubits)}
+                        className="p-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                      >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -416,15 +498,33 @@ function SettingsPage() {
 
               <div className="space-y-4">
                 {[
-                  { id: "design_events", label: "Design Events", desc: "Alerts when chips are successfully compiled" },
-                  { id: "verification_alerts", label: "Verification Alerts", desc: "DRC failure notices and layout collisions" },
-                  { id: "simulation_done", label: "Simulation Updates", desc: "Receive updates when simulations are complete" },
-                  { id: "weekly_digest", label: "Weekly Digest Report", desc: "Summary reports of workspace layouts built" },
+                  {
+                    id: "design_events",
+                    label: "Design Events",
+                    desc: "Alerts when chips are successfully compiled",
+                  },
+                  {
+                    id: "verification_alerts",
+                    label: "Verification Alerts",
+                    desc: "DRC failure notices and layout collisions",
+                  },
+                  {
+                    id: "simulation_done",
+                    label: "Simulation Updates",
+                    desc: "Receive updates when simulations are complete",
+                  },
+                  {
+                    id: "weekly_digest",
+                    label: "Weekly Digest Report",
+                    desc: "Summary reports of workspace layouts built",
+                  },
                 ].map((n) => (
                   <div key={n.id} className="flex items-center justify-between gap-4 py-1.5">
                     <div>
                       <p className="text-xs font-black text-slate-800 select-none">{n.label}</p>
-                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5 select-none">{n.desc}</p>
+                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5 select-none">
+                        {n.desc}
+                      </p>
                     </div>
                     <Switch
                       checked={notifs[n.id as keyof typeof notifs]}

@@ -185,9 +185,9 @@ function SignUpPage() {
                     Terms of Service
                   </a>{" "}
                   and{" "}
-                  <a href="#" className="text-foreground underline">
+                  <Link to="/privacy" className="text-foreground underline">
                     Privacy Policy
-                  </a>
+                  </Link>
                   .
                 </span>
               </label>
@@ -208,12 +208,12 @@ function SignUpPage() {
             </div>
 
             <Button
-                type="submit"
-                disabled={loading}
-                className="h-11 w-full rounded-full text-sm font-semibold"
-              >
-                {loading ? "Creating account…" : "Create account"}
-              </Button>
+              type="submit"
+              disabled={loading}
+              className="h-11 w-full rounded-full text-sm font-semibold"
+            >
+              {loading ? "Creating account…" : "Create account"}
+            </Button>
           </form>
 
           <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wider text-muted-foreground">

@@ -179,7 +179,7 @@
   --card-foreground: #0f172a;
   --popover: #ffffff;
   --popover-foreground: #0f172a;
-  
+
   /* Primary & Accents */
   --primary: #928ddd; /* Perrywinkle */
   --primary-foreground: #ffffff;
@@ -188,18 +188,18 @@
   --muted: #e7e9ef; /* Diamond Cut */
   --muted-foreground: #64748b;
   --muted-foreground-soft: #94a3b8;
-  
+
   /* Accents */
   --accent: #928ddd; /* Perrywinkle */
   --accent-foreground: #ffffff;
   --accent-2: #b2aef2; /* Purple Illusion */
   --accent-soft: #cac8f9; /* Lavender Blue */
   --ring: #928ddd;
-  
+
   /* Borders & Inputs */
   --border: #e7e9ef; /* Diamond Cut for subtle dividers */
   --input: #e7e9ef;
-  
+
   /* Stonewall custom grey value */
   --stonewall: #c3c1c1;
 
@@ -217,22 +217,191 @@
 /* ── Premium Custom Scrollbars ──────────────────────────────────────────────── */
 @layer base {
   /* Global thin scrollbars */
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
   ::-webkit-scrollbar-thumb {
     background: rgba(148, 163, 184, 0.4);
     border-radius: 999px;
   }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.7); }
-  ::-webkit-scrollbar-corner { background: transparent; }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.7);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 /* Dark-themed code block scrollbars (match #0F172A background) */
-.dark-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
-.dark-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
+.dark-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: #0f172a;
+}
 .dark-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(100, 116, 139, 0.5);
   border-radius: 999px;
 }
-.dark-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, 0.8); }
-.dark-scrollbar::-webkit-scrollbar-corner { background: #0f172a; }
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8);
+}
+.dark-scrollbar::-webkit-scrollbar-corner {
+  background: #0f172a;
+}
+
+/* ── Professional Grade Landing Page Layout ────────────────────────────────── */
+
+/* Container and Widths */
+.content-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-left: 40px;
+  padding-right: 40px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 767px) {
+  .content-container {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+/* Background Color Classes */
+.bg-cream {
+  background-color: #f1efe8 !important;
+}
+
+.bg-white-landing {
+  background-color: #ffffff !important;
+}
+
+.bg-black-features {
+  background-color: #1a1a1a !important;
+}
+
+.bg-dark-footer {
+  background-color: #0f0f0f !important;
+}
+
+/* Section Spacing */
+.section-padding-light {
+  padding-top: 100px;
+  padding-bottom: 100px;
+}
+
+.section-padding-dark {
+  padding-top: 120px;
+  padding-bottom: 120px;
+}
+
+.footer-padding {
+  padding-top: 80px;
+  padding-bottom: 0px;
+}
+
+/* Maintain Section Spacing on Mobile */
+@media (max-width: 767px) {
+  .section-padding-light {
+    padding-top: 100px;
+    padding-bottom: 100px;
+  }
+  .section-padding-dark {
+    padding-top: 120px;
+    padding-bottom: 120px;
+  }
+  .footer-padding {
+    padding-top: 80px;
+    padding-bottom: 0px;
+  }
+}
+
+/* Text Hierarchy for Light Sections */
+.section-light-typography {
+  color: #555555;
+}
+
+.section-light-typography h1,
+.section-light-typography h2,
+.section-light-typography .section-title {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #1a1a1a;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 767px) {
+  .section-light-typography h1,
+  .section-light-typography h2,
+  .section-light-typography .section-title {
+    font-size: 28px;
+  }
+}
+
+.section-light-typography p,
+.section-light-typography .section-body {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #555555;
+}
+
+/* Text Hierarchy for Dark Sections */
+.section-dark-typography {
+  color: #f0f0f0;
+}
+
+.section-dark-typography h1,
+.section-dark-typography h2,
+.section-dark-typography .section-title {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #ffffff;
+  letter-spacing: -0.025em;
+}
+
+@media (max-width: 767px) {
+  .section-dark-typography h1,
+  .section-dark-typography h2,
+  .section-dark-typography .section-title {
+    font-size: 28px;
+  }
+}
+
+.section-dark-typography p,
+.section-dark-typography .section-body {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #f0f0f0;
+}
+
+/* Hairline Dividers between consecutive light sections */
+.section-light + .section-light {
+  position: relative;
+}
+
+.section-light + .section-light::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 5%;
+  width: 90%;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    rgba(26, 26, 26, 0) 0%,
+    rgba(26, 26, 26, 0.08) 50%,
+    rgba(26, 26, 26, 0) 100%
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
