@@ -70,7 +70,7 @@ function SignInPage() {
   };
 
   return (
-    <div className="grid flex-1 grid-cols-1 gap-8 px-6 pb-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:px-10">
+    <div className="grid flex-1 grid-cols-1 gap-8 px-4 sm:px-6 pt-4 sm:pt-6 pb-10 lg:grid-cols-[1.1fr_1fr] lg:gap-12 lg:px-10">
       <motion.section
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}

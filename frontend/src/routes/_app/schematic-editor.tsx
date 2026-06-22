@@ -40,6 +40,7 @@ export const Route = createFileRoute("/_app/schematic-editor")({
   errorComponent: ErrorBoundary,
 });
 
+
 function ErrorBoundary({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   return (

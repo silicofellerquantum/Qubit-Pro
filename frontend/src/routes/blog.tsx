@@ -20,7 +20,7 @@ function BlogLayout() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-[#F8F7F2] text-[#0F172A] selection:bg-[#7C3AED]/20 selection:text-[#0F172A] font-sans">
+    <div className="relative min-h-[100svh] bg-[#F8F7F2] text-[#0F172A] selection:bg-[#7C3AED]/20 selection:text-[#0F172A] font-sans">
       {/* Grid background pattern */}
       <div
         aria-hidden
@@ -30,13 +30,12 @@ function BlogLayout() {
 
       {/* Header — identical to landing page SiteNav */}
       <header
-        className={`sticky top-0 z-50 transition-all duration-300 ${
-          scrolled
+        className={`sticky top-0 z-50 transition-all duration-300 ${scrolled
             ? "border-b border-black/10 bg-[#E8E6DE]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
             : "border-b border-transparent bg-[#E8E6DE]/40 backdrop-blur-md"
-        }`}
+          }`}
       >
-        <div className="flex items-center justify-between px-6 py-4 lg:px-10">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 lg:px-10">
           <Link to="/" aria-label="SilicoFeller home" className="flex items-center">
             <SilicofellerLogo />
           </Link>

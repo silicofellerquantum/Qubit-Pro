@@ -1,6 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { motion, useScroll, useTransform } from "motion/react";
+import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
+import { useEffect, useState, lazy, Suspense } from "react";
+import { motion, useScroll, useTransform, AnimatePresence } from "motion/react";
 import {
   ArrowRight,
   Cpu,
@@ -20,10 +20,15 @@ import {
   MousePointer2,
   FlaskConical,
   Code2,
+  Menu,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SilicofellerLogo } from "@/components/silicofeller-logo";
-import { QuantumBurst } from "@/components/landing/quantum-burst";
+// QuantumBurst is a heavy rAF animation — defer its JS until after the page is interactive
+const QuantumBurst = lazy(() =>
+  import("@/components/landing/quantum-burst").then((m) => ({ default: m.QuantumBurst }))
+);
 import { useAuth, ROLE_LABEL } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/")({
@@ -57,6 +62,7 @@ function LandingPage() {
   const { user } = useAuth();
   const [headlineIdx, setHeadlineIdx] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { scrollY } = useScroll();
   const heroY = useTransform(scrollY, [0, 600], [0, -120]);
   const heroScale = useTransform(scrollY, [0, 600], [1, 0.92]);
@@ -72,9 +78,15 @@ function LandingPage() {
     };
   }, []);
 
+  // Body scroll lock when mobile nav is open
+  useEffect(() => {
+    document.body.style.overflow = mobileNavOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileNavOpen]);
+
   return (
-    <main className="relative min-h-screen bg-background text-foreground">
-      <SiteNav scrolled={scrolled} user={user} />
+    <main className="relative min-h-[100svh] bg-background text-foreground">
+      <SiteNav scrolled={scrolled} user={user} mobileNavOpen={mobileNavOpen} setMobileNavOpen={setMobileNavOpen} />
 
       {/* ───────── HERO — light canvas, network animation ───────── */}
       <section
@@ -92,14 +104,14 @@ function LandingPage() {
           className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-[#0A0A0F]"
         />
 
-        <div className="relative z-10 grid grid-cols-1 gap-10 px-6 pb-28 pt-8 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:px-10 lg:pt-12">
+        <div className="relative z-10 grid grid-cols-1 gap-10 px-4 sm:px-6 pb-20 sm:pb-28 pt-6 sm:pt-8 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:px-10 lg:pt-12">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="flex flex-col justify-center"
           >
-            <h1 className="text-[2.75rem] font-semibold leading-[1.35] tracking-[-0.035em] sm:text-[3.5rem] lg:text-[4.25rem]">
+            <h1 className="text-[1.875rem] font-semibold leading-[1.3] tracking-[-0.035em] sm:text-[2.75rem] md:text-[3.5rem] lg:text-[4.25rem]">
               <motion.span
                 key={headlineIdx}
                 initial={{ opacity: 0, y: 12 }}
@@ -285,8 +297,39 @@ function LandingPage() {
         </div>
       </Section>
 
-      {/* ───────── DEMO — paper ───────── */}
-     
+      {/* ───────── BLOG — highlights ───────── */}
+      <Section id="blog" eyebrow="Blog" title="Insights from the quantum frontier." tone="elevated">
+        <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {POSTS.map((p) => (
+            <motion.div
+              key={p.title}
+              initial={{ opacity: 0, y: 14 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.45 }}
+              className="rounded-2xl border border-border bg-card/90 p-5 backdrop-blur"
+              style={{ boxShadow: "var(--shadow-card)" }}
+            >
+              <span className="inline-block rounded-full bg-accent/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
+                {p.tag}
+              </span>
+              <h3 className="mt-3 text-sm font-semibold leading-snug text-foreground">{p.title}</h3>
+              <Link
+                to="/blog"
+                className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-[#F26B3A] hover:underline"
+              >
+                Read more <ArrowRight className="h-3 w-3" />
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+        <div className="mt-8 flex justify-center">
+          <Button asChild variant="outline" className="rounded-full border-black/15 px-6 text-sm font-medium">
+            <Link to="/blog">View all posts <ArrowRight className="ml-1.5 h-4 w-4" /></Link>
+          </Button>
+        </div>
+      </Section>
+
       {/* ───────── CONTACT — dark cinematic ───────── */}
       <Section id="contact" eyebrow="Contact" title="Let's design what's next." tone="paper">
         <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1.2fr_1fr]">
@@ -350,14 +393,14 @@ function LandingPage() {
         </div>
       </Section>
 
-      <footer className="relative z-10 border-t border-white/10 bg-[#050507] px-6 py-10 text-white lg:px-10">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 sm:grid-cols-4">
+      <footer className="relative z-10 border-t border-white/10 bg-[#050507] px-4 sm:px-6 py-10 text-white lg:px-10 pb-safe">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 sm:gap-8 sm:grid-cols-4">
           <FooterCol title="Product" links={["Features", "Designer", "Pricing", "Changelog"]} />
           <FooterCol title="Company" links={["About", "Blog", "Careers", "Contact"]} />
           <FooterCol title="Resources" links={["Documentation", "API", "Support", "Status"]} />
           <FooterCol title="Legal" links={["Privacy Policy", "Terms of Service", "Security"]} />
         </div>
-        <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center justify-between gap-2 border-t border-white/10 pt-6 text-xs text-white/50 sm:flex-row">
+        <div className="mx-auto mt-8 flex max-w-6xl flex-col items-center gap-4 border-t border-white/10 pt-6 sm:flex-row sm:justify-between text-xs text-white/50">
           <p>© {new Date().getFullYear()} Silicofeller, Inc. All rights reserved.</p>
           {user && (
             <p>
@@ -365,95 +408,318 @@ function LandingPage() {
               {ROLE_LABEL[user.role]}
             </p>
           )}
+          <div className="flex items-center gap-2">
+            <a
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border border-white/15 text-white/50 transition-colors hover:bg-white/5"
+              href="#" aria-label="LinkedIn"
+            >
+              <Linkedin className="h-4 w-4" />
+            </a>
+            <a
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border border-white/15 text-white/50 transition-colors hover:bg-white/5"
+              href="#" aria-label="GitHub"
+            >
+              <Github className="h-4 w-4" />
+            </a>
+            <a
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border border-white/15 text-white/50 transition-colors hover:bg-white/5"
+              href="mailto:hello@silicofeller.com" aria-label="Email"
+            >
+              <Mail className="h-4 w-4" />
+            </a>
+          </div>
         </div>
       </footer>
     </main>
   );
 }
 
+// ─── Nav link definitions ────────────────────────────────────────────────────
+// "section" = smooth-scroll to an id on this page
+// "route"   = TanStack Router navigation to another page
+type NavLink =
+  | { kind: "section"; label: string; id: string }
+  | { kind: "route"; label: string; to: "/blog" | "/our-team" };
+
+const NAV_LINKS: NavLink[] = [
+  { kind: "section", label: "About Us",   id: "about" },
+  { kind: "section", label: "Technology", id: "technology" },
+  { kind: "section", label: "Features",   id: "features" },
+  { kind: "section", label: "Blog",       id: "blog" },
+  { kind: "route",   label: "Team",       to: "/our-team" },
+  { kind: "section", label: "Contact",    id: "contact" },
+];
+
+/** Smooth-scroll to a section by id, offset for sticky nav height */
+function scrollToSection(id: string) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const navHeight = 64; // matches h-16 header
+  const top = el.getBoundingClientRect().top + window.scrollY - navHeight;
+  window.scrollTo({ top, behavior: "smooth" });
+}
+
 function SiteNav({
   scrolled,
   user,
+  mobileNavOpen,
+  setMobileNavOpen,
 }: {
   scrolled: boolean;
   user: ReturnType<typeof useAuth>["user"];
+  mobileNavOpen: boolean;
+  setMobileNavOpen: (v: boolean) => void;
 }) {
+  const location = useLocation();
+
+  // Track which section is currently in view (IntersectionObserver)
+  const [activeSection, setActiveSection] = useState<string>("");
+  useEffect(() => {
+    const sectionIds = NAV_LINKS
+      .filter((l): l is Extract<NavLink, { kind: "section" }> => l.kind === "section")
+      .map((l) => l.id);
+
+    const observers: IntersectionObserver[] = [];
+    sectionIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const obs = new IntersectionObserver(
+        ([entry]) => { if (entry.isIntersecting) setActiveSection(id); },
+        { rootMargin: "-30% 0px -60% 0px", threshold: 0 },
+      );
+      obs.observe(el);
+      observers.push(obs);
+    });
+    return () => observers.forEach((o) => o.disconnect());
+  }, []);
+
+  // Close on route change (handles /our-team navigation)
+  useEffect(() => { setMobileNavOpen(false); }, [location.pathname]);
+
+  // ESC key closes the drawer
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileNavOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileNavOpen, setMobileNavOpen]);
+
+  // Handle mobile section-link click: close drawer THEN smooth-scroll
+  function handleSectionClick(id: string) {
+    setMobileNavOpen(false);
+    // Short delay so the drawer close animation doesn't fight the scroll
+    setTimeout(() => scrollToSection(id), 120);
+  }
+
   return (
-    <header
-      className={`sticky top-0 z-50 transition-all duration-300 ${scrolled
-        ? "border-b border-black/10 bg-[#E8E6DE]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
-        : "border-b border-transparent bg-[#E8E6DE]/40 backdrop-blur-md"
+    <>
+      <header
+        className={`sticky top-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? "border-b border-black/10 bg-[#E8E6DE]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+            : "border-b border-transparent bg-[#E8E6DE]/40 backdrop-blur-md"
         }`}
-    >
-      <div className="flex items-center justify-between px-6 py-4 lg:px-10">
-        <Link to="/" aria-label="SilicoFeller home" className="flex items-center">
-          <SilicofellerLogo />
-        </Link>
-        <nav className="hidden items-center gap-7 text-sm text-foreground/65 md:flex">
-          <a href="#about" className="transition-colors hover:text-foreground">
-            About Us
-          </a>
-          <a href="#technology" className="transition-colors hover:text-foreground">
-            Technology
-          </a>
-          <a href="#features" className="transition-colors hover:text-foreground">
-            Features
-          </a>
-          <span className="cursor-default select-none text-foreground/65">
-            Documentation
-          </span>
-          <span className="cursor-default select-none text-foreground/65">
-            Community
-          </span>
-          <Link to="/blog" className="transition-colors hover:text-foreground">
-            Blog
+      >
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 lg:px-10">
+          {/* Logo */}
+          <Link to="/" aria-label="SilicoFeller home" className="flex items-center min-h-[44px]">
+            <SilicofellerLogo />
           </Link>
-          <Link to="/our-team" className="transition-colors hover:text-foreground">
-            Team
-          </Link>
-          <a href="#contact" className="transition-colors hover:text-foreground">
-            Contact
-          </a>
-        </nav>
-        <div className="flex items-center gap-2">
-          {user ? (
-            <>
-              <Button
-                variant="ghost"
-                asChild
-                className="h-9 rounded-full px-4 text-sm text-foreground hover:bg-foreground/5"
-              >
-                <Link to="/dashboard">Dashboard</Link>
-              </Button>
-              <Button
-                asChild
-                className="h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
-              >
-                <Link to="/schematic-editor">Open designer</Link>
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="ghost"
-                asChild
-                className="h-9 rounded-full px-4 text-sm text-foreground hover:bg-foreground/5"
-              >
-                <Link to="/sign-in">Sign in</Link>
-              </Button>
-              <Button
-                asChild
-                className="h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
-              >
-                <Link to="/sign-up">
-                  Sign up <ArrowRight className="ml-1 h-4 w-4" />
+
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-7 text-sm md:flex" aria-label="Main navigation">
+            {NAV_LINKS.map((item) =>
+              item.kind === "route" ? (
+                <Link
+                  key={item.label}
+                  to={item.to}
+                  className="min-h-[44px] flex items-center transition-colors text-foreground/65 hover:text-foreground"
+                >
+                  {item.label}
                 </Link>
-              </Button>
-            </>
-          )}
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => scrollToSection(item.id)}
+                  className={`min-h-[44px] flex items-center transition-colors hover:text-foreground ${
+                    activeSection === item.id
+                      ? "text-[#F26B3A] font-semibold"
+                      : "text-foreground/65"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              )
+            )}
+          </nav>
+
+          <div className="flex items-center gap-2">
+            {/* Desktop CTAs */}
+            <div className="hidden md:flex items-center gap-2">
+              {user ? (
+                <>
+                  <Button variant="ghost" asChild className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-foreground/5">
+                    <Link to="/dashboard">Dashboard</Link>
+                  </Button>
+                  <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
+                    <Link to="/schematic-editor">Open designer</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="ghost" asChild className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-foreground/5">
+                    <Link to="/sign-in">Sign in</Link>
+                  </Button>
+                  <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
+                    <Link to="/sign-up">Sign up <ArrowRight className="ml-1 h-4 w-4" /></Link>
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Mobile hamburger */}
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+              aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileNavOpen}
+              aria-controls="mobile-nav-drawer"
+              className="md:hidden inline-flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-lg text-foreground hover:bg-foreground/5 transition-colors"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {mobileNavOpen ? (
+                  <motion.span
+                    key="close"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <X className="h-5 w-5" />
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="open"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <Menu className="h-5 w-5" />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* ── Mobile drawer + backdrop (rendered in a portal-like sibling, outside sticky header) ── */}
+      <AnimatePresence>
+        {mobileNavOpen && (
+          <>
+            {/* Semi-transparent dark backdrop — click to close */}
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden fixed inset-0 top-[64px] z-40 bg-black/30 backdrop-blur-[2px]"
+              aria-hidden
+              onClick={() => setMobileNavOpen(false)}
+            />
+
+            {/* Slide-down drawer */}
+            <motion.div
+              key="drawer"
+              id="mobile-nav-drawer"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation"
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="md:hidden fixed inset-x-0 top-[64px] z-50 max-h-[calc(100svh-64px)] overflow-y-auto bg-[#E8E6DE] shadow-xl pb-safe"
+            >
+              <nav className="flex flex-col px-4 sm:px-6 pt-2 pb-8" aria-label="Mobile navigation">
+                {NAV_LINKS.map((item, i) =>
+                  item.kind === "route" ? (
+                    <motion.div
+                      key={item.label}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.04, duration: 0.2 }}
+                    >
+                      <Link
+                        to={item.to}
+                        onClick={() => setMobileNavOpen(false)}
+                        className="flex items-center border-b border-black/10 py-4 text-base font-medium text-foreground min-h-[44px] transition-colors hover:text-[#F26B3A]"
+                      >
+                        {item.label}
+                      </Link>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key={item.label}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.04, duration: 0.2 }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => handleSectionClick(item.id)}
+                        className={`w-full flex items-center border-b border-black/10 py-4 text-base font-medium min-h-[44px] text-left transition-colors hover:text-[#F26B3A] ${
+                          activeSection === item.id ? "text-[#F26B3A]" : "text-foreground"
+                        }`}
+                      >
+                        {/* Active dot indicator */}
+                        {activeSection === item.id && (
+                          <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-[#F26B3A] shrink-0" />
+                        )}
+                        {item.label}
+                      </button>
+                    </motion.div>
+                  )
+                )}
+
+                {/* CTA buttons */}
+                <motion.div
+                  className="mt-6 flex flex-col gap-3"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: NAV_LINKS.length * 0.04 + 0.05 }}
+                >
+                  {user ? (
+                    <>
+                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
+                        <Link to="/dashboard" onClick={() => setMobileNavOpen(false)}>Dashboard</Link>
+                      </Button>
+                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                        <Link to="/schematic-editor" onClick={() => setMobileNavOpen(false)}>Open designer</Link>
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
+                        <Link to="/sign-in" onClick={() => setMobileNavOpen(false)}>Sign in</Link>
+                      </Button>
+                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                        <Link to="/sign-up" onClick={() => setMobileNavOpen(false)}>
+                          Sign up <ArrowRight className="ml-1 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </>
+                  )}
+                </motion.div>
+              </nav>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -485,7 +751,7 @@ function Section({
   return (
     <section
       id={id}
-      className={`relative z-10 scroll-mt-20 overflow-hidden px-6 py-24 lg:px-10 ${toneClass}`}
+      className={`relative z-10 scroll-mt-[72px] overflow-hidden px-4 sm:px-6 py-12 sm:py-16 md:py-24 lg:px-10 ${toneClass}`}
     >
       {tone === "grid" && (
         <div
@@ -525,7 +791,7 @@ function FormInput({
       <label className="text-xs font-medium text-foreground/60">{label}</label>
       <input
         {...rest}
-        className="mt-1.5 w-full rounded-lg border border-black/15 bg-white px-3 py-2 text-sm text-foreground outline-none placeholder:text-foreground/40 focus:border-[#F26B3A]"
+        className="mt-1.5 w-full rounded-lg border border-black/15 bg-white px-3 py-3 text-base text-foreground outline-none placeholder:text-foreground/40 focus:border-[#F26B3A]"
       />
     </div>
   );
