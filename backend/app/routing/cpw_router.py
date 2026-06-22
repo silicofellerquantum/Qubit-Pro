@@ -44,10 +44,42 @@ class CPWRouter:
         self.min_sp  = min_spacing_mm
         self.mfactor = meander_factor
 
+    def _pocket_exit(self, qubit: Point, other: Point) -> Point:
+        """
+        Return a point that is `pocket_half_mm` outside the qubit pocket
+        in the direction toward `other`.  This is used as the actual CPW
+        start/end so the route never enters the pocket body.
+        """
+        dx = other[0] - qubit[0]
+        dy = other[1] - qubit[1]
+        dist = math.hypot(dx, dy) or 1.0
+        return (
+            round(qubit[0] + dx / dist * self.pocket, 4),
+            round(qubit[1] + dy / dist * self.pocket, 4),
+        )
+
     def _l_route(self, a: Point, b: Point) -> List[Point]:
-        """Simple L-shaped route from a to b (horizontal first)."""
-        mid = (b[0], a[1])
-        return [mid]
+        """
+        L-shaped route from a to b (horizontal first).
+
+        The corner is placed at (b[0], a[1]) which can fall on an
+        intermediate qubit pocket.  We therefore check all qubit positions
+        and nudge the corner vertically if it would land inside a pocket.
+        """
+        corner: Point = (b[0], a[1])
+
+        # Nudge the corner away from any qubit whose pocket it would enter.
+        NUDGE = self.pocket + self.min_sp
+        for qpos in self.qpos.values():
+            qx, qy = qpos
+            cx, cy = corner
+            if abs(cx - qx) < NUDGE and abs(cy - qy) < NUDGE:
+                # Corner is inside this qubit's keep-out zone.
+                # Push it vertically past the pocket (toward b).
+                sign = 1.0 if b[1] > a[1] else -1.0
+                corner = (cx, round(qy + sign * NUDGE, 4))
+
+        return [corner]
 
     def _meander_length(self, a: Point, b: Point) -> float:
         """Estimate routed length with meander factor applied."""
@@ -63,12 +95,17 @@ class CPWRouter:
             if pa is None or pb is None:
                 continue
 
-            waypoints = self._l_route(pa, pb)
-            length    = self._meander_length(pa, pb)
+            # Offset start/end to the pocket edge so the route never
+            # passes through the qubit body itself.
+            pa_exit = self._pocket_exit(pa, pb)
+            pb_exit = self._pocket_exit(pb, pa)
+
+            waypoints = self._l_route(pa_exit, pb_exit)
+            length    = self._meander_length(pa_exit, pb_exit)
 
             seg = RouteSegment(
-                start     = pa,
-                end       = pb,
+                start     = pa_exit,
+                end       = pb_exit,
                 waypoints = waypoints,
                 width_um  = self.width,
                 gap_um    = self.gap,

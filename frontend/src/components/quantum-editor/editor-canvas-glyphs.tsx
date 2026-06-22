@@ -61,10 +61,14 @@ export function PlacementPreview({
   }
   const sc = scale * MM_TO_PX * (p.units === "um" ? UM_TO_MM : 1) * uiScale;
   const vb = p.viewBox;
+  // Correct: sc = target_px / max_svg_dim. SVG coords are raw (um or mm),
+  // not pixels — no MM_TO_PX factor needed in the denominator.
+  const maxDim = Math.max(vb.w, vb.h);
+  const normSc = maxDim > 0 ? (40 * scale * uiScale) / maxDim : sc;
   return (
     <g transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}>
       <g
-        transform={`scale(${sc} ${-sc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
+        transform={`scale(${normSc} ${-normSc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
         dangerouslySetInnerHTML={{ __html: p.svg }}
         style={{ transition: "transform 0.12s ease" }}
       />
@@ -107,11 +111,13 @@ export function DropGhost({
     );
   }
   const sc = scale * MM_TO_PX * (p.units === "um" ? UM_TO_MM : 1), vb = p.viewBox;
+  const maxDim = Math.max(vb.w, vb.h);
+  const ghostSc = maxDim > 0 ? (40 * scale) / maxDim : sc;
   return (
     <g className="pointer-events-none" opacity={0.72}>
       <g transform={`translate(${px} ${py})`}>
         <g
-          transform={`scale(${sc} ${-sc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
+          transform={`scale(${ghostSc} ${-ghostSc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
           dangerouslySetInnerHTML={{ __html: p.svg }}
         />
       </g>
@@ -166,9 +172,11 @@ export function PlacementGlyph({
   const [editingName, setEditingName] = useState(false);
   const q = useQuery(componentPreviewQueryOptions(componentId, placement.params));
   const vb = q.data?.viewBox;
-  const um = q.data?.units === "um" ? UM_TO_MM : 1;
-  const sz = vb
-    ? Math.max(vb.w, vb.h) * um * MM_TO_PX * scale * uiScale
+  // sz = normalized screen size in px (same BASE_SCREEN_PX as PlacementPreview).
+  // Raw SVG coords are in backend units — divide target_px by max_svg_dim directly.
+  const maxSvgDim = vb ? Math.max(vb.w, vb.h) : 0;
+  const sz = maxSvgDim > 0
+    ? (40 * scale * uiScale)   // normalised to 40px like PlacementPreview
     : Math.max(28, 0.5 * MM_TO_PX * scale);
   const { px, py } = w2s(placement.x, placement.y), half = sz / 2;
   const isPO = pendingOwner === placement.id;

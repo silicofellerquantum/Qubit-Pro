@@ -77,7 +77,7 @@ export function useCanvasViewport(
   }, []);
 
   const baseScale = useMemo(
-    () => Math.max(0.4, Math.min((size.w - 100) / 720, (size.h - 100) / 480)),
+    () => Math.max(0.4, Math.min(1.0, (size.w - 100) / 720, (size.h - 100) / 480)),
     [size.w, size.h],
   );
   const scale = baseScale * state.zoom;
