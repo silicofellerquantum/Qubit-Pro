@@ -92,6 +92,7 @@ export type EditorAction =
   | { type: "UPDATE_CONNECTION"; id: string; patch: Partial<Connection> }
   | { type: "LOCK_CONNECTION"; id: string }
   | { type: "UNLOCK_CONNECTION"; id: string }
+  | { type: "CLEAR_ROUTE_CACHE" }
   | { type: "SET_CONNECTION_GEOMETRY"; id: string; svg: string; hash: string }
   | { type: "SELECT"; selection: Selection }
   | { type: "TOGGLE_SELECT"; item: SelectionItem }
@@ -132,7 +133,7 @@ export const initialEditorState: EditorState = {
   connections: [],
   selection: [],
   pendingPin: null,
-  zoom: 1,
+  zoom: 0.5,
   pan: { x: 0, y: 0 },
   tool: "select",
   snap: 0.05,
@@ -338,6 +339,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           c.id === action.id ? { ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined } : c,
         ),
       };
+    case "CLEAR_ROUTE_CACHE":
+      return {
+        ...state,
+        ...bump(state),
+        connections: state.connections.map((c) => ({
+          ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined,
+        })),
+      };
     case "SET_CONNECTION_GEOMETRY":
       return {
         ...state,
@@ -471,7 +480,11 @@ export function DesignStoreProvider({ children }: { children: ReactNode }) {
     if (loadedRef.current) return;
     loadedRef.current = true;
     const saved = loadDesign();
-    if (saved) dispatch({ type: "LOAD", doc: saved });
+    if (saved) {
+        dispatch({ type: "LOAD", doc: saved });
+        // Clear any stale route geometry so connections re-render with the current backend
+        dispatch({ type: "CLEAR_ROUTE_CACHE" });
+      }
   }, []);
 
   // Auto-save whenever placements/connections change.

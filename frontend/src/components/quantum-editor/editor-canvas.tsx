@@ -45,6 +45,37 @@ export { CHIP_W_MM, CHIP_H_MM, CHIP_HALF_W, CHIP_HALF_H } from "./use-canvas-vie
 const UM_TO_MM = 0.001;
 const UI_SCALE_KEY = "_uiScale";
 
+// Maximum component footprint in mm before we scale it down.
+// A 1.2 mm cap keeps even large qubits (like concentric-ring types) at a
+// sensible size relative to the 9 mm chip, while small components like
+// TransmonPocket (~1 mm) render at true physical size.
+const MAX_COMP_MM = 1.2;
+
+/**
+ * Compute the SVG→screen scale factor for a component preview.
+ * All components render at their true physical size (sc = MM_TO_PX * scale),
+ * but are capped so their largest dimension never exceeds MAX_COMP_MM on screen.
+ * Pin positions MUST use the same svgScale value so they stay aligned.
+ *
+ * @param vbMaxDim  largest dimension of the component viewBox (in svgUnits)
+ * @param svgUnits  "um" | "mm"
+ * @param scale     canvas scale (baseScale × zoom)
+ * @param uiScale   per-placement uiScale override (default 1)
+ */
+function svgScale(
+  vbMaxDim: number,
+  svgUnits: "um" | "mm",
+  scale: number,
+  uiScale = 1,
+): number {
+  const physSc = MM_TO_PX * scale * uiScale * (svgUnits === "um" ? UM_TO_MM : 1);
+  const maxDimMm = vbMaxDim * (svgUnits === "um" ? UM_TO_MM : 1);
+  const capSc    = maxDimMm > MAX_COMP_MM
+    ? (MAX_COMP_MM * MM_TO_PX * scale * uiScale) / vbMaxDim
+    : physSc;
+  return capSc;
+}
+
 // Hit-area tuning constants — generous padding so components are easy to
 // click without needing pixel-perfect precision.
 const HIT_PAD = 28; // px extra around the component's visual bounding box
@@ -1231,8 +1262,8 @@ function PlacementPreview({
   const { px, py } = w2s(placement.x, placement.y);
   const mx = placement.mirrorX ? -1 : 1;
   if (!p?.svg) {
-    const s = Math.max(36, 0.6 * MM_TO_PX * scale * uiScale),
-      h = s / 2;
+    // Fallback placeholder: 0.8 mm square
+    const s = 0.8 * MM_TO_PX * scale * uiScale, h = s / 2;
     return (
       <g
         transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}
@@ -1252,8 +1283,8 @@ function PlacementPreview({
       </g>
     );
   }
-  const sc = scale * MM_TO_PX * (p.units === "um" ? UM_TO_MM : 1) * uiScale;
   const vb = p.viewBox;
+  const sc = svgScale(Math.max(vb.w, vb.h), p.units as "um" | "mm", scale, uiScale);
   return (
     <g
       transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}
@@ -1285,7 +1316,7 @@ function DropGhost({
   const p = q.data;
   const { px, py } = w2s(x, y);
   if (!p?.svg) {
-    const s = Math.max(36, 0.6 * MM_TO_PX * scale),
+    const s = Math.max(24, 40 * scale),
       h = s / 2;
     return (
       <g className="pointer-events-none" transform={`translate(${px} ${py})`}>
@@ -1303,13 +1334,13 @@ function DropGhost({
       </g>
     );
   }
-  const sc = scale * MM_TO_PX * (p.units === "um" ? UM_TO_MM : 1),
-    vb = p.viewBox;
+  const vb = p.viewBox;
+  const ghostSc = svgScale(Math.max(vb.w, vb.h), p.units as "um" | "mm", scale);
   return (
     <g className="pointer-events-none" opacity={0.72}>
       <g transform={`translate(${px} ${py})`}>
         <g
-          transform={`scale(${sc} ${-sc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
+          transform={`scale(${ghostSc} ${-ghostSc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
           dangerouslySetInnerHTML={{ __html: p.svg }}
         />
       </g>
@@ -1363,14 +1394,17 @@ function PlacementGlyph({
 }) {
   const q = useQuery(componentPreviewQueryOptions(componentId, placement.params));
   const vb = q.data?.viewBox;
-  const um = q.data?.units === "um" ? UM_TO_MM : 1;
+  const units = (q.data?.units ?? "um") as "um" | "mm";
+  // sz = largest physical dimension in screen pixels, capped at MAX_COMP_MM.
+  const sc = vb
+    ? svgScale(Math.max(vb.w, vb.h), units, scale, uiScale)
+    : svgScale(800, "um", scale, uiScale);  // fallback ~0.8mm
   const sz = vb
-    ? Math.max(vb.w, vb.h) * um * MM_TO_PX * scale * uiScale
-    : Math.max(28, 0.5 * MM_TO_PX * scale);
+    ? Math.max(vb.w, vb.h) * sc
+    : 0.8 * MM_TO_PX * scale * uiScale;
 
   const { px, py } = w2s(placement.x, placement.y),
     half = sz / 2;
-  const isPO = pendingOwner === placement.id;
 
   return (
     <g
@@ -1438,8 +1472,8 @@ function PlacementGlyph({
       )}
       {/* Pin name labels (dots themselves are interactive, drawn in PlacementHitArea) */}
       {selected && pins.map((pin) => {
-        const cx = pin.hint.x * UM_TO_MM * MM_TO_PX * scale,
-          cy = -pin.hint.y * UM_TO_MM * MM_TO_PX * scale;
+        const cx = pin.hint.x * sc,
+          cy = -pin.hint.y * sc;
         return (
           <text
             key={pin.name}
@@ -1498,28 +1532,20 @@ function PlacementHitArea({
   const [editingName, setEditingName] = useState(false);
   const q = useQuery(componentPreviewQueryOptions(componentId, placement.params));
   const vb = q.data?.viewBox;
-  const um = q.data?.units === "um" ? UM_TO_MM : 1;
+  const units = (q.data?.units ?? "um") as "um" | "mm";
+  // Use the same capped scale as PlacementGlyph/Preview so hit area aligns.
+  const sc = vb
+    ? svgScale(Math.max(vb.w, vb.h), units, scale, uiScale)
+    : svgScale(800, "um", scale, uiScale);
   const sz = vb
-    ? Math.max(vb.w, vb.h) * um * MM_TO_PX * scale * uiScale
-    : Math.max(28, 0.5 * MM_TO_PX * scale);
+    ? Math.max(vb.w, vb.h) * sc
+    : 0.8 * MM_TO_PX * scale * uiScale;
 
   // ── Hit area calculation ──────────────────────────────────────────────────
-  // PlacementPreview renders the SVG centered on the viewBox center, which is
-  // at screen position (px, py). But the viewBox center in SVG coords is
-  //   (vb.x + vb.w/2,  vb.y + vb.h/2)
-  // and the scale transform is scale(sc, -sc) — y is flipped.
-  // So the hit rect must be offset by the same amount, in screen pixels.
-  const sc = vb ? (scale * MM_TO_PX * um * uiScale) : 1;
   const vbOffX = vb ? (vb.x + vb.w / 2) * sc : 0;
   const vbOffY = vb ? -(vb.y + vb.h / 2) * sc : 0;
-  // Generous hit rect dimensions — large padding + minimum so resonators,
-  // couplers, and thin meander shapes are all easy to click.
-  const hitW = vb
-    ? Math.max(MIN_HIT, vb.w * sc + HIT_PAD * 2)
-    : Math.max(MIN_HIT, sz + HIT_PAD * 2);
-  const hitH = vb
-    ? Math.max(MIN_HIT, vb.h * sc + HIT_PAD * 2)
-    : hitW;
+  const hitW = Math.max(MIN_HIT, sz + HIT_PAD * 2);
+  const hitH = hitW;
   // ─────────────────────────────────────────────────────────────────────────
 
   const { px, py } = w2s(placement.x, placement.y),
@@ -1608,8 +1634,8 @@ function PlacementHitArea({
         </foreignObject>
       )}
       {pins.map((pin) => {
-        const cx = pin.hint.x * UM_TO_MM * MM_TO_PX * scale,
-          cy = -pin.hint.y * UM_TO_MM * MM_TO_PX * scale;
+        const cx = pin.hint.x * sc,
+          cy = -pin.hint.y * sc;
         return (
           <g key={pin.name}>
             {/* Larger invisible pin hit target so pins are easy to click too */}

@@ -95,37 +95,57 @@ class ResonatorRouter:
 
         The meander folds back and forth perpendicularly to `direction`
         until the target length is reached.
+
+        Correct pattern for N arms:
+          - Arm 0 (even): advance +primary for arm_mm
+          - Arm 1 (odd):  step +perp for pitch_mm   (turn 1)
+          - Arm 2 (even): advance -primary for arm_mm
+          - Arm 3 (odd):  step +perp for pitch_mm   (turn 2)
+          - Arm 4 (even): advance +primary for arm_mm
+          - ...
+        Each successive long arm is offset by pitch_mm in the perpendicular
+        direction, so arms never overlap.
         """
         dx, dy = direction
-        # Perpendicular direction
+        # Perpendicular direction (rotated 90° CCW)
         px, py = -dy, dx
 
-        # Each straight segment is `arm_mm` long.
-        # Number of turns is chosen to fill target_length_mm.
-        arm_mm   = 1.5   # mm per arm (adjustable)
-        n_arms   = max(2, round(target_length_mm / arm_mm))
-        n_arms   = n_arms + (n_arms % 2)  # must be even to end near start
+        # pitch = wire width + gap on each side, converted mm
+        # self.width and self.gap are in µm
+        pitch_mm = (self.width + 2.0 * self.gap) / 1000.0 + self.spacing
+
+        # arm_mm: length of each long segment
+        # Estimate: total ≈ n_long_arms * arm_mm, n_long_arms ≈ n_arms/2
+        arm_mm = 1.5  # mm — adjustable
+        n_pairs = max(1, round(target_length_mm / (2.0 * arm_mm + pitch_mm)))
 
         waypoints: List[Point] = []
         x, y = start
         total = 0.0
-        sign  = 1.0
-        spacing = self.spacing
+        fwd = 1.0  # alternates ±1 for each long arm
 
-        for i in range(n_arms):
-            if i % 2 == 0:
-                # Advance in primary direction
-                nx = x + dx * arm_mm
-                ny = y + dy * arm_mm
-            else:
-                # Advance perpendicular (alternating sign)
-                nx = x + px * spacing * sign
-                ny = y + py * spacing * sign
-                sign *= -1.0
-
+        for _ in range(n_pairs):
+            # Long arm in primary direction (alternating forward/backward)
+            nx = x + dx * arm_mm * fwd
+            ny = y + dy * arm_mm * fwd
             total += math.hypot(nx - x, ny - y)
             waypoints.append((round(nx, 4), round(ny, 4)))
             x, y = nx, ny
+
+            # Short step in perpendicular direction (always positive = accumulates offset)
+            nx = x + px * pitch_mm
+            ny = y + py * pitch_mm
+            total += math.hypot(nx - x, ny - y)
+            waypoints.append((round(nx, 4), round(ny, 4)))
+            x, y = nx, ny
+
+            fwd *= -1.0  # flip direction for next long arm
+
+        # Final long arm to close out the meander
+        nx = x + dx * arm_mm * fwd
+        ny = y + dy * arm_mm * fwd
+        total += math.hypot(nx - x, ny - y)
+        waypoints.append((round(nx, 4), round(ny, 4)))
 
         return waypoints, round(total, 4)
 

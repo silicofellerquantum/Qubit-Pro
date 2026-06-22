@@ -2,7 +2,7 @@ import { type RefObject, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Undo2, Redo2, MousePointer2, Hand, Code2, Maximize,
-  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map,
+  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -145,6 +145,24 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
               </Button>
             </TooltipTrigger>
             <TooltipContent>Fit all components into view (F)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost" size="sm"
+                onClick={() => {
+                  dispatch({ type: "CLEAR_ROUTE_CACHE" });
+                  qc.removeQueries({ queryKey: ["bridge", "render-route"] });
+                  toast.success("Routes refreshed");
+                }}
+                className="h-8 gap-1.5 text-[11px]"
+                disabled={state.connections.length === 0}
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> <span className="hidden md:inline">Refresh Routes</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Re-render all route connections</TooltipContent>
           </Tooltip>
 
           <Tooltip>
