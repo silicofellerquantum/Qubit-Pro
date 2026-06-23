@@ -40,10 +40,11 @@ export const Route = createFileRoute("/_app/schematic-editor")({
   errorComponent: ErrorBoundary,
 });
 
+
 function ErrorBoundary({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   return (
-    <div className="flex min-h-screen items-center justify-center p-6 bg-card text-card-foreground">
+    <div className="flex min-h-[100svh] items-center justify-center p-6 bg-card text-card-foreground">
       <div className="max-w-md rounded-lg border border-border bg-card p-6 shadow-md">
         <h2 className="mb-2 text-lg font-bold text-destructive">Editor failed to load</h2>
         <p className="mb-4 text-sm font-mono text-muted-foreground bg-muted p-3 rounded overflow-auto max-h-40">

@@ -3,15 +3,15 @@ import { SilicofellerLogo } from "@/components/silicofeller-logo";
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="relative min-h-screen bg-background text-foreground">
+    <main className="relative min-h-[100svh] bg-background text-foreground">
       {/* ambient gradient wash */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
         style={{ background: "var(--gradient-hero)" }}
       />
-      <div className="relative flex min-h-screen flex-col">
-        <header className="flex items-center justify-between px-6 py-5 lg:px-10">
+      <div className="relative flex min-h-[100svh] flex-col">
+        <header className="flex items-center justify-between px-4 sm:px-6 py-5 lg:px-10">
           <Link to="/sign-in" aria-label="Silicofeller home">
             <SilicofellerLogo />
           </Link>
@@ -28,7 +28,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
           </nav>
         </header>
         <div className="flex flex-1 flex-col">{children}</div>
-        <footer className="flex flex-col items-center justify-between gap-2 border-t border-border/60 px-6 py-5 text-xs text-muted-foreground sm:flex-row lg:px-10">
+        <footer className="flex flex-col items-center justify-between gap-2 border-t border-border/60 px-4 sm:px-6 py-5 pb-safe text-xs text-muted-foreground sm:flex-row lg:px-10">
           <p>© {new Date().getFullYear()} Silicofeller, Inc. All rights reserved.</p>
           <div className="flex items-center gap-5">
             <a href="#" className="hover:text-foreground">

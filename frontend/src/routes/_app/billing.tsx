@@ -352,7 +352,7 @@ function CollabBanner() {
         exit={{ opacity: 0, y: -8 }}
         className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-fuchsia-600 via-violet-600 to-indigo-600 p-px"
       >
-        <div className="relative flex items-center justify-between gap-4 rounded-[15px] bg-background px-6 py-4">
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-[15px] bg-background px-4 sm:px-6 py-4">
           {/* Ambient shimmer */}
           <div className="pointer-events-none absolute inset-0 rounded-[15px] bg-gradient-to-r from-fuchsia-500/5 via-violet-500/5 to-indigo-500/5" />
           <div className="flex items-center gap-4">
@@ -712,6 +712,7 @@ function BillingPage() {
             <h2 className="text-base font-semibold text-foreground">Invoices</h2>
             <span className="text-xs text-muted-foreground">{invoices.length} total</span>
           </div>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -747,6 +748,7 @@ function BillingPage() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </Card>
       </section>
     </motion.div>

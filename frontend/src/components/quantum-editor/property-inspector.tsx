@@ -489,6 +489,12 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
 
       <Section title="Route overrides">
         <RouteOverrideField
+          label="Total length"
+          placeholder="e.g. 7mm"
+          value={String(connection.routeOverrides?.total_length ?? "")}
+          onCommit={(v) => updateRouteOverride(connection.id, "total_length", v, dispatch, connection.routeOverrides)}
+        />
+        <RouteOverrideField
           label="Fillet"
           placeholder="e.g. 99um"
           value={String(connection.routeOverrides?.fillet ?? "")}

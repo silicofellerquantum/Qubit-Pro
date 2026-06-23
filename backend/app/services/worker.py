@@ -138,6 +138,18 @@ try:
             if issubclass(cls, _QComponent) and cls is not _QComponent and cls.__module__ == modname:
                 _CLASS_MAP[cls.__name__] = cls
     log.info(f"Loaded {len(_CLASS_MAP)} component classes successfully.")
+
+    # ── Load custom components not shipped with qiskit-metal ─────────────────
+    try:
+        import sys as _sys, pathlib as _pathlib
+        _backend_root = _pathlib.Path(__file__).parent.parent  # app/services -> app -> backend/app
+        if str(_backend_root.parent) not in _sys.path:
+            _sys.path.insert(0, str(_backend_root.parent))
+        from app.services.custom_components.readout_res_fc import ReadoutResFC as _ReadoutResFC
+        _CLASS_MAP["ReadoutResFC"] = _ReadoutResFC
+        log.info("Registered custom component: ReadoutResFC")
+    except Exception as _e:
+        log.warning("Could not register custom ReadoutResFC: %s", _e)
 except Exception as e:
     log.exception("Failed to initialize Qiskit Metal libraries inside worker.")
     sys.exit(1)
@@ -218,6 +230,9 @@ def handle_component_preview(job: dict) -> dict:
     clean = {k: v for k, v in options.items() if k not in ("pos_x", "pos_y", "orientation")}
     clean["pos_x"] = "0mm"
     clean["pos_y"] = "0mm"
+    # Force subtract=False so subtraction-layer components (e.g. ReadoutResFC)
+    # still render visible geometry in the preview instead of returning empty.
+    clean["subtract"] = False
     if "connection_pads" not in clean:
         pc = _make_default_connection_pads(cls)
         if pc:
@@ -243,6 +258,8 @@ def handle_component_preview(job: dict) -> dict:
             continue
         color = COLORS.get(tname, "#5B9BD5")
         rows = gdf[gdf["component"] == cid] if "component" in gdf.columns else gdf
+        # For preview we render ALL rows including subtract=True ones so the
+        # component outline is always visible (subtract is irrelevant in isolation).
         for _, row in rows.iterrows():
             g = row.get("geometry")
             if g is None or g.is_empty:
@@ -251,14 +268,25 @@ def handle_component_preview(job: dict) -> dict:
             _geom_to_svg(g, color, MM, paths)
 
     if not paths or not bounds:
-        return {"fragment": "", "vb": [-500, -500, 1000, 1000]}
+        # Fallback: try rendering without subtract filtering at all
+        log.warning("No geometry for %s preview — returning placeholder", component_id)
+        label = component_id[:14]
+        svg = (f'<rect x="-280" y="-180" width="560" height="360" rx="20" '
+               f'fill="#1e3a5f" fill-opacity="0.15" stroke="#5B9BD5" stroke-width="8"/>'
+               f'<text x="0" y="8" text-anchor="middle" font-size="40" '
+               f'font-family="monospace" fill="#5B9BD5" font-weight="bold">{label}</text>')
+        return {"fragment": svg, "vb": [-300, -200, 600, 400]}
 
     xmin = min(b[0] for b in bounds) * MM
     ymin = min(b[1] for b in bounds) * MM
     xmax = max(b[2] for b in bounds) * MM
     ymax = max(b[3] for b in bounds) * MM
     pad = max((xmax - xmin) * 0.1, (ymax - ymin) * 0.1, 20)
-    return {"fragment": "\n".join(paths), "vb": [xmin-pad, ymin-pad, (xmax-xmin)+2*pad, (ymax-ymin)+2*pad]}
+    # Clamp viewBox: some components (ReadoutResFC) have geometry that extends
+    # far off-centre. Centre the vb on (0,0) so the glyph renders sensibly.
+    half_w = max((xmax - xmin) / 2 + pad, 100)
+    half_h = max((ymax - ymin) / 2 + pad, 100)
+    return {"fragment": "\n".join(paths), "vb": [-half_w, -half_h, half_w * 2, half_h * 2]}
 
 
 def handle_full_design(job: dict) -> dict:

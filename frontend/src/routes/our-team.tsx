@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useEffect, useState } from "react";
-import { motion } from "motion/react";
-import { ArrowRight } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SilicofellerLogo } from "@/components/silicofeller-logo";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -56,13 +56,21 @@ const TEAM: Member[] = [
   { name: "G Naga Vamsi Subbarayudu", role: "AI and Automation", photo: "/teams/satya.jpeg" },
   { name: "Arasavelli Sai Sankar", role: "US Outreach", photo: "/teams/sai sankarr.jpeg" },
   { name: "Kiran sai Srinivas Patnaikuni", role: "US Outreach", photo: "/teams/srinivas.png" },
+];
 
-  
+const TEAM_NAV = [
+  { label: "About Us",   href: "/#about" },
+  { label: "Technology", href: "/#technology" },
+  { label: "Features",   href: "/#features" },
+  { label: "Blog",       href: "/#blog" },
+  { label: "Team",       href: "/our-team" },
+  { label: "Contact",    href: "/#contact" },
 ];
 
 function OurTeamPage() {
   const { user } = useAuth();
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled]       = useState(false);
+  const [mobileOpen, setMobileOpen]   = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -70,70 +78,174 @@ function OurTeamPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Body scroll lock
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
+  // ESC to close
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
   const ordered = useMemo(() => {
-    const ceo = TEAM.filter((m) => m.isCeo);
+    const ceo  = TEAM.filter((m) => m.isCeo);
     const rest = TEAM.filter((m) => !m.isCeo);
     return [...ceo, ...rest];
   }, []);
 
   return (
-    <main className="relative min-h-screen bg-background text-foreground">
+    <main className="relative min-h-[100svh] bg-background text-foreground">
+      {/* Spacer pushes content below the fixed navbar */}
+      <div className="h-[64px]" aria-hidden />
+
+      {/* ── Fixed header ─────────────────────────────────────────────── */}
       <header
-        className={`sticky top-0 z-50 transition-all duration-300 ${
+        className={`fixed inset-x-0 top-0 z-[9999] transition-all duration-300 ${
           scrolled
-            ? "border-b border-black/10 bg-[#E8E6DE]/85 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
-            : "border-b border-transparent bg-[#E8E6DE]/40 backdrop-blur-md"
+            ? "border-b border-black/10 bg-[#E8E6DE]/90 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+            : "border-b border-transparent bg-[#E8E6DE]/60 backdrop-blur-md"
         }`}
       >
-        <div className="flex items-center justify-between px-6 py-4 lg:px-10">
-          <Link to="/" aria-label="SilicoFeller home" className="flex items-center">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 lg:px-10">
+          {/* Logo */}
+          <Link to="/" aria-label="SilicoFeller home" className="flex items-center min-h-[44px]">
             <SilicofellerLogo />
           </Link>
-          <nav className="hidden items-center gap-7 text-sm text-foreground/65 md:flex">
-            <Link to="/" hash="about" className="transition-colors hover:text-foreground">
-              About Us
-            </Link>
-            <Link to="/" hash="technology" className="transition-colors hover:text-foreground">
-              Technology
-            </Link>
-            <Link to="/" hash="features" className="transition-colors hover:text-foreground">
-              Features
-            </Link>
-            <Link to="/" hash="blog" className="transition-colors hover:text-foreground">
-              Blog
-            </Link>
-            <Link to="/our-team" className="text-foreground transition-colors">
-              Team
-            </Link>
-            <Link to="/" hash="contact" className="transition-colors hover:text-foreground">
-              Contact
-            </Link>
+
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-7 text-sm text-foreground/65 md:flex" aria-label="Main navigation">
+            {TEAM_NAV.map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                className={`min-h-[44px] flex items-center transition-colors hover:text-foreground ${
+                  item.href === "/our-team" ? "text-foreground font-semibold" : ""
+                }`}
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
+
+          {/* Desktop CTAs + mobile hamburger */}
           <div className="flex items-center gap-2">
-            {user ? (
-              <Button
-                asChild
-                className="h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
-              >
-                <Link to="/dashboard">Dashboard</Link>
-              </Button>
-            ) : (
-              <Button
-                asChild
-                className="h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
-              >
-                <Link to="/sign-up">
-                  Sign up <ArrowRight className="ml-1 h-4 w-4" />
-                </Link>
-              </Button>
-            )}
+            <div className="hidden md:flex items-center gap-2">
+              {user ? (
+                <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
+                  <Link to="/dashboard">Dashboard</Link>
+                </Button>
+              ) : (
+                <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
+                  <Link to="/sign-up">Sign up <ArrowRight className="ml-1 h-4 w-4" /></Link>
+                </Button>
+              )}
+            </div>
+
+            {/* Hamburger — mobile only */}
+            <button
+              type="button"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+              aria-controls="team-mobile-nav"
+              className="md:hidden inline-flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-lg text-foreground hover:bg-foreground/5 transition-colors"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {mobileOpen ? (
+                  <motion.span key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <X className="h-5 w-5" />
+                  </motion.span>
+                ) : (
+                  <motion.span key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <Menu className="h-5 w-5" />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
           </div>
         </div>
       </header>
 
-      <section className="px-6 py-16 lg:px-10 lg:py-24" style={{ background: "#E8E6DE" }}>
+      {/* ── Mobile drawer + backdrop ───────────────────────────────────── */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden fixed inset-0 top-[64px] z-40 bg-black/30 backdrop-blur-[2px]"
+              aria-hidden
+              onClick={() => setMobileOpen(false)}
+            />
+
+            {/* Drawer */}
+            <motion.div
+              key="drawer"
+              id="team-mobile-nav"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation"
+              initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="md:hidden fixed inset-x-0 top-[64px] z-50 max-h-[calc(100svh-64px)] overflow-y-auto bg-[#E8E6DE] shadow-xl pb-safe"
+            >
+              <nav className="flex flex-col px-4 sm:px-6 pt-2 pb-8" aria-label="Mobile navigation">
+                {TEAM_NAV.map((item, i) => (
+                  <motion.div key={item.label} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04, duration: 0.2 }}>
+                    <a
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`w-full flex items-center border-b border-black/10 py-4 text-base font-medium min-h-[44px] transition-colors hover:text-[#F26B3A] ${
+                        item.href === "/our-team" ? "text-[#F26B3A]" : "text-foreground"
+                      }`}
+                    >
+                      {item.href === "/our-team" && (
+                        <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-[#F26B3A] shrink-0" />
+                      )}
+                      {item.label}
+                    </a>
+                  </motion.div>
+                ))}
+
+                {/* CTA buttons */}
+                <motion.div
+                  className="mt-6 flex flex-col gap-3"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  transition={{ delay: TEAM_NAV.length * 0.04 + 0.05 }}
+                >
+                  {user ? (
+                    <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                      <Link to="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                    </Button>
+                  ) : (
+                    <>
+                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
+                        <Link to="/sign-in" onClick={() => setMobileOpen(false)}>Sign in</Link>
+                      </Button>
+                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                        <Link to="/sign-up" onClick={() => setMobileOpen(false)}>
+                          Sign up <ArrowRight className="ml-1 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </>
+                  )}
+                </motion.div>
+              </nav>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Hero section ──────────────────────────────────────────────── */}
+      <section className="px-4 sm:px-6 py-12 sm:py-16 lg:px-10 lg:py-24" style={{ background: "#E8E6DE" }}>
         <div className="mx-auto max-w-6xl text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#F26B3A]"></p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
             Meet the team
           </h1>
@@ -144,7 +256,8 @@ function OurTeamPage() {
         </div>
       </section>
 
-      <section className="px-6 py-16 lg:px-10 lg:py-20">
+      {/* ── Team grid ─────────────────────────────────────────────────── */}
+      <section className="px-4 sm:px-6 py-10 sm:py-16 lg:px-10 lg:py-20">
         <div className="mx-auto max-w-6xl">
           <div className="grid grid-cols-2 gap-x-6 gap-y-12 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {ordered.map((m, i) => (
@@ -164,8 +277,8 @@ function OurTeamPage() {
                     className="h-full w-full object-cover transition-transform duration-500 hover:scale-[1.05]"
                   />
                 </div>
-                <p className="mt-4 text-sm font-semibold text-foreground">{m.name}</p>
-                <p className="mt-1 text-xs text-foreground/55">{m.role}</p>
+                <p className="mt-4 text-sm font-semibold text-foreground break-words">{m.name}</p>
+                <p className="mt-1 text-xs text-foreground/55 break-words">{m.role}</p>
               </motion.div>
             ))}
           </div>
