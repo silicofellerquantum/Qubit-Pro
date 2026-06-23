@@ -46,6 +46,9 @@ const getParentSectionId = (hashId: string): string => {
   if (cleanId === "epr-tutorial") return "epr-tutorial";
   if (cleanId.startsWith("epr-")) return "epr-results-analysis";
 
+  if (cleanId === "fault-tolerant-quantum-computing") return "fault-tolerant-quantum-computing";
+  if (cleanId.startsWith("fault-")) return "fault-tolerant-quantum-computing";
+
   return "home";
 };
 
@@ -84,7 +87,7 @@ const getActiveTabForSection = (sectionId: string): string => {
 
   if ([
     "hfss-tutorial", "q3d-tutorial", "epr-tutorial",
-    "simulation-dashboard", "results-reports"
+    "simulation-dashboard", "results-reports", "fault-tolerant-quantum-computing"
   ].includes(sectionId)) {
     return "hfss-tutorial";
   }
