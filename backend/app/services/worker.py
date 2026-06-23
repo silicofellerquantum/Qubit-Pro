@@ -294,7 +294,9 @@ def handle_full_design(job: dict) -> dict:
     design = _designs.DesignPlanar(enable_renderers=False)
     design.overwrite_enabled = True
 
-    _EXCLUDE = frozenset({"connection_pads", "pos_x", "pos_y", "orientation", "chip", "layer"})
+    # orientation must NOT be in _EXCLUDE — it controls component rotation.
+    # pos_x/pos_y are set explicitly below; connection_pads is rebuilt from defaults.
+    _EXCLUDE = frozenset({"connection_pads", "pos_x", "pos_y", "chip", "layer"})
     inst_id_map: dict[str, int] = {}
 
     for comp in graph["components"]:
@@ -306,8 +308,15 @@ def handle_full_design(job: dict) -> dict:
         pos = comp.get("position", {})
         opts["pos_x"] = f"{pos.get('x', 0)}mm"
         opts["pos_y"] = f"{pos.get('y', 0)}mm"
-        if comp.get("rotation"):
-            opts["orientation"] = str(comp["rotation"])
+        # Always set orientation from the placement rotation so Qiskit Metal
+        # rotates the geometry and updates pin positions accordingly.
+        rotation = comp.get("rotation", 0) or 0
+        opts["orientation"] = str(float(rotation))
+        log.debug(
+            "Placing %s '%s' at (%.4f, %.4f) mm, orientation=%.1f°",
+            comp["componentId"], comp.get("instanceName", "?"),
+            pos.get("x", 0), pos.get("y", 0), rotation,
+        )
         ep = opts.get("connection_pads")
         if not isinstance(ep, dict) or not ep or any(not isinstance(v, dict) for v in ep.values()):
             pc = _make_default_connection_pads(cls)
@@ -318,19 +327,57 @@ def handle_full_design(job: dict) -> dict:
         try:
             inst = cls(design, comp["instanceName"], options=opts)
             inst_id_map[comp["instanceName"]] = inst.id
+            # Log actual pin positions after instantiation for debugging
+            for pname, pdata in inst.pins.items():
+                mid = pdata.get("middle", None)
+                nrm = pdata.get("normal", None)
+                log.debug(
+                    "  pin '%s': middle=%s, normal=%s",
+                    pname, mid, nrm,
+                )
         except Exception as exc:
             log.warning("Could not place %s: %s", comp["instanceName"], exc)
 
     route_id_map: dict[str, int] = {}
+    route_errors: dict[str, str] = {}
     for conn in graph["connections"]:
         route_cls = _CLASS_MAP.get(conn["routeComponentId"])
         if route_cls is None:
             log.warning("Unknown route component: %s", conn["routeComponentId"])
             continue
+        src_name  = conn["sourceComponentName"]
+        src_pin   = conn["sourcePinName"]
+        tgt_name  = conn["targetComponentName"]
+        tgt_pin   = conn["targetPinName"]
+        log.debug(
+            "Routing %s: %s.%s → %s.%s",
+            conn["routeComponentId"], src_name, src_pin, tgt_name, tgt_pin,
+        )
+        # Validate that source and target components + pins exist
+        src_inst = design.components[src_name] if src_name in design.components else None
+        tgt_inst = design.components[tgt_name] if tgt_name in design.components else None
+        if src_inst is None:
+            log.warning("Route %s: source component '%s' not found in design", conn["id"], src_name)
+            route_errors[conn["id"]] = f"Source component '{src_name}' not found"
+            continue
+        if tgt_inst is None:
+            log.warning("Route %s: target component '%s' not found in design", conn["id"], tgt_name)
+            route_errors[conn["id"]] = f"Target component '{tgt_name}' not found"
+            continue
+        if src_pin not in src_inst.pins:
+            available = list(src_inst.pins.keys())
+            log.warning("Route %s: pin '%s' not on '%s' (available: %s)", conn["id"], src_pin, src_name, available)
+            route_errors[conn["id"]] = f"Pin '{src_pin}' not on '{src_name}' (available: {available})"
+            continue
+        if tgt_pin not in tgt_inst.pins:
+            available = list(tgt_inst.pins.keys())
+            log.warning("Route %s: pin '%s' not on '%s' (available: %s)", conn["id"], tgt_pin, tgt_name, available)
+            route_errors[conn["id"]] = f"Pin '{tgt_pin}' not on '{tgt_name}' (available: {available})"
+            continue
         opts = dict(conn.get("routeOverrides", {}))
         opts["pin_inputs"] = {
-            "start_pin": {"component": conn["sourceComponentName"], "pin": conn["sourcePinName"]},
-            "end_pin":   {"component": conn["targetComponentName"], "pin": conn["targetPinName"]},
+            "start_pin": {"component": src_name, "pin": src_pin},
+            "end_pin":   {"component": tgt_name, "pin": tgt_pin},
         }
         rname = f"route_{conn['id'][:8]}"
         try:
@@ -338,8 +385,13 @@ def handle_full_design(job: dict) -> dict:
             route_id_map[conn["id"]] = ri.id
         except Exception as exc:
             log.warning("Could not create route %s: %s", conn["id"], exc)
+            route_errors[conn["id"]] = str(exc)
 
-    design.rebuild()
+    # Rebuild the design — catch per-route failures gracefully
+    try:
+        design.rebuild()
+    except Exception as exc:
+        log.warning("design.rebuild() raised; attempting partial SVG extraction: %s", exc)
 
     MM = 1000.0
     COLORS = {"poly": "#5B9BD5", "path": "#3a7abf", "junction": "#D4820A"}
@@ -367,7 +419,7 @@ def handle_full_design(job: dict) -> dict:
                 _geom_to_svg(g, color, MM, comp_svg)
 
     if not bounds:
-        return {"svg": "", "vb": [-4500, -3000, 9000, 6000], "routes": {}}
+        return {"svg": "", "vb": [-4500, -3000, 9000, 6000], "routes": {}, "route_errors": route_errors}
 
     xmin = min(b[0] for b in bounds) * MM
     ymin = min(b[1] for b in bounds) * MM
@@ -379,6 +431,7 @@ def handle_full_design(job: dict) -> dict:
         "svg": "\n".join(comp_svg),
         "vb":  [xmin-pad, ymin-pad, (xmax-xmin)+2*pad, (ymax-ymin)+2*pad],
         "routes": {cid: "\n".join(svgs) for cid, svgs in route_svgs.items()},
+        "route_errors": route_errors,
     }
 
 
