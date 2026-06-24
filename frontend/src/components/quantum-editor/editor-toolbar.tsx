@@ -26,6 +26,7 @@ interface Props {
   onFitView: () => void;
   onShowCode: (mode: CodePanelMode) => void;
   canvasRef: RefObject<EditorCanvasHandle | null>;
+  onSave?: () => void;
 }
  
 function triggerDownload(url: string, filename: string) {
@@ -33,7 +34,7 @@ function triggerDownload(url: string, filename: string) {
   URL.revokeObjectURL(url);
 }
  
-export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, canvasRef }: Props) {
+export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, canvasRef, onSave }: Props) {
   const { activeTab, dispatchActive, saveAll } = useWorkspace();
   const state    = activeTab.state;
   const dispatch = dispatchActive;
@@ -44,7 +45,14 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
 
   const setTool = (t: Tool) => dispatch({ type: "SET_TOOL", tool: t });
 
-  const handleSave = useCallback(() => { saveAll(); toast.success("Design saved"); }, [saveAll]);
+  const handleSave = useCallback(() => {
+    if (onSave) {
+      onSave();
+    } else {
+      saveAll();
+      toast.success("Design saved");
+    }
+  }, [onSave, saveAll]);
 
   const confirmClear = useCallback(() => {
     dispatch({ type: "LOAD", doc: { placements: [], connections: [] } });

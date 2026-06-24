@@ -229,11 +229,22 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "MOVE_PLACEMENT": {
       const target = state.placements.find((p) => p.id === action.id);
       if (target?.locked) return state;
+      // Invalidate cached geometry for all routes touching this placement
+      // so locked routes don't show stale SVG after a component is moved.
+      const connections = action.transient
+        ? state.connections
+        : state.connections.map((c) => {
+            const touches =
+              c.from.placementId === action.id || c.to.placementId === action.id;
+            if (!touches) return c;
+            return { ...c, cachedGeometryHash: undefined };
+          });
       const next = {
         ...state,
         placements: state.placements.map((p) =>
           p.id === action.id ? { ...p, x: action.x, y: action.y } : p,
         ),
+        connections,
       };
       return action.transient ? next : { ...next, ...bump(state) };
     }

@@ -38,6 +38,9 @@ class ReadoutResFC(QComponent):
         readout_cpw_width       = "5um",
         readout_cpw_gap         = "5um",
         readout_cpw_turnradius  = "50um",
+        total_length            = "6mm",
+        resonator_width         = "300um",
+        lead_length             = "150um",
         readout_l1              = "150um",
         readout_l2              = "300um",
         readout_l3              = "300um",
@@ -71,14 +74,9 @@ class ReadoutResFC(QComponent):
         w    = p.readout_cpw_width       # mm
         g    = p.readout_cpw_gap         # mm
         tr   = p.readout_cpw_turnradius  # mm  (turn radius to conductor centre)
-        l1   = p.readout_l1
-        l2   = p.readout_l2
-        l3   = p.readout_l3
-        l4   = p.readout_l4
-        l5   = p.readout_l5
-
-        # Total lane pitch (centre-to-centre of adjacent arms)
-        pitch = w + 2 * g + 2 * tr
+        total_len = p.total_length
+        res_width = p.resonator_width
+        lead_len  = p.lead_length
 
         # Build the centreline as a sequence of (x, y) points.
         # Start at the coupling port (0, 0), travel in +x direction.
@@ -98,8 +96,6 @@ class ReadoutResFC(QComponent):
             sign=-1 : turn clockwise (right)
             Returns new position and new (dx, dy) direction.
             """
-            # Centre of the semicircle is `tr` to the left of the current
-            # direction when sign=+1 (or right when sign=-1).
             cx_off = -sign * dy * tr   # perpendicular offset to arc centre
             cy_off =  sign * dx * tr
             cx, cy = cur[0] + cx_off, cur[1] + cy_off
@@ -117,15 +113,44 @@ class ReadoutResFC(QComponent):
         cur  = (0.0, 0.0)
         dx, dy = 1.0, 0.0   # initial direction: rightward
 
-        cur = _arm(cur, dx, dy, l1)
-        cur, dx, dy = _turn(cur, dx, dy, sign=+1)   # turn up-left
-        cur = _arm(cur, dx, dy, l2)
-        cur, dx, dy = _turn(cur, dx, dy, sign=-1)   # turn back right
-        cur = _arm(cur, dx, dy, l3)
-        cur, dx, dy = _turn(cur, dx, dy, sign=+1)
-        cur = _arm(cur, dx, dy, l4)
-        cur, dx, dy = _turn(cur, dx, dy, sign=-1)
-        cur = _arm(cur, dx, dy, l5)
+        if total_len > 0 and res_width > 0:
+            body_len = total_len - 2 * lead_len
+            if body_len <= 0:
+                cur = _arm(cur, dx, dy, total_len)
+            else:
+                turn_unit_len = res_width + np.pi * tr
+                N_ideal = (body_len + res_width) / turn_unit_len
+                N = max(2, int(np.round(N_ideal)))
+                
+                adj_width = (total_len - 2 * lead_len - N * np.pi * tr) / (N - 1)
+                if adj_width < tr:
+                    adj_width = tr
+                
+                cur = _arm(cur, dx, dy, lead_len)
+                for i in range(1, N + 1):
+                    sign = 1 if (i % 2 == 1) else -1
+                    cur, dx, dy = _turn(cur, dx, dy, sign=sign)
+                    if i < N:
+                        cur = _arm(cur, dx, dy, adj_width)
+                    else:
+                        cur = _arm(cur, dx, dy, lead_len)
+        else:
+            # Fallback to original hardcoded 5 arms and 4 U-turns
+            l1   = p.readout_l1
+            l2   = p.readout_l2
+            l3   = p.readout_l3
+            l4   = p.readout_l4
+            l5   = p.readout_l5
+
+            cur = _arm(cur, dx, dy, l1)
+            cur, dx, dy = _turn(cur, dx, dy, sign=+1)   # turn up-left
+            cur = _arm(cur, dx, dy, l2)
+            cur, dx, dy = _turn(cur, dx, dy, sign=-1)   # turn back right
+            cur = _arm(cur, dx, dy, l3)
+            cur, dx, dy = _turn(cur, dx, dy, sign=+1)
+            cur = _arm(cur, dx, dy, l4)
+            cur, dx, dy = _turn(cur, dx, dy, sign=-1)
+            cur = _arm(cur, dx, dy, l5)
 
         # ── Convert centreline to shapely LineString ─────────────────────────
         from shapely.geometry import LineString

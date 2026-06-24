@@ -195,24 +195,34 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     };
   };
 
-  // Simple overlap detection: placements within 0.4mm center-to-center
+  // Per-category overlap thresholds: resonators are physically larger
+  // and need more clearance before flagging a collision.
   const overlappingIds = useMemo(() => {
     const ids = new Set<string>();
-    const threshold = 0.4; // mm
+    // compsById maps componentId -> ComponentSummary with .category
+    const getThreshold = (a: Placement, b: Placement): number => {
+      const catA = compsById.get(a.componentId)?.category ?? "other";
+      const catB = compsById.get(b.componentId)?.category ?? "other";
+      const isResonatorA = catA === "resonators";
+      const isResonatorB = catB === "resonators";
+      if (isResonatorA || isResonatorB) return 0.15; // resonators don't overlap unless very close
+      return 0.4; // default for qubits, launchpads, etc.
+    };
     for (let i = 0; i < state.placements.length; i++) {
       for (let j = i + 1; j < state.placements.length; j++) {
         const a = state.placements[i];
         const b = state.placements[j];
         const dx = a.x - b.x;
         const dy = a.y - b.y;
-        if (Math.sqrt(dx * dx + dy * dy) < threshold) {
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < getThreshold(a, b)) {
           ids.add(a.id);
           ids.add(b.id);
         }
       }
     }
     return ids;
-  }, [state.placements]);
+  }, [state.placements, compsById]);
 
   // Canvas-specific keyboard handling removed to schematic-editor to prevent duplicates
 
@@ -596,6 +606,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               key={p.id}
               placement={p}
               componentId={p.componentId}
+              category={compsById.get(p.componentId)?.category}
               selected={isSelected(state.selection, "placement", p.id)}
               hovered={hovered === p.id}
               pendingOwner={state.pendingPin?.placementId ?? null}
@@ -714,8 +725,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                 <path
                   d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
                   stroke={isSel ? "var(--primary)" : c.locked ? "#94a3b8" : "#5B9BD5"}
-                  strokeWidth={isSel ? 2.5 : 1.8}
-                  strokeDasharray={routeQueries.some((q) => q.isLoading) ? "6 4" : c.locked ? "4 2" : "none"}
+                  strokeWidth={isSel ? 2 : 1.4}
+                  strokeDasharray={c.locked ? "4 2" : "5 3"}
+                  strokeOpacity={0.65}
                   fill="none"
                   style={{ pointerEvents: "none" }}
                 />
@@ -734,16 +746,34 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                     transform={`rotate(${Math.atan2(pb.py - pa.py, pb.px - pa.px) * 180 / Math.PI})`}
                   />
                 </g>
-                <text
-                  x={(pa.px + pb.px) / 2}
-                  y={(pa.py + pb.py) / 2 - 10}
-                  textAnchor="middle"
-                  fontSize={8}
-                  fill={isSel ? "var(--primary)" : "var(--muted-foreground)"}
-                  className="pointer-events-none select-none"
-                >
-                  {routeQueries.some((q) => q.isLoading) ? "rendering…" : `${a.name}→${b.name}`}
-                </text>
+                {!c.routeComponentId && (
+                  <text
+                    x={(pa.px + pb.px) / 2}
+                    y={(pa.py + pb.py) / 2 - 14}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fill="var(--muted-foreground)"
+                    opacity={0.7}
+                    style={{ pointerEvents: "none" }}
+                    className="select-none"
+                  >
+                    no route component
+                  </text>
+                )}
+                {c.routeComponentId && !routeSvg.get(c.id) && (
+                  <text
+                    x={(pa.px + pb.px) / 2}
+                    y={(pa.py + pb.py) / 2 - 14}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fill="var(--muted-foreground)"
+                    opacity={0.6}
+                    style={{ pointerEvents: "none" }}
+                    className="select-none"
+                  >
+                    {c.routeComponentId} ···
+                  </text>
+                )}
               </g>
             );
           })}
