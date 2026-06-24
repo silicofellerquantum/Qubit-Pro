@@ -24,12 +24,72 @@ COMPONENT_RENDER_TIMEOUT = 30
 DESIGN_RENDER_TIMEOUT = 60
 
 
-def _placeholder_svg(component_id: str) -> str:
-    label = component_id[:12]
-    return (f'<rect x="-280" y="-180" width="560" height="360" rx="20" fill="#1e3a5f" '
-            f'fill-opacity="0.15" stroke="#5B9BD5" stroke-width="8"/>'
-            f'<text x="0" y="8" text-anchor="middle" font-size="48" font-family="monospace" '
-            f'fill="#5B9BD5" font-weight="bold">{label}</text>')
+def _placeholder_svg(component_id: str, category: str = "other") -> str:
+    # Clean label to fit nicely
+    label = component_id
+    if len(label) > 15:
+        label = label[:13] + ".."
+    
+    # Base color definitions
+    primary_color = "#5B9BD5"
+    secondary_color = "#2E5FA3"
+    accent_color = "#D4820A"
+    
+    svg_elements = []
+    
+    # 1. Add visual graphic based on category
+    cat_lower = category.lower()
+    if cat_lower == "qubits":
+        if "cross" in component_id.lower():
+            # Cross qubit layout
+            svg_elements.append(f'<rect x="-220" y="-45" width="440" height="90" rx="15" fill="{primary_color}" fill-opacity="0.8"/>')
+            svg_elements.append(f'<rect x="-45" y="-220" width="90" height="440" rx="15" fill="{primary_color}" fill-opacity="0.8"/>')
+            # Junction at center
+            svg_elements.append(f'<path d="M -20 -20 L 20 20 M -20 20 L 20 -20" stroke="{accent_color}" stroke-width="6"/>')
+        else:
+            # Pocket/pocket6 qubit layout (standard TransmonPocket)
+            svg_elements.append(f'<rect x="-300" y="-300" width="600" height="600" rx="30" fill="none" stroke="{primary_color}" stroke-width="8" opacity="0.4"/>')
+            svg_elements.append(f'<rect x="-220" y="-230" width="440" height="160" rx="15" fill="{primary_color}" fill-opacity="0.85"/>')
+            svg_elements.append(f'<rect x="-220" y="70" width="440" height="160" rx="15" fill="{primary_color}" fill-opacity="0.85"/>')
+            # Junction lines between the pads (around Y=0)
+            svg_elements.append(f'<path d="M -15 -45 L 15 45 M -15 45 L 15 -45 M 0 -45 L 0 45" stroke="{accent_color}" stroke-width="6"/>')
+            
+    elif cat_lower == "resonators":
+        # Meandered coil layout
+        svg_elements.append(f'<rect x="-250" y="-150" width="500" height="300" rx="20" fill="none" stroke="{secondary_color}" stroke-width="4" stroke-dasharray="10 8" opacity="0.3"/>')
+        svg_elements.append(f'<path d="M -230 0 L -170 0 L -170 -110 L -90 -110 L -90 110 L -10 110 L -10 -110 L 70 -110 L 70 110 L 150 110 L 150 0 L 230 0" fill="none" stroke="{secondary_color}" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"/>')
+        
+    elif cat_lower == "couplers":
+        # SQUID loop layout
+        svg_elements.append(f'<rect x="-120" y="-180" width="240" height="360" rx="25" fill="none" stroke="{primary_color}" stroke-width="10"/>')
+        # Two junctions on left & right branches
+        svg_elements.append(f'<path d="M -140 -20 L -100 20 M -140 20 L -100 -20 M -120 -30 L -120 30" stroke="{accent_color}" stroke-width="5"/>')
+        svg_elements.append(f'<path d="M 100 -20 L 140 20 M 100 20 L 140 -20 M 120 -30 L 120 30" stroke="{accent_color}" stroke-width="5"/>')
+        
+    elif cat_lower in ("launchpads", "terminations"):
+        # Launchpad layout
+        svg_elements.append(f'<rect x="-160" y="-160" width="320" height="320" rx="25" fill="{primary_color}" fill-opacity="0.85"/>')
+        svg_elements.append(f'<rect x="-200" y="-200" width="400" height="400" rx="35" fill="none" stroke="{primary_color}" stroke-width="8" opacity="0.4"/>')
+        svg_elements.append(f'<polygon points="160,-60 260,-15 260,15 160,60" fill="{primary_color}"/>')
+        
+    elif cat_lower == "routes":
+        # CPW line layout
+        svg_elements.append(f'<path d="M -300 0 L 300 0" fill="none" stroke="{secondary_color}" stroke-width="12" stroke-linecap="round"/>')
+        
+    else:
+        # Default placeholder/other layout
+        svg_elements.append(f'<rect x="-200" y="-200" width="400" height="400" rx="20" fill="none" stroke="{primary_color}" stroke-width="6"/>')
+        svg_elements.append(f'<circle cx="0" cy="0" r="100" fill="{primary_color}" fill-opacity="0.4"/>')
+        svg_elements.append(f'<path d="M -80 0 L 80 0 M 0 -80 L 0 80" stroke="{primary_color}" stroke-width="6"/>')
+
+    # 2. Add text label wrapped in scale(1, -1) to prevent mirroring/upside-down rendering
+    svg_elements.append(
+        f'<g transform="scale(1, -1)">'
+        f'<text x="0" y="6" text-anchor="middle" font-size="32" font-family="sans-serif" font-weight="bold" fill="#ffffff" style="user-select: none;">{label}</text>'
+        f'</g>'
+    )
+    
+    return "".join(svg_elements)
 
 
 # ── Worker manager (singleton subprocess JSON IPC) ────────────────────────────
@@ -193,25 +253,36 @@ class RenderService:
     def render_component_preview(self, component_id: str, params: Optional[Dict[str, object]] = None) -> ComponentPreview:
         from app.services.component_registry import component_registry_service
         summary = component_registry_service.get_component(component_id)
+        category = summary.category if summary else "other"
+        
+        # Choose dynamic viewBox based on category
+        cat_lower = category.lower()
+        if cat_lower == "resonators":
+            vb = ViewBox(x=-300, y=-200, w=600, h=400)
+        elif cat_lower == "routes":
+            vb = ViewBox(x=-350, y=-100, w=700, h=200)
+        else:
+            vb = ViewBox(x=-350, y=-350, w=700, h=700)
+
         if summary is None:
             log.warning("Preview requested for unknown component %s. Returning placeholder.", component_id)
-            return ComponentPreview(id=component_id, svg=_placeholder_svg(component_id), viewBox=ViewBox(x=-300, y=-300, w=600, h=600), units="um")
+            return ComponentPreview(id=component_id, svg=_placeholder_svg(component_id, category), viewBox=vb, units="um")
 
         result = _manager.call({"type": "component_preview", "component_id": component_id, "module": summary.module, "params": params or {}}, timeout=COMPONENT_RENDER_TIMEOUT)
 
         if result.get("error"):
             log.warning("Preview failed for %s: %s", component_id, result["error"])
-            return ComponentPreview(id=component_id, svg=_placeholder_svg(component_id), viewBox=ViewBox(x=-300, y=-300, w=600, h=600), units="um")
+            return ComponentPreview(id=component_id, svg=_placeholder_svg(component_id, category), viewBox=vb, units="um")
 
         svg = str(result.get("fragment", ""))
         raw = result.get("vb", [-500, -500, 1000, 1000])
-        vb  = ViewBox(x=float(raw[0]), y=float(raw[1]), w=float(raw[2]), h=float(raw[3])) if isinstance(raw, list) and len(raw) == 4 else ViewBox(x=-500, y=-500, w=1000, h=1000)
+        vb_result = ViewBox(x=float(raw[0]), y=float(raw[1]), w=float(raw[2]), h=float(raw[3])) if isinstance(raw, list) and len(raw) == 4 else ViewBox(x=-500, y=-500, w=1000, h=1000)
 
         if not svg.strip():
-            svg = _placeholder_svg(component_id)
-            vb  = ViewBox(x=-300, y=-300, w=600, h=600)
+            svg = _placeholder_svg(component_id, category)
+            vb_result = vb
 
-        return ComponentPreview(id=component_id, svg=svg, viewBox=vb, units="um")
+        return ComponentPreview(id=component_id, svg=svg, viewBox=vb_result, units="um")
 
     def render_route(self, design: DesignDocument, connection_id: str) -> Optional[RouteRender]:
         """Render a single route in isolation."""
