@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select, delete
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
@@ -164,12 +165,20 @@ async def save_design(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    project.design_payload = body
-    project.num_qubits = body.get("num_qubits", project.num_qubits)
-    project.topology = body.get("topology", project.topology)
+    # SQLAlchemy JSON mutation tracking requires reassigning the column,
+    # not just mutating the dict in-place, to ensure the ORM marks it dirty.
+    import copy
+    project.design_payload = copy.deepcopy(body)
+    flag_modified(project, "design_payload")
+    project.num_qubits = int(body.get("num_qubits") or project.num_qubits or 0)
+    project.topology = str(body.get("topology") or project.topology or "custom")
     project.updated_at = datetime.utcnow()
 
-    return {"saved": True}
+    # Force the session to flush so the change is written before commit
+    await db.flush()
+    await db.refresh(project)
+
+    return {"saved": True, "project_id": project.id, "has_design": project.design_payload is not None}
 
 
 @router.post("/{project_id}/versions")

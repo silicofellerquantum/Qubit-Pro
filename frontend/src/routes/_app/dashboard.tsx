@@ -174,6 +174,10 @@ function WorkspaceHomePage() {
   const [simulations, setSimulations] = useState<any[]>([]);
 
   useEffect(() => {
+    refreshProjects();
+  }, [refreshProjects]);
+
+  useEffect(() => {
     fetchSimulations()
       .then((data) => setSimulations(data))
       .catch(() => {});

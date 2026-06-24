@@ -15,7 +15,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { deleteProject, updateProject, fetchSimulations, createProject, type Project } from "@/lib/api/backend";
+import { deleteProject, updateProject, fetchSimulations, createProject, fetchProject, type Project } from "@/lib/api/backend";
 import { useProject } from "@/lib/project-context";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -145,7 +145,7 @@ function ChipSchematicMini({ topology, numQubits }: { topology: string; numQubit
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#gridPattern)" />
-      
+
       {edges.map((e, idx) => (
         <line
           key={idx}
@@ -288,10 +288,10 @@ function CreateModal({ onClose, onCreate }: {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="aluminum"  className="text-xs">Aluminum (Al) — Standard</SelectItem>
-                <SelectItem value="niobium"   className="text-xs">Niobium (Nb) — High Tc</SelectItem>
-                <SelectItem value="tantalum"  className="text-xs">Tantalum (Ta) — Best T₁</SelectItem>
-                <SelectItem value="nbtin"     className="text-xs">NbTiN — High KI</SelectItem>
+                <SelectItem value="aluminum" className="text-xs">Aluminum (Al) — Standard</SelectItem>
+                <SelectItem value="niobium" className="text-xs">Niobium (Nb) — High Tc</SelectItem>
+                <SelectItem value="tantalum" className="text-xs">Tantalum (Ta) — Best T₁</SelectItem>
+                <SelectItem value="nbtin" className="text-xs">NbTiN — High KI</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -408,20 +408,18 @@ function TemplatesModal({ onClose, onCreate }: {
 
 // ── Project Card ──────────────────────────────────────────────────────────────
 
-function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplicate, simulationsCount }: {
+function ProjectCard({ project, isActive, onActivate, onOpen, onDelete, onEdit, onDuplicate, simulationsCount }: {
   project: Project;
   isActive: boolean;
   onActivate: () => void;
+  onOpen: (routePath: string) => void;
   onDelete: () => void;
   onEdit: () => void;
   onDuplicate: () => void;
   simulationsCount: number;
 }) {
-  const navigate = useNavigate();
-
   const openRoute = (routePath: string) => {
-    onActivate();
-    navigate({ to: routePath });
+    onOpen(routePath);
   };
 
   const isSuperconducting = project.substrate_material === "silicon" || project.substrate_material === "sapphire" || project.substrate_material === "silicon_nitride";
@@ -446,12 +444,12 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
       "rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-200 group overflow-hidden flex flex-col justify-between h-full cursor-pointer",
       isActive ? "border-accent ring-1 ring-accent/20" : "border-slate-200"
     )}
-    onClick={() => openRoute("/schematic-editor")}>
+      onClick={() => openRoute("/schematic-editor")}>
       <div>
         {/* Layout Preview Thumbnail with overlay badges */}
         <div className="h-[120px] w-full overflow-hidden border-b border-slate-100 relative bg-slate-50/50">
           <ChipSchematicMini topology={project.topology} numQubits={project.num_qubits} />
-          
+
           {/* Active status badge */}
           {isActive && (
             <div className="absolute top-2 left-2 z-10">
@@ -484,7 +482,7 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button 
+                <button
                   onClick={(e) => e.stopPropagation()}
                   className="h-6 w-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer">
                   <MoreHorizontal className="h-4 w-4" />
@@ -622,9 +620,13 @@ function ProjectsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    refreshProjects();
+  }, [refreshProjects]);
+
+  useEffect(() => {
     fetchSimulations()
       .then((data) => setSimulations(data))
-      .catch(() => {});
+      .catch(() => { });
   }, [projects]);
 
   const handleDelete = async (id: string) => {
@@ -681,7 +683,7 @@ function ProjectsPage() {
       try {
         const content = event.target?.result as string;
         const parsed = JSON.parse(content);
-        
+
         if (!parsed.name) {
           toast.error("Import failed: JSON must contain a 'name' field");
           return;
@@ -709,8 +711,8 @@ function ProjectsPage() {
   // Combining filters
   const filtered = projects.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-                          p.topology.toLowerCase().includes(search.toLowerCase());
-    
+      p.topology.toLowerCase().includes(search.toLowerCase());
+
     let matchesTech = true;
     if (filterTech !== "all") {
       const isSuperconducting = p.substrate_material === "silicon" || p.substrate_material === "sapphire" || p.substrate_material === "silicon_nitride";
@@ -958,6 +960,23 @@ function ProjectsPage() {
                     project={p}
                     isActive={activeProject?.id === p.id}
                     onActivate={() => setActiveProject(p)}
+                    onOpen={async (routePath) => {
+                      // Fetch the full project (with design_payload) before navigating
+                      let fullProject = p;
+                      try {
+                        fullProject = await fetchProject(p.id);
+                      } catch {
+                        // Fallback: set with list-level project (design_payload will be loaded async)
+                      }
+                      setActiveProject(fullProject);
+                      // Pass the project ID as conversationId so the schematic editor
+                      // loads the correct design from this project's saved payload
+                      if (routePath === "/schematic-editor") {
+                        navigate({ to: "/schematic-editor", search: { conversationId: fullProject.id } });
+                      } else {
+                        navigate({ to: routePath });
+                      }
+                    }}
                     onDelete={() => handleDelete(p.id)}
                     onEdit={() => { setEditingId(p.id); setEditName(p.name); }}
                     onDuplicate={() => handleDuplicate(p)}

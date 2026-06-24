@@ -42,9 +42,12 @@ export function useRouteRendering(
       const fromP = state.placements.find((p) => p.id === c.from.placementId);
       const toP = state.placements.find((p) => p.id === c.to.placementId);
       if (!fromP || !toP) { m.set(c.id, "none"); return; }
+      const overridesKey = JSON.stringify(
+        Object.fromEntries(Object.entries(c.routeOverrides ?? {}).sort())
+      );
       m.set(
         c.id,
-        `${fromP.x.toFixed(6)},${fromP.y.toFixed(6)}:${c.from.pinName}:${toP.x.toFixed(6)},${toP.y.toFixed(6)}:${c.to.pinName}:${JSON.stringify(c.routeOverrides ?? {})}`,
+        `${fromP.x.toFixed(6)},${fromP.y.toFixed(6)},${fromP.rotation},${fromP.mirrorX ? 1 : 0}:${c.from.pinName}:${toP.x.toFixed(6)},${toP.y.toFixed(6)},${toP.rotation},${toP.mirrorX ? 1 : 0}:${c.to.pinName}:${overridesKey}`,
       );
     });
     return m;
