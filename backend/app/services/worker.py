@@ -108,6 +108,88 @@ except ImportError:
 os.environ["QISKIT_METAL_HEADLESS"] = "1"
 os.environ["MPLBACKEND"] = "Agg"
 
+# ── Headless compatibility shims ──────────────────────────────────────────────
+# qiskit-metal has several optional/heavy dependencies that are not needed for
+# our headless SVG rendering worker. We stub them out before qiskit_metal is
+# imported so the import chain doesn't blow up.
+
+def _make_stub(name: str) -> "ModuleType":
+    """Return a permissive stub module that silently absorbs any attribute access."""
+    class _StubMeta(type):
+        def __getattr__(cls, n):
+            return _StubMeta(n, (), {})
+        def __call__(cls, *a, **kw):
+            obj = object.__new__(cls)
+            return obj
+        def __instancecheck__(cls, inst):
+            return False
+
+    class _StubBase(metaclass=_StubMeta):
+        def __init__(self, *a, **kw): pass
+        def __getattr__(self, n): return _StubMeta(n, (), {})
+        def __call__(self, *a, **kw): return self
+        def __iter__(self): return iter([])
+        def __bool__(self): return False
+
+    mod = ModuleType(name)
+    mod.__all__ = []  # type: ignore[attr-defined]
+    # Make attribute access on the module return stub classes
+    mod.__class__ = type(
+        "_StubModule",
+        (ModuleType,),
+        {
+            "__getattr__": lambda self, n: _StubBase,
+        },
+    )
+    return mod
+
+
+def _register_stub(name: str) -> None:
+    """Register a stub for *name* and all submodule accesses if not already present."""
+    if name not in sys.modules:
+        stub = _make_stub(name)
+        sys.modules[name] = stub
+        log.info("Injected stub for missing module: %s", name)
+
+
+# 1. descartes — abandoned shapely-mpl bridge, not needed for SVG output
+try:
+    import descartes  # noqa: F401
+except ImportError:
+    class _PolygonPatch:
+        def __init__(self, polygon, **kwargs): pass
+    _d = ModuleType("descartes")
+    _d.PolygonPatch = _PolygonPatch  # type: ignore[attr-defined]
+    sys.modules["descartes"] = _d
+    log.info("Injected descartes stub.")
+
+# 2. pyEPR — EM simulation analysis package, only used by qiskit_metal.analyses
+#    which this worker never calls. Stub the whole tree so the eager import in
+#    qiskit_metal.__init__ doesn't crash the worker.
+for _m in [
+    "pyEPR", "pyEPR.calcs", "pyEPR.calcs.convert",
+    "pyEPR.toolbox", "pyEPR.toolbox.plotting", "pyEPR.toolbox.printing",
+    "pyEPR.core", "pyEPR.project_info",
+]:
+    _register_stub(_m)
+
+# 3. qiskit_metal.analyses — uses pyEPR / scqubits / qutip; stub it entirely
+#    before qiskit_metal.__init__ tries to import it.
+for _m in [
+    "qiskit_metal.analyses",
+    "qiskit_metal.analyses.quantization",
+    "qiskit_metal.analyses.quantization.lumped_capacitive",
+    "qiskit_metal.analyses.quantization.lumped_oscillator_model",
+    "qiskit_metal.analyses.sweep_options",
+    "qiskit_metal.analyses.hamiltonian",
+    "qiskit_metal.analyses.hamiltonian.states_energies",
+]:
+    _register_stub(_m)
+
+# 4. scqubits / qutip — heavy optional deps for qubit simulation
+for _m in ["scqubits", "qutip", "qutip.states"]:
+    _register_stub(_m)
+
 try:
     import importlib
     import pkgutil
