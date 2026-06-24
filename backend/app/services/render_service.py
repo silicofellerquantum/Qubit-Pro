@@ -217,26 +217,33 @@ class RenderService:
         """Render a single route in isolation."""
         conn = next((c for c in design.connections if c.id == connection_id), None)
         if not conn:
+            log.warning("render_route: connection '%s' not found in design", connection_id)
             return None
 
-        _EXCLUDE = frozenset({"connection_pads", "pos_x", "pos_y", "orientation", "chip", "layer"})
+        _EXCLUDE = frozenset({"connection_pads", "pos_x", "pos_y", "chip", "layer"})
         placement_names = {p.id: p.name for p in design.placements}
-        
+
         graph = {
             "components": [
-                {"instanceName": p.name, "componentId": p.componentId,
-                 "options": {k: str(v) for k, v in p.params.items() if k not in _EXCLUDE},
-                 "position": {"x": p.x, "y": p.y}, "rotation": p.rotation}
+                {
+                    "instanceName": p.name,
+                    "componentId": p.componentId,
+                    "options": {k: str(v) for k, v in p.params.items() if k not in _EXCLUDE},
+                    "position": {"x": p.x, "y": p.y},
+                    "rotation": p.rotation,   # always pass; worker sets orientation=
+                }
                 for p in design.placements
             ],
             "connections": [
-                {"id": conn.id,
-                 "sourceComponentName": placement_names.get(conn.from_.placementId, conn.from_.placementId),
-                 "sourcePinName": conn.from_.pinName,
-                 "targetComponentName": placement_names.get(conn.to.placementId, conn.to.placementId),
-                 "targetPinName": conn.to.pinName,
-                 "routeComponentId": conn.routeComponentId or "RouteMeander",
-                 "routeOverrides": {k: str(v) for k, v in conn.routeOverrides.items()}}
+                {
+                    "id": conn.id,
+                    "sourceComponentName": placement_names.get(conn.from_.placementId, conn.from_.placementId),
+                    "sourcePinName": conn.from_.pinName,
+                    "targetComponentName": placement_names.get(conn.to.placementId, conn.to.placementId),
+                    "targetPinName": conn.to.pinName,
+                    "routeComponentId": conn.routeComponentId or "RouteMeander",
+                    "routeOverrides": {k: str(v) for k, v in conn.routeOverrides.items()},
+                }
             ],
         }
 
@@ -246,34 +253,48 @@ class RenderService:
             log.warning("Route render failed for %s: %s", connection_id, result["error"])
             return None
 
+        # Log any per-route errors returned by the worker
+        for cid, err in result.get("route_errors", {}).items():
+            log.warning("Worker route error for %s: %s", cid, err)
+
         routes = result.get("routes", {})
         svg = routes.get(connection_id, "")
-        return RouteRender(connectionId=connection_id, svg=svg) if svg else None
+        if not svg:
+            re = result.get("route_errors", {}).get(connection_id, "empty SVG")
+            log.warning("Route %s produced no SVG: %s", connection_id, re)
+            return None
+        return RouteRender(connectionId=connection_id, svg=svg)
 
     def render_design(self, design: DesignDocument) -> RenderResult:
         if not design.placements:
             return RenderResult(svg="", viewBox=ViewBox(x=-4500, y=-3000, w=9000, h=6000), units="um", layers=[], routes=[])
 
-        _EXCLUDE = frozenset({"connection_pads", "pos_x", "pos_y", "orientation", "chip", "layer"})
+        _EXCLUDE = frozenset({"connection_pads", "pos_x", "pos_y", "chip", "layer"})
         placement_names = {p.id: p.name for p in design.placements}
         
         unlocked_connections = [c for c in design.connections if not c.locked]
         
         graph = {
             "components": [
-                {"instanceName": p.name, "componentId": p.componentId,
-                 "options": {k: str(v) for k, v in p.params.items() if k not in _EXCLUDE},
-                 "position": {"x": p.x, "y": p.y}, "rotation": p.rotation}
+                {
+                    "instanceName": p.name,
+                    "componentId": p.componentId,
+                    "options": {k: str(v) for k, v in p.params.items() if k not in _EXCLUDE},
+                    "position": {"x": p.x, "y": p.y},
+                    "rotation": p.rotation,
+                }
                 for p in design.placements
             ],
             "connections": [
-                {"id": c.id,
-                 "sourceComponentName": placement_names.get(c.from_.placementId, c.from_.placementId),
-                 "sourcePinName": c.from_.pinName,
-                 "targetComponentName": placement_names.get(c.to.placementId, c.to.placementId),
-                 "targetPinName": c.to.pinName,
-                 "routeComponentId": c.routeComponentId or "RouteMeander",
-                 "routeOverrides": {k: str(v) for k, v in c.routeOverrides.items()}}
+                {
+                    "id": c.id,
+                    "sourceComponentName": placement_names.get(c.from_.placementId, c.from_.placementId),
+                    "sourcePinName": c.from_.pinName,
+                    "targetComponentName": placement_names.get(c.to.placementId, c.to.placementId),
+                    "targetPinName": c.to.pinName,
+                    "routeComponentId": c.routeComponentId or "RouteMeander",
+                    "routeOverrides": {k: str(v) for k, v in c.routeOverrides.items()},
+                }
                 for c in unlocked_connections
             ],
         }
