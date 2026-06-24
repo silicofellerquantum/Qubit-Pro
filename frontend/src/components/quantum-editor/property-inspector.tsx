@@ -133,7 +133,7 @@ function computeResonatorDiagnostics(
     footprintWum = widthMm * 1000;
     footprintHum = (colWidthMm + 2 * n * (traceWidthMm + traceGapMm)) * 1000;
   } else {
-    const turn_unit_len = colWidthMm + Math.pi * filletMm;
+    const turn_unit_len = colWidthMm + Math.PI * filletMm;
     const body_len = lengthMm - 2 * leadMm;
     if (body_len > 0 && turn_unit_len > 0) {
       const N_ideal = (body_len + colWidthMm) / turn_unit_len;

@@ -647,7 +647,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               key={p.id}
               placement={p}
               componentId={p.componentId}
-              category={compsById.get(p.componentId)?.category}
               selected={isSelected(state.selection, "placement", p.id)}
               hovered={hovered === p.id}
               pendingOwner={state.pendingPin?.placementId ?? null}

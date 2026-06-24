@@ -52,7 +52,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     async function loadFullProject() {
       try {
-        const fullProject = await fetchProject(activeProject.id);
+        const fullProject = await fetchProject(activeProject!.id);
         if (active) {
           _setActiveProject(fullProject);
         }
