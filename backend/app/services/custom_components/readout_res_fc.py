@@ -97,7 +97,7 @@ class ReadoutResFC(QComponent):
             return pts[-1], -dx, -dy
 
         cur = (0.0, 0.0)
-        dx, dy = 1.0, 0.0  # start direction: +x
+        dx, dy = 1.0, 0.0  # start direction: 
 
         cur         = _arm(cur, dx, dy, l1)
         cur, dx, dy = _turn(cur, dx, dy, sign=+1)
@@ -127,7 +127,7 @@ class ReadoutResFC(QComponent):
         pin_inner = np.array([0.0,  0.0])   # at component origin
         pin_outer = np.array([-w,   0.0])   # one width back in -x
 
-        # ── Apply orientation rotation + pos translation ──────────────────────
+        # ── Apply orientation rotation + pos transla ──────────────────────
         # This is the standard Qiskit Metal pattern (see transmon_pocket.py):
         #   1. draw.rotate(shapes, angle, origin=(0,0))
         #   2. draw.translate(shapes, pos_x, pos_y)
