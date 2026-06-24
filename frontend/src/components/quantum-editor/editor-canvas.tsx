@@ -288,22 +288,51 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     setDragStartPos(null);
   };
 
-  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, state.zoom * zoomFactor));
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (rect && state.zoom > 0) {
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      const newPanX = state.pan.x + (mx - cx) * (1 - newZoom / state.zoom);
-      const newPanY = state.pan.y + (my - cy) * (1 - newZoom / state.zoom);
-      dispatch({ type: "ZOOM", zoom: newZoom });
-      dispatch({ type: "PAN", x: newPanX, y: newPanY });
-    } else {
-      dispatch({ type: "ZOOM", zoom: newZoom });
-    }
-  };
+  // Refs so the native wheel handler always reads fresh state without stale closures
+  const panRef = useRef(state.pan);
+  const zoomRef = useRef(state.zoom);
+  const cxRef = useRef(cx);
+  const cyRef = useRef(cy);
+  useEffect(() => { panRef.current = state.pan; }, [state.pan]);
+  useEffect(() => { zoomRef.current = state.zoom; }, [state.zoom]);
+  useEffect(() => { cxRef.current = cx; }, [cx]);
+  useEffect(() => { cyRef.current = cy; }, [cy]);
+
+  // Native wheel listener with { passive: false } so preventDefault() actually works.
+  // React synthetic onWheel cannot reliably call preventDefault in all browsers.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        // Zoom toward cursor — only when Ctrl/Cmd is held
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        const currentZoom = zoomRef.current;
+        const newZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, currentZoom * zoomFactor));
+        const rect = el.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const curCx = cxRef.current;
+        const curCy = cyRef.current;
+        const newPanX = panRef.current.x + (mx - curCx) * (1 - newZoom / currentZoom);
+        const newPanY = panRef.current.y + (my - curCy) * (1 - newZoom / currentZoom);
+        dispatch({ type: "ZOOM", zoom: newZoom });
+        dispatch({ type: "PAN", x: newPanX, y: newPanY });
+      } else {
+        // Plain scroll → pan; Shift+scroll → horizontal pan
+        const dx = e.shiftKey ? e.deltaY : e.deltaX;
+        const dy = e.shiftKey ? 0 : e.deltaY;
+        dispatch({ type: "PAN", x: panRef.current.x - dx, y: panRef.current.y - dy });
+      }
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // attach once — state is read via refs
+
+  // No-op synthetic handler (keeps TypeScript happy for the onWheel prop)
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => { e.preventDefault(); };
 
   const cancelDrag = useCallback(() => {
     if (drag && dragStartPos) {
@@ -464,16 +493,18 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden bg-[#f8fafc] select-none flex items-center justify-center"
+      className="relative h-full w-full overflow-hidden bg-[#f8fafc] select-none"
     >
       <svg
         ref={svgRef}
         width={size.w}
         height={size.h}
         className="block touch-none"
+        style={{
+          cursor: panDrag ? "grabbing" : state.tool === "pan" ? "grab" : drag?.mode === "move" ? "grabbing" : "default",
+        }}
         role="application"
         aria-label="Quantum chip schematic editor canvas"
-        style={{ cursor: panDrag ? "grabbing" : state.tool === "pan" ? "grab" : drag?.mode === "move" ? "grabbing" : "default" }}
         onPointerDown={onPDown}
         onPointerMove={onPMove}
         onPointerUp={onPUp}
@@ -485,8 +516,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         onDrop={(e) => onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
       >
         <defs>
+          {/* boardClip covers the full usable area (inside the ruler strips) */}
           <clipPath id="boardClip">
-            <rect x={left} y={top} width={bw} height={bh} rx={8} />
+            <rect x={RULER_L} y={0} width={size.w - RULER_L} height={size.h - RULER_B} />
           </clipPath>
           <linearGradient id="siliconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#e0f2fe" />
@@ -503,70 +535,79 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           </filter>
         </defs>
 
-        {/* Workbench Background Grid */}
+        {/* ── Full-SVG chip-color background — no white ever shows ──────── */}
+        {/* This rect covers the entire SVG so panning never reveals white.  */}
         <rect
           data-canvas-bg="true"
-          x={0}
-          y={0}
-          width={size.w}
-          height={size.h}
-          fill="transparent"
-          style={{
-            backgroundImage: "radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)",
-            backgroundSize: "24px 24px",
-          }}
+          x={0} y={0}
+          width={size.w} height={size.h}
+          fill="url(#siliconGrad)"
         />
 
-        {/* Chip board and content */}
+        {/* ── Everything inside the usable canvas area ─────────────────── */}
         <g clipPath="url(#boardClip)">
+
+          {/* Subtle dot-grid pattern over the chip background */}
           <rect
-            x={left}
-            y={top}
-            width={bw}
-            height={bh}
-            fill="url(#siliconGrad)"
-            stroke="#0284c7"
-            strokeWidth={2.5}
-            filter="url(#glow)"
-            rx={8}
+            data-canvas-bg="true"
+            x={RULER_L} y={0}
+            width={size.w - RULER_L} height={size.h - RULER_B}
+            fill="transparent"
+            style={{
+              backgroundImage: "radial-gradient(circle, rgba(14,165,233,0.3) 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
+            }}
           />
 
-          {/* Snap-aligned grid inside board */}
+          {/* Chip board border — just the outline, no fill (background already chip-color) */}
+          <rect
+            x={left} y={top}
+            width={bw} height={bh}
+            fill="none"
+            stroke="#0284c7"
+            strokeWidth={2}
+            rx={4}
+          />
+
+          {/* Snap-aligned grid inside board — only render visible lines for performance */}
           {state.showGrid && (
-            <g opacity={Math.min(1, state.snap * 10)} style={{ pointerEvents: "none" }}>
+            <g opacity={Math.min(1, Math.max(0.15, state.snap * scale * 20))} style={{ pointerEvents: "none" }}>
               {(() => {
                 const step = state.snap;
                 const els = [];
+                // Clip to visible screen area for performance on a 40 mm canvas
+                const visLeft  = s2w(RULER_L,  0).x - step;
+                const visRight = s2w(size.w,   0).x + step;
+                const visTop   = s2w(0, 0).y         + step;
+                const visBot   = s2w(0, size.h - RULER_B).y - step;
                 // Vertical lines
-                const startX = Math.ceil(-CHIP_HALF_W / step) * step;
-                const endX = Math.floor(CHIP_HALF_W / step) * step;
-                for (let x = startX; x <= endX + 0.0001; x = parseFloat((x + step).toFixed(3))) {
+                const startX = Math.max(-CHIP_HALF_W, Math.ceil(visLeft  / step) * step);
+                const endX   = Math.min( CHIP_HALF_W, Math.floor(visRight / step) * step);
+                for (let x = startX; x <= endX + 0.0001; x = parseFloat((x + step).toFixed(6))) {
                   const isMajor = Math.abs(x % 1.0) < 0.001;
                   const a = w2s(x, -CHIP_HALF_H);
-                  const b = w2s(x, CHIP_HALF_H);
+                  const b = w2s(x,  CHIP_HALF_H);
                   els.push(
-                    <line
-                      key={`v-${x}`}
+                    <line key={`v-${x}`}
                       x1={a.px} y1={a.py} x2={b.px} y2={b.py}
-                      stroke={isMajor ? "rgba(14,165,233,0.25)" : "rgba(14,165,233,0.10)"}
+                      stroke={isMajor ? "rgba(14,165,233,0.30)" : "rgba(14,165,233,0.12)"}
                       strokeWidth={isMajor ? 0.8 : 0.4}
-                    />
+                    />,
                   );
                 }
                 // Horizontal lines
-                const startY = Math.ceil(-CHIP_HALF_H / step) * step;
-                const endY = Math.floor(CHIP_HALF_H / step) * step;
-                for (let y = startY; y <= endY + 0.0001; y = parseFloat((y + step).toFixed(3))) {
+                const startY = Math.max(-CHIP_HALF_H, Math.ceil(visBot  / step) * step);
+                const endY   = Math.min( CHIP_HALF_H, Math.floor(visTop / step) * step);
+                for (let y = startY; y <= endY + 0.0001; y = parseFloat((y + step).toFixed(6))) {
                   const isMajor = Math.abs(y % 1.0) < 0.001;
                   const a = w2s(-CHIP_HALF_W, y);
-                  const b = w2s(CHIP_HALF_W, y);
+                  const b = w2s( CHIP_HALF_W, y);
                   els.push(
-                    <line
-                      key={`h-${y}`}
+                    <line key={`h-${y}`}
                       x1={a.px} y1={a.py} x2={b.px} y2={b.py}
-                      stroke={isMajor ? "rgba(14,165,233,0.25)" : "rgba(14,165,233,0.10)"}
+                      stroke={isMajor ? "rgba(14,165,233,0.30)" : "rgba(14,165,233,0.12)"}
                       strokeWidth={isMajor ? 0.8 : 0.4}
-                    />
+                    />,
                   );
                 }
                 return els;
@@ -606,7 +647,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               key={p.id}
               placement={p}
               componentId={p.componentId}
-              category={compsById.get(p.componentId)?.category}
               selected={isSelected(state.selection, "placement", p.id)}
               hovered={hovered === p.id}
               pendingOwner={state.pendingPin?.placementId ?? null}
@@ -837,36 +877,30 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
 
         {state.showRulers && (
         <>
-        {/* Horizontal board ruler */}
+        {/* ── X-axis ruler — sticky to BOTTOM edge of SVG ─────────────────
+            Background covers [RULER_L → size.w] × [size.h-RULER_B → size.h]
+            Ticks point downward from the top of the bar.
+        ──────────────────────────────────────────────────────────────────── */}
         <g style={{ pointerEvents: "none" }}>
           <rect
-            x={left}
-            y={top - RULER_B}
-            width={bw}
-            height={RULER_B}
-            fill="#f1f5f9"
-            stroke="#cbd5e1"
-            strokeWidth={1}
+            x={RULER_L} y={size.h - RULER_B}
+            width={size.w - RULER_L} height={RULER_B}
+            fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
           />
           {hTicks.map(({ value, px, type }) => {
-            const y1 = type === "major" ? top - 12 : type === "half" ? top - 8 : top - 4;
+            const tickH = type === "major" ? 11 : type === "half" ? 7 : 4;
             return (
-              <g key={`h-${value}`}>
+              <g key={`hx-${value}`}>
                 <line
-                  x1={px}
-                  y1={y1}
-                  x2={px}
-                  y2={top}
-                  stroke={type === "major" ? "#475569" : type === "half" ? "#94a3b8" : "#e2e8f0"}
+                  x1={px} y1={size.h - RULER_B}
+                  x2={px} y2={size.h - RULER_B + tickH}
+                  stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
                   strokeWidth={type === "major" ? 1.2 : 0.8}
                 />
                 {type === "major" && (
                   <text
-                    x={px}
-                    y={top - 16}
-                    fontSize={8.5}
-                    fill="#475569"
-                    fontWeight={600}
+                    x={px} y={size.h - RULER_B + tickH + 9}
+                    fontSize={8} fill="#475569" fontWeight={600}
                     textAnchor="middle"
                     className="pointer-events-none select-none font-mono"
                   >
@@ -878,36 +912,30 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           })}
         </g>
 
-        {/* Vertical board ruler */}
+        {/* ── Y-axis ruler — sticky to LEFT edge of SVG ───────────────────
+            Background covers [0 → RULER_L] × [0 → size.h-RULER_B]
+            Ticks point rightward from the right edge of the bar.
+        ──────────────────────────────────────────────────────────────────── */}
         <g style={{ pointerEvents: "none" }}>
           <rect
-            x={left - RULER_L}
-            y={top}
-            width={RULER_L}
-            height={bh}
-            fill="#f1f5f9"
-            stroke="#cbd5e1"
-            strokeWidth={1}
+            x={0} y={0}
+            width={RULER_L} height={size.h - RULER_B}
+            fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
           />
           {vTicks.map(({ value, py, type }) => {
-            const x1 = type === "major" ? left - 12 : type === "half" ? left - 8 : left - 4;
+            const tickW = type === "major" ? 11 : type === "half" ? 7 : 4;
             return (
-              <g key={`v-${value}`}>
+              <g key={`vy-${value}`}>
                 <line
-                  x1={x1}
-                  y1={py}
-                  x2={left}
-                  y2={py}
-                  stroke={type === "major" ? "#475569" : type === "half" ? "#94a3b8" : "#e2e8f0"}
+                  x1={RULER_L - tickW} y1={py}
+                  x2={RULER_L}         y2={py}
+                  stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
                   strokeWidth={type === "major" ? 1.2 : 0.8}
                 />
                 {type === "major" && (
                   <text
-                    x={left - 15}
-                    y={py + 3}
-                    fontSize={8.5}
-                    fill="#475569"
-                    fontWeight={600}
+                    x={RULER_L - tickW - 2} y={py + 3.5}
+                    fontSize={8} fill="#475569" fontWeight={600}
                     textAnchor="end"
                     className="pointer-events-none select-none font-mono"
                   >
@@ -919,50 +947,32 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           })}
         </g>
 
-        {/* Cursor crosshair on rulers */}
+        {/* ── Cursor crosshair lines ────────────────────────────────────── */}
         {cursorPos && (
           <g style={{ pointerEvents: "none" }}>
             <line
-              x1={w2s(cursorPos.x, 0).px}
-              y1={top}
-              x2={w2s(cursorPos.x, 0).px}
-              y2={bottom}
-              stroke="#ef4444"
-              strokeWidth={0.8}
-              strokeDasharray="4 3"
-              opacity={0.6}
+              x1={w2s(cursorPos.x, 0).px} y1={0}
+              x2={w2s(cursorPos.x, 0).px} y2={size.h - RULER_B}
+              stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
             />
             <line
-              x1={left}
-              y1={w2s(0, cursorPos.y).py}
-              x2={right}
-              y2={w2s(0, cursorPos.y).py}
-              stroke="#ef4444"
-              strokeWidth={0.8}
-              strokeDasharray="4 3"
-              opacity={0.6}
+              x1={RULER_L}  y1={w2s(0, cursorPos.y).py}
+              x2={size.w}   y2={w2s(0, cursorPos.y).py}
+              stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
             />
           </g>
         )}
 
-        {/* Corner mm unit label */}
+        {/* ── Corner "mm" label ─────────────────────────────────────────── */}
         <g style={{ pointerEvents: "none" }}>
           <rect
-            x={left - RULER_L}
-            y={top - RULER_B}
-            width={RULER_L}
-            height={RULER_B}
-            fill="#e2e8f0"
-            stroke="#cbd5e1"
-            strokeWidth={1}
+            x={0} y={size.h - RULER_B}
+            width={RULER_L} height={RULER_B}
+            fill="#e2e8f0" stroke="#cbd5e1" strokeWidth={1}
           />
           <text
-            x={left - RULER_L / 2}
-            y={top - RULER_B / 2 + 3.5}
-            textAnchor="middle"
-            fontSize={10}
-            fontWeight="bold"
-            fill="#0284c7"
+            x={RULER_L / 2} y={size.h - RULER_B / 2 + 3.5}
+            textAnchor="middle" fontSize={9} fontWeight="bold" fill="#0284c7"
             className="pointer-events-none select-none font-sans"
           >
             mm
@@ -1272,9 +1282,149 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           ))}
         </div>
       )}
+
+      {/* ── Custom Scrollbars ─────────────────────────────────────────────
+          The canvas uses a pan/zoom model — there are no DOM scrollbars.
+          These overlays show scrollbar thumbs derived from pan state and
+          dispatch PAN actions when dragged, giving native scrollbar UX.
+      ──────────────────────────────────────────────────────────────────── */}
+      <CanvasScrollbars
+        size={size}
+        pan={state.pan}
+        scale={scale}
+        onPan={(x, y) => dispatch({ type: "PAN", x, y })}
+      />
     </div>
   );
 });
+
+// ── CanvasScrollbars ──────────────────────────────────────────────────────────
+// Thin overlay scrollbars that reflect pan state and dispatch PAN on drag.
+// The "world" is defined as ±WORLD_MM mm around center; thumb position and
+// size are computed from how much of the world is currently visible.
+
+const WORLD_MM = 20; // virtual world half-extent in mm (±20 mm from center)
+
+function CanvasScrollbars({
+  size,
+  pan,
+  scale,
+  onPan,
+}: {
+  size: { w: number; h: number };
+  pan: { x: number; y: number };
+  scale: number;
+  onPan: (x: number, y: number) => void;
+}) {
+  const TRACK_W = 10; // scrollbar thickness in px
+  const worldPx = WORLD_MM * 2 * MM_TO_PX * scale; // total world width in px
+  const worldHPx = WORLD_MM * 2 * MM_TO_PX * scale; // total world height in px
+
+  // Viewport is size.w × size.h px.
+  // The center of the world maps to (size.w/2 + pan.x, size.h/2 + pan.y).
+  // World left edge in screen coords = center - worldPx/2
+  // Thumb covers the fraction: size.w / worldPx of the track.
+
+  const hTrackW = size.w - TRACK_W; // horizontal track length (leave corner gap)
+  const vTrackH = size.h - TRACK_W;
+
+  const hThumbW = Math.max(30, Math.min(hTrackW, (size.w / worldPx) * hTrackW));
+  const vThumbH = Math.max(30, Math.min(vTrackH, (size.h / worldHPx) * vTrackH));
+
+  // pan.x = 0 means center of world is at screen center → thumb centered
+  // Range of pan.x: from -(worldPx/2 - size.w/2) to +(worldPx/2 - size.w/2)
+  const maxPanX = Math.max(0, worldPx / 2 - size.w / 2);
+  const maxPanY = Math.max(0, worldHPx / 2 - size.h / 2);
+
+  // Normalise pan to [0,1] where 0 = world-left at viewport-left
+  const normX = maxPanX > 0 ? (pan.x + maxPanX) / (2 * maxPanX) : 0.5;
+  const normY = maxPanY > 0 ? (-pan.y + maxPanY) / (2 * maxPanY) : 0.5; // y is inverted
+
+  const hThumbX = normX * (hTrackW - hThumbW);
+  const vThumbY = normY * (vTrackH - vThumbH);
+
+  // Drag state for each scrollbar
+  const hDragRef = useRef<{ startX: number; startPan: number } | null>(null);
+  const vDragRef = useRef<{ startY: number; startPan: number } | null>(null);
+
+  const onHDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    hDragRef.current = { startX: e.clientX, startPan: pan.x };
+  };
+  const onHMove = (e: React.PointerEvent) => {
+    if (!hDragRef.current) return;
+    const dx = e.clientX - hDragRef.current.startX;
+    const panPerPx = (2 * maxPanX) / (hTrackW - hThumbW || 1);
+    onPan(hDragRef.current.startPan + dx * panPerPx, pan.y);
+  };
+  const onHUp = () => { hDragRef.current = null; };
+
+  const onVDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    vDragRef.current = { startY: e.clientY, startPan: pan.y };
+  };
+  const onVMove = (e: React.PointerEvent) => {
+    if (!vDragRef.current) return;
+    const dy = e.clientY - vDragRef.current.startY;
+    const panPerPx = (2 * maxPanY) / (vTrackH - vThumbH || 1);
+    onPan(pan.x, vDragRef.current.startPan - dy * panPerPx);
+  };
+  const onVUp = () => { vDragRef.current = null; };
+
+  const trackStyle: React.CSSProperties = { background: "rgba(0,0,0,0.04)", borderRadius: 6 };
+  const thumbStyle: React.CSSProperties = { background: "rgba(100,116,139,0.45)", borderRadius: 6, position: "absolute", cursor: "pointer" };
+
+  return (
+    <>
+      {/* Horizontal scrollbar */}
+      <div
+        style={{
+          position: "absolute", bottom: 0, left: 0,
+          width: hTrackW, height: TRACK_W,
+          ...trackStyle,
+        }}
+      >
+        <div
+          style={{
+            ...thumbStyle,
+            left: hThumbX, top: 1,
+            width: hThumbW, height: TRACK_W - 2,
+          }}
+          onPointerDown={onHDown}
+          onPointerMove={onHMove}
+          onPointerUp={onHUp}
+          onPointerCancel={onHUp}
+        />
+      </div>
+
+      {/* Vertical scrollbar */}
+      <div
+        style={{
+          position: "absolute", top: 0, right: 0,
+          width: TRACK_W, height: vTrackH,
+          ...trackStyle,
+        }}
+      >
+        <div
+          style={{
+            ...thumbStyle,
+            top: vThumbY, left: 1,
+            height: vThumbH, width: TRACK_W - 2,
+          }}
+          onPointerDown={onVDown}
+          onPointerMove={onVMove}
+          onPointerUp={onVUp}
+          onPointerCancel={onVUp}
+        />
+      </div>
+
+      {/* Corner square */}
+      <div style={{ position: "absolute", bottom: 0, right: 0, width: TRACK_W, height: TRACK_W, background: "rgba(0,0,0,0.04)" }} />
+    </>
+  );
+}
 
 function PlacementPreview({
   placement,
