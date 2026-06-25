@@ -79,10 +79,10 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
     label: "Simulation & Analysis",
     items: [
       { title: "Verification", url: "/verification", icon: CheckCircle2, locked: true },
-      { title: "Simulations", url: "/simulations", icon: PlayCircle, locked: true },
+      { title: "Simulations", url: "/simulations", icon: PlayCircle },
       { title: "Physics Analysis", url: "/physics-analysis", icon: Atom, locked: true },
       { title: "Fault Tolerance Studio", url: "/fault-tolerance", icon: Shield, locked: true },
-      
+
     ],
   },
   {
@@ -177,11 +177,10 @@ export function AppSidebar() {
                         asChild
                         isActive={isActive}
                         tooltip={item.title}
-                        className={`h-9 rounded-lg transition-colors ${
-                          isActive
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground font-semibold shadow-sm shadow-sidebar-primary/20"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
-                        }`}
+                        className={`h-9 rounded-lg transition-colors ${isActive
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground font-semibold shadow-sm shadow-sidebar-primary/20"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
+                          }`}
                       >
                         <Link to={item.url} className="flex items-center gap-3 w-full">
                           <item.icon
@@ -194,11 +193,10 @@ export function AppSidebar() {
                               </span>
                               {item.badge && (
                                 <span
-                                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                    isActive
-                                      ? "bg-white/20 text-white"
-                                      : "bg-accent/20 text-violet-300"
-                                  }`}
+                                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${isActive
+                                    ? "bg-white/20 text-white"
+                                    : "bg-accent/20 text-violet-300"
+                                    }`}
                                 >
                                   {item.badge}
                                 </span>
@@ -224,11 +222,10 @@ export function AppSidebar() {
                     asChild
                     isActive={pathname === "/admin"}
                     tooltip="Admin"
-                    className={`h-9 rounded-lg ${
-                      pathname === "/admin"
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
-                    }`}
+                    className={`h-9 rounded-lg ${pathname === "/admin"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
+                      }`}
                   >
                     <Link to="/admin" className="flex items-center gap-3">
                       <ShieldCheck className="h-4 w-4 shrink-0 text-sidebar-foreground/75" />

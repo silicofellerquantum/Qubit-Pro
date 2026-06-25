@@ -24,6 +24,11 @@ python-dotenv==1.0.1
 
 # ── Physics / ML ──────────────────────────────────────────────────────────────
 networkx==3.2.1
+gmsh==4.11.1
+pyvista>=0.43.0
+meshio>=5.3.4
+qiskit-metal==0.1.5
+PySide2==5.15.2.1
 # torch>=2.0.0             # Optional — large dep, not installed in CI; code falls back to regex intent
 
 # ── AI Assistant ──────────────────────────────────────────────────────────────

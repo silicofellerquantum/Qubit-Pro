@@ -193,6 +193,8 @@ class Simulation(Base):
     memory_gb: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    artifact_path: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    artifact_retained: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     project: Mapped["Project"] = relationship("Project", back_populates="simulations")

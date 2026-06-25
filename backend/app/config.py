@@ -7,6 +7,9 @@ for zero-setup local development (no Postgres required).
 
 from __future__ import annotations
 
+import dotenv
+dotenv.load_dotenv()
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +19,9 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     max_qubits: int = 256
+    palace_mock_mode: bool = True
+    keep_simulation_artifacts: bool = True
+    gmsh_coarse_test: bool = False
 
     # Database — defaults to SQLite for zero-setup local dev
     database_url: str = "sqlite+aiosqlite:///./dev.db"
@@ -30,7 +36,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 10080  # 7 days
 
     # CORS — localhost ports used by Vite dev server
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:8080"
 
     # Claude / Anthropic (optional — falls back to rule-based assistant if empty)
     anthropic_api_key: str = ""
@@ -57,3 +63,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+import os
+if settings.gmsh_coarse_test:
+    os.environ["GMSH_COARSE_TEST"] = "true"

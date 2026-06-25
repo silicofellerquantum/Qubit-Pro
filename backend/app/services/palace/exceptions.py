@@ -1,25 +1,35 @@
-"""Palace-specific exceptions."""
+"""Custom exceptions for AWS Palace EM simulation integration."""
 
-class PalaceIntegrationError(Exception):
-    """Base exception for all AWS Palace integration errors."""
+class PalaceError(Exception):
+    """Base exception for all AWS Palace simulation integration errors."""
     pass
 
 
-class GeometryExtractionError(PalaceIntegrationError):
-    """Raised when layout geometry extraction fails."""
+class GeometryError(PalaceError):
+    """Raised when converting design payloads/graphs to electromagnetic geometry fails."""
     pass
 
 
-class ConfigGenerationError(PalaceIntegrationError):
-    """Raised when Palace JSON configuration generation fails."""
+class ConfigGeneratorError(PalaceError):
+    """Raised when generating AWS Palace JSON configurations fails."""
     pass
 
 
-class PalaceExecutionError(PalaceIntegrationError):
-    """Raised when the Palace solver fails to execute."""
+class PalaceRunnerError(PalaceError):
+    """Raised when running the AWS Palace simulation runner/solver fails."""
     pass
 
 
-class ResultParsingError(PalaceIntegrationError):
-    """Raised when Palace result parser fails to parse CSV files."""
+class ResultParserError(PalaceError):
+    """Raised when parsing output CSV files from AWS Palace fails."""
+    pass
+
+
+class AdapterError(PalaceError):
+    """Raised when adapting Palace results for scqubits/physics pipeline fails."""
+    pass
+
+
+class GmshBuilderError(PalaceError):
+    """Raised when GMSH mesh generation or physical group creation fails."""
     pass

@@ -151,21 +151,33 @@ class TestPhysicsVerifierI2:
 
     def test_scqubits_path_with_lj(self):
         """When design_options contains hfss_inductance, use scqubits."""
+        import sys
+        from unittest.mock import MagicMock
+        old_scq = sys.modules.get("scqubits")
+        if isinstance(old_scq, MagicMock):
+            del sys.modules["scqubits"]
         try:
             import scqubits  # noqa: F401
         except ImportError:
+            if isinstance(old_scq, MagicMock):
+                sys.modules["scqubits"] = old_scq
             pytest.skip("scqubits not installed")
-        from app.services.physics_grounding.verifier import PhysicsVerifier
-        from app.services.physics_grounding.targets import TargetVector
-        v = PhysicsVerifier()
-        # Lj = 9.686 nH → EJ ≈ 33.8 GHz → f01 ≈ 9.23 GHz (scqubits)
-        # Set target to the expected f01 so residual should be ~0
-        target = TargetVector(f_q_ghz=9.23, alpha_mhz=-340.0)
-        design_opts = {"hfss_inductance": 9.686e-9}  # in Henries
-        residuals = v.verify(target, design_options=design_opts)
-        assert "f_q_ghz" in residuals
-        # scqubits result should be self-consistent (residual ≈ 0)
-        assert abs(residuals["f_q_ghz"]) < 0.05
+
+        try:
+            from app.services.physics_grounding.verifier import PhysicsVerifier
+            from app.services.physics_grounding.targets import TargetVector
+            v = PhysicsVerifier()
+            # Lj = 9.686 nH → EJ ≈ 33.8 GHz → f01 ≈ 9.23 GHz (scqubits)
+            # Set target to the expected f01 so residual should be ~0
+            target = TargetVector(f_q_ghz=9.23, alpha_mhz=-340.0)
+            design_opts = {"hfss_inductance": 9.686e-9}  # in Henries
+            residuals = v.verify(target, design_options=design_opts)
+            assert "f_q_ghz" in residuals
+            # scqubits result should be self-consistent (residual ≈ 0)
+            assert abs(residuals["f_q_ghz"]) < 0.05
+        finally:
+            if isinstance(old_scq, MagicMock):
+                sys.modules["scqubits"] = old_scq
 
     def test_returns_empty_when_no_target_freq(self):
         from app.services.physics_grounding.verifier import PhysicsVerifier

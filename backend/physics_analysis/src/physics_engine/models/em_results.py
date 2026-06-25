@@ -35,15 +35,38 @@ class CapacitanceMatrix(BaseModel):
         """Number of terminals."""
         return len(self.terminal_ids)
 
+    def _resolve_terminal_idx(self, terminal_id: str) -> int:
+        """Resolve a terminal ID, supporting prefixes like 'comp_' and suffix matches."""
+        # 1. Try exact match
+        if terminal_id in self.terminal_ids:
+            return self.terminal_ids.index(terminal_id)
+        
+        # 2. Try matching without 'comp_' or 'pl_' prefixes
+        clean_target = terminal_id.lower().replace("comp_", "").replace("pl_", "")
+        
+        for idx, tid in enumerate(self.terminal_ids):
+            clean_tid = tid.lower().replace("comp_", "").replace("pl_", "")
+            if clean_tid == clean_target:
+                return idx
+                
+        # 3. Try suffix/substring match
+        for idx, tid in enumerate(self.terminal_ids):
+            clean_tid = tid.lower().replace("comp_", "").replace("pl_", "")
+            if clean_target in clean_tid or clean_tid in clean_target:
+                return idx
+                
+        # 4. Fallback to index lookup which will raise ValueError
+        return self.terminal_ids.index(terminal_id)
+
     def get_self_capacitance(self, terminal_id: str) -> float:
         """Get diagonal (self) capacitance for a terminal, in the matrix units."""
-        idx = self.terminal_ids.index(terminal_id)
+        idx = self._resolve_terminal_idx(terminal_id)
         return self.matrix[idx][idx]
 
     def get_mutual_capacitance(self, terminal_a: str, terminal_b: str) -> float:
         """Get off-diagonal (mutual) capacitance between two terminals."""
-        idx_a = self.terminal_ids.index(terminal_a)
-        idx_b = self.terminal_ids.index(terminal_b)
+        idx_a = self._resolve_terminal_idx(terminal_a)
+        idx_b = self._resolve_terminal_idx(terminal_b)
         return self.matrix[idx_a][idx_b]
 
 

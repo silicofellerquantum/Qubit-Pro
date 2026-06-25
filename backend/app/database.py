@@ -83,6 +83,25 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
     log.info("Database tables ensured.")
 
+    # Auto-migration fallback for existing databases
+    try:
+        async with engine.begin() as conn:
+            from sqlalchemy import inspect, text
+            def _check_and_migrate(connection):
+                inspector = inspect(connection)
+                columns = [col["name"] for col in inspector.get_columns("simulations")]
+                if "artifact_path" not in columns:
+                    log.info("Migration: Adding artifact_path column to simulations table.")
+                    connection.execute(text("ALTER TABLE simulations ADD COLUMN artifact_path VARCHAR(256)"))
+                if "artifact_retained" not in columns:
+                    log.info("Migration: Adding artifact_retained column to simulations table.")
+                    # For SQLite and Postgres, adding a boolean column with a default value is supported.
+                    connection.execute(text("ALTER TABLE simulations ADD COLUMN artifact_retained BOOLEAN DEFAULT FALSE"))
+            await conn.run_sync(_check_and_migrate)
+            log.info("Database migrations check completed successfully.")
+    except Exception as e:
+        log.warning(f"Auto-migration check failed or skipped (non-fatal): {e}")
+
     try:
         from app.models import User, UserRole
         from app.auth import hash_password
@@ -117,8 +136,44 @@ async def init_db() -> None:
                     ),
                 ]
                 session.add_all(demo_users)
+                await session.flush()
+
+                # Seed high-fidelity default projects with a valid 2-qubit transmon design
+                from app.constraints.constraints import DesignConstraints
+                from app.services.design_pipeline import run_design_pipeline
+                from app.models import Project, ProjectStatus
+                import uuid
+
+                log.info("Generating default high-fidelity 2-qubit transmon design for database seeding...")
+                constraints = DesignConstraints.from_prompt_params({
+                    "num_qubits": 2,
+                    "topology": "grid",
+                    "substrate": "silicon",
+                    "metal": "aluminum",
+                    "scale": 1.0,
+                    "target_freq_ghz": 5.0
+                })
+                design_payload = await run_design_pipeline(constraints)
+
+                for user in demo_users:
+                    project = Project(
+                        id=str(uuid.uuid4()),
+                        owner_id=user.id,
+                        name="Transmon_Processor_v2",
+                        description="Pre-loaded high-fidelity 2-qubit transmon processor layout.",
+                        topology="grid",
+                        num_qubits=2,
+                        target_frequency_ghz=5.0,
+                        substrate_material="silicon",
+                        metal_layer="aluminum",
+                        status=ProjectStatus.in_progress,
+                        design_payload=design_payload,
+                    )
+                    session.add(project)
+                
                 await session.commit()
-                log.info("Demo users seeded successfully.")
+                log.info("Demo users and projects seeded successfully.")
     except Exception as e:
-        log.warning(f"Seeding skipped or failed: {e}")
+        log.warning(f"Seeding skipped or failed: {e}", exc_info=True)
+
 
