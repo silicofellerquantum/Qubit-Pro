@@ -330,36 +330,37 @@ def _map_resonator_options(component_id: str, opts: dict) -> dict:
             return val
 
     # 1. ReadoutResFC (custom folded CPW resonator)
+    # Only map generic frontend param names → real class option names.
+    # Strip stale catalog params (readout_radius, arc_step, subtract, layer_subtract)
+    # that don't exist in ReadoutResFC.default_options.
     if component_id == "ReadoutResFC":
-        total_len = res.get("total_length") or res.get("length")
-        tr = res.get("fillet")
-        lead_len = res.get("lead_length") or res.get("lead")
-        trace_w = res.get("trace_width")
-        trace_g = res.get("trace_gap")
-        
-        if trace_w is not None:
+        # Generic CPW key aliases → real option names
+        trace_w = res.pop("trace_width", None)
+        trace_g = res.pop("trace_gap", None)
+        if trace_w is not None and "readout_cpw_width" not in res:
             res["readout_cpw_width"] = trace_w
-        if trace_g is not None:
+        if trace_g is not None and "readout_cpw_gap" not in res:
             res["readout_cpw_gap"] = trace_g
-            
-        # Support meander pitch (maps to turn radius = pitch / 2)
-        pitch_val = res.get("meander_pitch") or res.get("meander_spacing")
+
+        # fillet / meander_pitch → turn radius
+        pitch_val = res.pop("meander_pitch", None) or res.pop("meander_spacing", None)
+        fillet_val = res.pop("fillet", None)
         if pitch_val is not None:
             half_tr = div_length(pitch_val, 2.0)
-            res["readout_radius"] = half_tr
-            res["readout_cpw_turnradius"] = half_tr
-        elif tr is not None:
-            res["readout_radius"] = tr
-            res["readout_cpw_turnradius"] = tr
-            
-        res_w = res.get("resonator_width") or res.get("meander_width")
-            
-        if total_len is not None:
-            res["total_length"] = total_len
-        if lead_len is not None:
-            res["lead_length"] = lead_len
-        if res_w is not None:
-            res["resonator_width"] = res_w
+            if "readout_cpw_turnradius" not in res:
+                res["readout_cpw_turnradius"] = half_tr
+        elif fillet_val is not None and "readout_cpw_turnradius" not in res:
+            res["readout_cpw_turnradius"] = fillet_val
+
+        # Strip every key that is NOT in ReadoutResFC.default_options
+        _valid = {
+            "pos_x", "pos_y", "orientation", "chip", "layer",
+            "readout_cpw_width", "readout_cpw_gap", "readout_cpw_turnradius",
+            "readout_l1", "readout_l2", "readout_l3", "readout_l4", "readout_l5",
+        }
+        for stale_key in list(res.keys()):
+            if stale_key not in _valid:
+                res.pop(stale_key, None)
             
     # 2. ResonatorCoilRect (rectangular spiral coil)
     elif component_id == "ResonatorCoilRect":

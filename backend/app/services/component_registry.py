@@ -43,9 +43,16 @@ class ComponentRegistryService:
         return self._components_map.get(component_id)
 
     def invalidate(self) -> None:
-        # Reload catalog from disk
+        """Reload catalog from disk and flush all dependent caches."""
         self._components_map.clear()
         self._load_catalog()
+        # Also flush the metadata/pin/preview entries from the shared cache
+        # so the next request re-derives them from the fresh catalog.
+        try:
+            from app.core.registry_cache import registry_cache
+            registry_cache.invalidate()
+        except Exception:
+            pass
 
 
 component_registry_service = ComponentRegistryService()
