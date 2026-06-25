@@ -1,5 +1,5 @@
 """bridge.py - Qiskit Metal Bridge endpoints for the Schematic Editor.
-
+# reload: codegen v3 — unique routes, distance-based total_length, pin conflict warnings
 Provides the /components/* and /design/* endpoints that the frontend
 EditorCanvas and CodeIdePanel expect, routed to the live render and
 discovery services.

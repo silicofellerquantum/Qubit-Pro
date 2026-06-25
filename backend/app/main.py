@@ -1,4 +1,4 @@
-# Triggering reload...
+# codegen fix: unique route names, cpw placeholder resolution, total_length fallback
 """
 SILICOFELLER Quantum Studio — FastAPI Backend
 =============================================
@@ -46,6 +46,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         log.warning(f"Database init skipped (will run without persistence): {e}")
 
     # Prewarm component registry, metadata, pins, and previews
+    # Invalidate all caches on startup so catalog changes always take effect
+    try:
+        from app.core.registry_cache import registry_cache
+        from app.services.component_registry import component_registry_service
+        registry_cache.invalidate()
+        component_registry_service.invalidate()
+        log.info("Registry cache invalidated — catalog reloaded from disk.")
+    except Exception as e:
+        log.warning(f"Registry cache invalidation failed: {e}")
+
     try:
         import threading
         def _prewarm_registry() -> None:

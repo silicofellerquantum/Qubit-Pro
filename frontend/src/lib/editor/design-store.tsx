@@ -467,8 +467,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     }
     case "SET_TOOL":
       return { ...state, tool: action.tool };
-    case "ZOOM":
-      return { ...state, zoom: Math.max(0.25, Math.min(8, action.zoom)) };
+    case "ZOOM": {
+      // Guard against NaN/Infinity before clamping — any non-finite value
+      // falls back to the minimum zoom so the canvas remains navigable.
+      const rawZoom = Number.isFinite(action.zoom) ? action.zoom : 0.25;
+      return { ...state, zoom: Math.max(0.25, Math.min(8, rawZoom)) };
+    }
     case "PAN":
       return { ...state, pan: { x: action.x, y: action.y } };
     case "SET_SNAP":
