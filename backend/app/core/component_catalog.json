@@ -2519,7 +2519,7 @@
       "summary": {
         "id": "ReadoutResFC",
         "name": "Readout Res FC",
-        "module": "app.services.custom_components.readout_res_fc",
+        "module": "qiskit_metal.qlibrary.resonators.readoutres_fc",
         "category": "resonators",
         "description": "Folded CPW readout resonator (custom)"
       },

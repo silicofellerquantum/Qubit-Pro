@@ -171,21 +171,13 @@ class CodegenService:
             class_name = placement.componentId
             imports.add(f"from {summary.module} import {class_name}")
 
-            # ReadoutResFC is our custom component — generated scripts that
-            # run standalone need it on sys.path. Emit a self-contained
-            # sys.path setup block inline so it always precedes the import.
+            # ReadoutResFC: use the official qiskit_metal import path.
+            # The class lives in qiskit_metal.qlibrary.resonators.readoutres_fc
+            # in versions that ship it. Our custom fallback mirrors that API
+            # exactly, so generated scripts work on any qiskit-metal install.
             if class_name == "ReadoutResFC":
                 imports.discard(f"from {summary.module} import {class_name}")
-                imports.add(
-                    "# ReadoutResFC: custom folded CPW resonator (not in qiskit_metal package).\n"
-                    "# The block below adds the backend directory to sys.path.\n"
-                    "# Run this script from Qubit-Pro/backend, or adjust _backend_dir as needed.\n"
-                    "import sys as _sys, os as _os\n"
-                    "_backend_dir = _os.path.dirname(_os.path.abspath(globals().get('__file__', '.')))\n"
-                    "if _backend_dir not in _sys.path:\n"
-                    "    _sys.path.insert(0, _backend_dir)\n"
-                    "from app.services.custom_components.readout_res_fc import ReadoutResFC"
-                )
+                imports.add("from qiskit_metal.qlibrary.resonators.readoutres_fc import ReadoutResFC")
 
             # ── Resolve the valid param keys for this component ───────────────
             # Load from the catalog so we can filter out stale/unknown params
