@@ -302,6 +302,12 @@ function SchematicEditorShell() {
         loadIntoCanvas(tabId, doc);
       }
 
+      if (doc.placements.length > 0) {
+        requestAnimationFrame(() => {
+          canvasRef.current?.fitToContent();
+        });
+      }
+
       if (highlight) {
         const found = doc.placements.find(
           (p) =>

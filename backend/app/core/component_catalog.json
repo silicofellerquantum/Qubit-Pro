@@ -2557,7 +2557,7 @@
         "name": "Readout Res FC",
         "module": "qiskit_metal.qlibrary.resonators.readoutres_fc",
         "category": "resonators",
-        "description": "QComponent"
+        "description": "Folded CPW readout resonator (custom)"
       },
       "parameters": [
         {
@@ -2573,28 +2573,22 @@
           "default": "0"
         },
         {
-          "name": "readout_radius",
-          "type": "length",
-          "unit": "um",
-          "default": "50"
-        },
-        {
           "name": "readout_cpw_width",
           "type": "length",
           "unit": "um",
-          "default": "5"
+          "default": "10"
         },
         {
           "name": "readout_cpw_gap",
           "type": "length",
           "unit": "um",
-          "default": "5"
+          "default": "6"
         },
         {
           "name": "readout_cpw_turnradius",
           "type": "length",
           "unit": "um",
-          "default": "50"
+          "default": "100"
         },
         {
           "name": "readout_l1",
@@ -2606,31 +2600,25 @@
           "name": "readout_l2",
           "type": "length",
           "unit": "um",
-          "default": "400"
+          "default": "600"
         },
         {
           "name": "readout_l3",
           "type": "length",
           "unit": "um",
-          "default": "400"
+          "default": "600"
         },
         {
           "name": "readout_l4",
           "type": "length",
           "unit": "um",
-          "default": "250"
+          "default": "600"
         },
         {
           "name": "readout_l5",
           "type": "length",
           "unit": "um",
           "default": "400"
-        },
-        {
-          "name": "arc_step",
-          "type": "length",
-          "unit": "um",
-          "default": "1"
         },
         {
           "name": "orientation",
@@ -2641,16 +2629,6 @@
           "name": "layer",
           "type": "number",
           "default": "1"
-        },
-        {
-          "name": "layer_subtract",
-          "type": "number",
-          "default": "2"
-        },
-        {
-          "name": "subtract",
-          "type": "bool",
-          "default": "true"
         },
         {
           "name": "chip",
@@ -2670,22 +2648,18 @@
         }
       ],
       "default_options": {
-        "pos_x": "0 um",
-        "pos_y": "0 um",
-        "readout_radius": "50 um",
-        "readout_cpw_width": "5 um",
-        "readout_cpw_gap": "5 um",
-        "readout_cpw_turnradius": "50 um",
-        "readout_l1": "400 um",
-        "readout_l2": "400 um",
-        "readout_l3": "400 um",
-        "readout_l4": "250 um",
-        "readout_l5": "400 um",
-        "arc_step": "1 um",
+        "pos_x": "0um",
+        "pos_y": "0um",
+        "readout_cpw_width": "10um",
+        "readout_cpw_gap": "6um",
+        "readout_cpw_turnradius": "100um",
+        "readout_l1": "400um",
+        "readout_l2": "600um",
+        "readout_l3": "600um",
+        "readout_l4": "600um",
+        "readout_l5": "400um",
         "orientation": "0",
         "layer": "1",
-        "layer_subtract": "2",
-        "subtract": true,
         "chip": "main",
         "_default_connection_pads": {}
       }

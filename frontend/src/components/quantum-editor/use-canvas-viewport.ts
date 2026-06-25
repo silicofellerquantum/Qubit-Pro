@@ -29,6 +29,8 @@ export const SCALE_MAX = 10.0; // zoom in for fine detail
 export const RULER_B = 28;  // X-axis ruler height, anchored to bottom
 export const RULER_L = 36;  // Y-axis ruler width,  anchored to left
 
+const MAX_VIRTUAL_PAN = 50_000; // px — effectively infinite canvas
+
 type Dispatch = (action: any) => void;
 
 export interface CanvasViewport {
@@ -100,13 +102,11 @@ export function useCanvasViewport(
   const bw = CHIP_W_MM * MM_TO_PX * scale;
   const bh = CHIP_H_MM * MM_TO_PX * scale;
 
-  // ── Pan clamping — board edges never leave the viewport ──────────────────
-  // When the board is larger than the viewport (zoomed in), allow scrolling.
-  // When the board fits entirely (zoomed out), lock pan to 0.
+  // ── Pan clamping — infinite canvas with a soft ±MAX_VIRTUAL_PAN px stop ──
   const usableW = size.w - RULER_L;
   const usableH = size.h - RULER_B;
-  const maxPanX = Math.max(0, (bw - usableW) / 2);
-  const maxPanY = Math.max(0, (bh - usableH) / 2);
+  const maxPanX = MAX_VIRTUAL_PAN;
+  const maxPanY = MAX_VIRTUAL_PAN;
   const clampedPanX = Math.max(-maxPanX, Math.min(maxPanX, state.pan.x));
   const clampedPanY = Math.max(-maxPanY, Math.min(maxPanY, state.pan.y));
 
@@ -211,8 +211,8 @@ export function useCanvasViewport(
     // World x range visible between the left ruler and the right edge
     const visLeft  = (RULER_L - cx) / (MM_TO_PX * scale);
     const visRight = (size.w  - cx) / (MM_TO_PX * scale);
-    const startV = Math.max(-CHIP_HALF_W, Math.ceil(visLeft  / step) * step);
-    const endV   = Math.min( CHIP_HALF_W, Math.floor(visRight / step) * step);
+    const startV = Math.ceil(visLeft  / step) * step;
+    const endV   = Math.floor(visRight / step) * step;
 
     for (let v = startV; v <= endV + step * 0.001; v = parseFloat((v + step).toFixed(6))) {
       const r = parseFloat(v.toFixed(4));
@@ -234,8 +234,8 @@ export function useCanvasViewport(
     // World y range visible between top and the bottom ruler
     const visTop    = -(0         - cy) / (MM_TO_PX * scale);
     const visBottom = -(usableH   - cy) / (MM_TO_PX * scale);
-    const startV = Math.max(-CHIP_HALF_H, Math.ceil(Math.min(visTop, visBottom) / step) * step);
-    const endV   = Math.min( CHIP_HALF_H, Math.floor(Math.max(visTop, visBottom) / step) * step);
+    const startV = Math.ceil(Math.min(visTop, visBottom) / step) * step;
+    const endV   = Math.floor(Math.max(visTop, visBottom) / step) * step;
 
     for (let v = startV; v <= endV + step * 0.001; v = parseFloat((v + step).toFixed(6))) {
       const r  = parseFloat(v.toFixed(4));

@@ -559,15 +559,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             }}
           />
 
-          {/* Chip board border — just the outline, no fill (background already chip-color) */}
-          <rect
-            x={left} y={top}
-            width={bw} height={bh}
-            fill="none"
-            stroke="#0284c7"
-            strokeWidth={2}
-            rx={4}
-          />
+          {/* Chip board border removed — canvas is infinite; no fixed boundary box */}
 
           {/* Snap-aligned grid inside board — only render visible lines for performance */}
           {state.showGrid && (
@@ -580,13 +572,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                 const visRight = s2w(size.w,   0).x + step;
                 const visTop   = s2w(0, 0).y         + step;
                 const visBot   = s2w(0, size.h - RULER_B).y - step;
-                // Vertical lines
-                const startX = Math.max(-CHIP_HALF_W, Math.ceil(visLeft  / step) * step);
-                const endX   = Math.min( CHIP_HALF_W, Math.floor(visRight / step) * step);
+                // Vertical lines — span the full visible world range (no chip-boundary clamp)
+                const startX = Math.ceil(visLeft  / step) * step;
+                const endX   = Math.floor(visRight / step) * step;
                 for (let x = startX; x <= endX + 0.0001; x = parseFloat((x + step).toFixed(6))) {
                   const isMajor = Math.abs(x % 1.0) < 0.001;
-                  const a = w2s(x, -CHIP_HALF_H);
-                  const b = w2s(x,  CHIP_HALF_H);
+                  const a = w2s(x, visBot - step);
+                  const b = w2s(x, visTop + step);
                   els.push(
                     <line key={`v-${x}`}
                       x1={a.px} y1={a.py} x2={b.px} y2={b.py}
@@ -595,13 +587,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                     />,
                   );
                 }
-                // Horizontal lines
-                const startY = Math.max(-CHIP_HALF_H, Math.ceil(visBot  / step) * step);
-                const endY   = Math.min( CHIP_HALF_H, Math.floor(visTop / step) * step);
+                // Horizontal lines — span the full visible world range (no chip-boundary clamp)
+                const startY = Math.ceil(visBot  / step) * step;
+                const endY   = Math.floor(visTop / step) * step;
                 for (let y = startY; y <= endY + 0.0001; y = parseFloat((y + step).toFixed(6))) {
                   const isMajor = Math.abs(y % 1.0) < 0.001;
-                  const a = w2s(-CHIP_HALF_W, y);
-                  const b = w2s( CHIP_HALF_W, y);
+                  const a = w2s(visLeft - step,  y);
+                  const b = w2s(visRight + step, y);
                   els.push(
                     <line key={`h-${y}`}
                       x1={a.px} y1={a.py} x2={b.px} y2={b.py}
@@ -1037,7 +1029,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
 
       {/* Global Dimension Indicator & Selection HUD */}
       {state.showHUD && (
-      <div className="absolute bottom-3 right-4 flex items-center gap-3 rounded-full border border-border bg-card/95 px-3 py-1 shadow-sm backdrop-blur">
+      <div className="absolute top-0 left-0 right-0 flex items-center flex-wrap gap-3 border-b border-border bg-card/95 px-3 py-1 backdrop-blur z-10">
         {getSingleSelection(state.selection)?.kind === "placement" &&
           (() => {
             const sel = getSingleSelection(state.selection);
@@ -1205,7 +1197,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
       )}
 
       {state.pendingPin && (
-        <div className="absolute top-8 left-8 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary shadow-sm">
+        <div className="absolute top-12 left-8 rounded border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-bold text-primary shadow-sm">
           Click another pin to connect · Esc to cancel
         </div>
       )}
@@ -1249,7 +1241,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         </div>
       )}
       {routeQueries.some((q) => q.isFetching) && state.connections.length > 0 && (
-        <div className="absolute bottom-12 left-8 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1 text-[10px] text-muted-foreground shadow-sm backdrop-blur">
+        <div className="absolute bottom-12 left-8 flex items-center gap-1.5 rounded border border-border bg-card/90 px-3 py-1 text-[10px] text-muted-foreground shadow-sm backdrop-blur">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-primary" /> Rendering
           route geometry…
         </div>
