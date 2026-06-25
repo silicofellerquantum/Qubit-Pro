@@ -2,7 +2,7 @@ import { type RefObject, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Undo2, Redo2, MousePointer2, Hand, Code2, Maximize,
-  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson,
+  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -26,6 +26,7 @@ interface Props {
   onFitView: () => void;
   onShowCode: (mode: CodePanelMode) => void;
   canvasRef: RefObject<EditorCanvasHandle | null>;
+  onSave?: () => void;
 }
  
 function triggerDownload(url: string, filename: string) {
@@ -33,7 +34,7 @@ function triggerDownload(url: string, filename: string) {
   URL.revokeObjectURL(url);
 }
  
-export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, canvasRef }: Props) {
+export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, canvasRef, onSave }: Props) {
   const { activeTab, dispatchActive, saveAll } = useWorkspace();
   const state    = activeTab.state;
   const dispatch = dispatchActive;
@@ -44,7 +45,14 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
 
   const setTool = (t: Tool) => dispatch({ type: "SET_TOOL", tool: t });
 
-  const handleSave = useCallback(() => { saveAll(); toast.success("Design saved"); }, [saveAll]);
+  const handleSave = useCallback(() => {
+    if (onSave) {
+      onSave();
+    } else {
+      saveAll();
+      toast.success("Design saved");
+    }
+  }, [onSave, saveAll]);
 
   const confirmClear = useCallback(() => {
     dispatch({ type: "LOAD", doc: { placements: [], connections: [] } });
@@ -145,6 +153,38 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
               </Button>
             </TooltipTrigger>
             <TooltipContent>Fit all components into view (F)</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost" size="sm"
+                onClick={() => {
+                  dispatch({ type: "CLEAR_ROUTE_CACHE" });
+                  qc.removeQueries({ queryKey: ["bridge", "render-route"] });
+                  toast.success("Routes refreshed");
+                }}
+                className="h-8 gap-1.5 text-[11px]"
+                disabled={state.connections.length === 0}
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> <span className="hidden md:inline">Refresh Routes</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Re-render all route connections</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={state.showMiniMap ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => dispatch({ type: "TOGGLE_MINIMAP" })}
+                className={cn("h-8 gap-1.5 text-[11px]", state.showMiniMap && "bg-primary/10 text-primary hover:bg-primary/15")}
+              >
+                <Map className="h-3.5 w-3.5" /> <span className="hidden md:inline">Top View</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{state.showMiniMap ? "Hide Top View" : "Show Top View"}</TooltipContent>
           </Tooltip>
 
           <Separator orientation="vertical" className="h-6" />

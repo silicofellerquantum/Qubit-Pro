@@ -168,13 +168,17 @@ def _solve_placement_graph(
     seed: int = 42,
 ) -> Dict[str, Tuple[float, float]]:
     """
-    Use networkx layout algorithms to find optimal qubit coordinates.
+    Use networkx layout algorithms to find optimal qubit coordinates, then
+    run a legalization pass to enforce minimum centre-to-centre pitch so that
+    TransmonPocket footprints (~0.65 mm) never overlap.
 
     Strategy:
       - Kamada-Kawai  : minimises sum of squared distance deviations
                         from the graph-theoretic distance → best for
                         uniform-edge graphs (grid, ring, heavy-hex)
       - Falls back to spring_layout if KK fails (disconnected graph)
+      - Legalization  : iterative pairwise push-apart until every pair is
+                        at least MIN_PITCH_MM apart (capped at MAX_ITER)
 
     Returns: {qubit_name: (x_mm, y_mm)} centred at (0, 0), spread across
     60% of chip bounds so placements are well-distributed on the canvas.
@@ -199,7 +203,73 @@ def _solve_placement_graph(
     for node, (x, y) in pos.items():
         result[node] = (round(x / max_x * target_w, 4),
                         round(y / max_y * target_h, 4))
+
+    # ── Legalization: push-apart pass ────────────────────────────────────────
+    # TransmonPocket6 pocket = 0.65 mm; resonator shell adds ~0.55 mm on each
+    # side → minimum safe centre-to-centre pitch is ~1.2 mm (pocket + gap).
+    # We use 1.3 mm to leave routing clearance.
+    result = _legalize_positions(result, target_w, target_h)
+
     return result
+
+
+# Minimum centre-to-centre qubit pitch (mm).
+# TransmonPocket6 pocket ≈ 0.65 mm + 0.55 mm resonator offset + 0.1 mm gap.
+_MIN_PITCH_MM = 1.3
+
+
+def _legalize_positions(
+    pos: Dict[str, Tuple[float, float]],
+    bound_w: float,
+    bound_h: float,
+    max_iter: int = 120,
+) -> Dict[str, Tuple[float, float]]:
+    """
+    Iterative pairwise push-apart legalization.
+
+    For every pair of qubits closer than _MIN_PITCH_MM, push each one half
+    the overlap distance away from the other (equal and opposite), clamped to
+    the chip bounds.  Repeats until no violations remain or max_iter is hit.
+    """
+    # Work with mutable lists for speed.
+    names = list(pos.keys())
+    coords = {n: list(pos[n]) for n in names}
+
+    for _ in range(max_iter):
+        moved = False
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                ni, nj = names[i], names[j]
+                xi, yi = coords[ni]
+                xj, yj = coords[nj]
+                dx = xj - xi
+                dy = yj - yi
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist < _MIN_PITCH_MM:
+                    # How far to push each node.
+                    overlap = _MIN_PITCH_MM - dist
+                    if dist < 1e-9:
+                        # Coincident — push in a fixed direction.
+                        dx, dy = 1.0, 0.0
+                        dist = 1.0
+                    push = overlap / 2.0
+                    nx_ = dx / dist * push
+                    ny_ = dy / dist * push
+                    # Move i away from j, j away from i.
+                    coords[ni][0] -= nx_
+                    coords[ni][1] -= ny_
+                    coords[nj][0] += nx_
+                    coords[nj][1] += ny_
+                    # Clamp to chip bounds.
+                    coords[ni][0] = max(-bound_w, min(bound_w, coords[ni][0]))
+                    coords[ni][1] = max(-bound_h, min(bound_h, coords[ni][1]))
+                    coords[nj][0] = max(-bound_w, min(bound_w, coords[nj][0]))
+                    coords[nj][1] = max(-bound_h, min(bound_h, coords[nj][1]))
+                    moved = True
+        if not moved:
+            break
+
+    return {n: (round(coords[n][0], 4), round(coords[n][1], 4)) for n in names}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

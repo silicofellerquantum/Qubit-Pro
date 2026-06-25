@@ -19,7 +19,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import Enum as PyEnum
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -94,8 +94,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
-    projects: Mapped[list["Project"]] = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
-    chat_history: Mapped[list["ChatHistory"]] = relationship("ChatHistory", back_populates="user", cascade="all, delete-orphan")
+    projects: Mapped[List["Project"]] = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
+    chat_history: Mapped[List["ChatHistory"]] = relationship("ChatHistory", back_populates="user", cascade="all, delete-orphan")
 
 
 # ── Project ─────────────────────────────────────────────────────────────────
@@ -120,12 +120,12 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
     owner: Mapped["User"] = relationship("User", back_populates="projects")
-    versions: Mapped[list["Version"]] = relationship("Version", back_populates="project", cascade="all, delete-orphan")
-    qclang_files: Mapped[list["QCLangFile"]] = relationship("QCLangFile", back_populates="project", cascade="all, delete-orphan")
-    layouts: Mapped[list["Layout"]] = relationship("Layout", back_populates="project", cascade="all, delete-orphan")
-    simulations: Mapped[list["Simulation"]] = relationship("Simulation", back_populates="project", cascade="all, delete-orphan")
-    verification_reports: Mapped[list["VerificationReport"]] = relationship("VerificationReport", back_populates="project", cascade="all, delete-orphan")
-    tapeout_packages: Mapped[list["TapeoutPackage"]] = relationship("TapeoutPackage", back_populates="project", cascade="all, delete-orphan")
+    versions: Mapped[List["Version"]] = relationship("Version", back_populates="project", cascade="all, delete-orphan")
+    qclang_files: Mapped[List["QCLangFile"]] = relationship("QCLangFile", back_populates="project", cascade="all, delete-orphan")
+    layouts: Mapped[List["Layout"]] = relationship("Layout", back_populates="project", cascade="all, delete-orphan")
+    simulations: Mapped[List["Simulation"]] = relationship("Simulation", back_populates="project", cascade="all, delete-orphan")
+    verification_reports: Mapped[List["VerificationReport"]] = relationship("VerificationReport", back_populates="project", cascade="all, delete-orphan")
+    tapeout_packages: Mapped[List["TapeoutPackage"]] = relationship("TapeoutPackage", back_populates="project", cascade="all, delete-orphan")
 
 
 # ── Version ──────────────────────────────────────────────────────────────────

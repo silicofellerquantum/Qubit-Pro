@@ -8,12 +8,13 @@ import {
   useImperativeHandle,
 } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Minus, MousePointer2 } from "lucide-react";
-import { prefixForCategory, type EditorState, isSelected, getSingleSelection } from "@/lib/editor/design-store";
+import { Plus, Minus, Hand, MousePointer2, X } from "lucide-react";
+import { prefixForCategory, type EditorState, type Selection, isSelected, getSingleSelection } from "@/lib/editor/design-store";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import {
   componentPinsQueryOptions,
   componentsQueryOptions,
+  componentPreviewQueryOptions,
 } from "@/lib/bridge/queries";
 import { defaultParamsFromMetadata } from "@/lib/bridge/adapters";
 import { bridgeClient } from "@/lib/bridge/client";
@@ -38,11 +39,49 @@ import {
 } from "./use-canvas-viewport";
 import { useRouteRendering } from "./use-route-rendering";
 import { useDropHandling } from "./use-drop-handling";
-import { PlacementPreview, DropGhost, PlacementGlyph, MiniMap } from "./editor-canvas-glyphs";
+// PlacementPreview, DropGhost, PlacementGlyph, MiniMap are defined locally below
 
 export { CHIP_W_MM, CHIP_H_MM, CHIP_HALF_W, CHIP_HALF_H } from "./use-canvas-viewport"; // re-export for consumers
 const UM_TO_MM = 0.001;
 const UI_SCALE_KEY = "_uiScale";
+
+// Maximum component footprint in mm before we scale it down.
+// A 1.2 mm cap keeps even large qubits (like concentric-ring types) at a
+// sensible size relative to the 9 mm chip, while small components like
+// TransmonPocket (~1 mm) render at true physical size.
+const MAX_COMP_MM = 1.2;
+
+/**
+ * Compute the SVG→screen scale factor for a component preview.
+ * All components render at their true physical size (sc = MM_TO_PX * scale),
+ * but are capped so their largest dimension never exceeds MAX_COMP_MM on screen.
+ * Pin positions MUST use the same svgScale value so they stay aligned.
+ *
+ * @param vbMaxDim  largest dimension of the component viewBox (in svgUnits)
+ * @param svgUnits  "um" | "mm"
+ * @param scale     canvas scale (baseScale × zoom)
+ * @param uiScale   per-placement uiScale override (default 1)
+ */
+function svgScale(
+  vbMaxDim: number,
+  svgUnits: "um" | "mm",
+  scale: number,
+  uiScale = 1,
+): number {
+  const physSc = MM_TO_PX * scale * uiScale * (svgUnits === "um" ? UM_TO_MM : 1);
+  const maxDimMm = vbMaxDim * (svgUnits === "um" ? UM_TO_MM : 1);
+  const capSc    = maxDimMm > MAX_COMP_MM
+    ? (MAX_COMP_MM * MM_TO_PX * scale * uiScale) / vbMaxDim
+    : physSc;
+  return capSc;
+}
+
+// Hit-area tuning constants — generous padding so components are easy to
+// click without needing pixel-perfect precision.
+const HIT_PAD = 28; // px extra around the component's visual bounding box
+const MIN_HIT = 64; // px minimum hit-rect side length
+const HIT_PAD_ROUTE = 18; // px extra around a route's pin-to-pin bbox (kept
+// modest so route hit areas don't swallow nearby component hit areas)
 
 export interface EditorCanvasHandle {
   fitToContent: () => void;
@@ -124,8 +163,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   // ── Route rendering hook ────────────────────────────────────────────────────
   const { routeQueries, routeSvg } = useRouteRendering(state, doc, drag, dispatch);
 
-  // ── Drop handling hook ──────────────────────────────────────────────────────
-  const { dropPrev, onDrop: _onDrop, onDragOver: _onDragOver, onDragLeave } = useDropHandling(dispatch);
+  // ── Drop handling hook ───────────────────────────────────────────────────────
+  const { dropPrev, onDrop, onDragOver, onDragLeave } = useDropHandling(dispatch);
 
   const pinQueries = useQueries({
     queries: state.placements.map((p) => componentPinsQueryOptions(p.componentId, p.params)),
@@ -156,24 +195,34 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     };
   };
 
-  // Simple overlap detection: placements within 0.4mm center-to-center
+  // Per-category overlap thresholds: resonators are physically larger
+  // and need more clearance before flagging a collision.
   const overlappingIds = useMemo(() => {
     const ids = new Set<string>();
-    const threshold = 0.4; // mm
+    // compsById maps componentId -> ComponentSummary with .category
+    const getThreshold = (a: Placement, b: Placement): number => {
+      const catA = compsById.get(a.componentId)?.category ?? "other";
+      const catB = compsById.get(b.componentId)?.category ?? "other";
+      const isResonatorA = catA === "resonators";
+      const isResonatorB = catB === "resonators";
+      if (isResonatorA || isResonatorB) return 0.15; // resonators don't overlap unless very close
+      return 0.4; // default for qubits, launchpads, etc.
+    };
     for (let i = 0; i < state.placements.length; i++) {
       for (let j = i + 1; j < state.placements.length; j++) {
         const a = state.placements[i];
         const b = state.placements[j];
         const dx = a.x - b.x;
         const dy = a.y - b.y;
-        if (Math.sqrt(dx * dx + dy * dy) < threshold) {
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < getThreshold(a, b)) {
           ids.add(a.id);
           ids.add(b.id);
         }
       }
     }
     return ids;
-  }, [state.placements]);
+  }, [state.placements, compsById]);
 
   // Canvas-specific keyboard handling removed to schematic-editor to prevent duplicates
 
@@ -239,22 +288,51 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     setDragStartPos(null);
   };
 
-  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, state.zoom * zoomFactor));
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (rect && state.zoom > 0) {
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      const newPanX = state.pan.x + (mx - cx) * (1 - newZoom / state.zoom);
-      const newPanY = state.pan.y + (my - cy) * (1 - newZoom / state.zoom);
-      dispatch({ type: "ZOOM", zoom: newZoom });
-      dispatch({ type: "PAN", x: newPanX, y: newPanY });
-    } else {
-      dispatch({ type: "ZOOM", zoom: newZoom });
-    }
-  };
+  // Refs so the native wheel handler always reads fresh state without stale closures
+  const panRef = useRef(state.pan);
+  const zoomRef = useRef(state.zoom);
+  const cxRef = useRef(cx);
+  const cyRef = useRef(cy);
+  useEffect(() => { panRef.current = state.pan; }, [state.pan]);
+  useEffect(() => { zoomRef.current = state.zoom; }, [state.zoom]);
+  useEffect(() => { cxRef.current = cx; }, [cx]);
+  useEffect(() => { cyRef.current = cy; }, [cy]);
+
+  // Native wheel listener with { passive: false } so preventDefault() actually works.
+  // React synthetic onWheel cannot reliably call preventDefault in all browsers.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        // Zoom toward cursor — only when Ctrl/Cmd is held
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        const currentZoom = zoomRef.current;
+        const newZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, currentZoom * zoomFactor));
+        const rect = el.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const curCx = cxRef.current;
+        const curCy = cyRef.current;
+        const newPanX = panRef.current.x + (mx - curCx) * (1 - newZoom / currentZoom);
+        const newPanY = panRef.current.y + (my - curCy) * (1 - newZoom / currentZoom);
+        dispatch({ type: "ZOOM", zoom: newZoom });
+        dispatch({ type: "PAN", x: newPanX, y: newPanY });
+      } else {
+        // Plain scroll → pan; Shift+scroll → horizontal pan
+        const dx = e.shiftKey ? e.deltaY : e.deltaX;
+        const dy = e.shiftKey ? 0 : e.deltaY;
+        dispatch({ type: "PAN", x: panRef.current.x - dx, y: panRef.current.y - dy });
+      }
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // attach once — state is read via refs
+
+  // No-op synthetic handler (keeps TypeScript happy for the onWheel prop)
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => { e.preventDefault(); };
 
   const cancelDrag = useCallback(() => {
     if (drag && dragStartPos) {
@@ -268,32 +346,179 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     fitToContent, zoomToSelection, cancelDrag,
   ]);
 
+  // hTicks and vTicks come from useCanvasViewport (vp) — no local re-declaration needed
+
+  // Shared placement interaction handlers — used by both the visual glyph
+  // layer and the top-level hit-area layer so behavior stays consistent.
+  const makePlacementHandlers = useCallback(
+    (p: Placement) => ({
+      onPointerDown: (e: React.PointerEvent) => {
+        if (state.tool === "pan") return; // let SVG pan handler take over
+        e.stopPropagation();
+        if (e.shiftKey) {
+          dispatch({ type: "TOGGLE_SELECT", item: { kind: "placement", id: p.id } });
+        } else {
+          dispatch({ type: "SELECT", selection: [{ kind: "placement", id: p.id }] });
+        }
+        if (p.locked) return;
+        const rect = svgRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const sc = w2s(p.x, p.y);
+        setDrag({
+          mode: "move",
+          id: p.id,
+          offsetX: e.clientX - rect.left - sc.px,
+          offsetY: e.clientY - rect.top - sc.py,
+        });
+        setDragStartPos({ id: p.id, x: p.x, y: p.y });
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      },
+      onPinClick: (pin: string) =>
+        dispatch({
+          type: "PIN_CLICK",
+          placementId: p.id,
+          pinName: pin,
+          defaultRouteComponentId: "RouteMeander",
+        }),
+      onRename: (name: string) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { name } }),
+      onContextMenu: (e: React.MouseEvent) => {
+        e.preventDefault();
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        const selIds = state.selection
+          .filter((s): s is { kind: "placement"; id: string } => s.kind === "placement")
+          .map((s) => s.id);
+        const multi = selIds.length > 1 && selIds.includes(p.id);
+        setContextMenu({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+          items: [
+            {
+              label: "Select similar",
+              action: () => {
+                const similar = state.placements
+                  .filter((pl) => pl.componentId === p.componentId)
+                  .map((pl) => ({ kind: "placement" as const, id: pl.id }));
+                dispatch({ type: "SELECT", selection: similar });
+              },
+            },
+            {
+              label: multi ? "Duplicate selected" : "Duplicate",
+              action: () => {
+                if (multi) {
+                  selIds.forEach((id) => dispatch({ type: "DUPLICATE_PLACEMENT", id }));
+                } else {
+                  dispatch({ type: "DUPLICATE_PLACEMENT", id: p.id });
+                }
+              },
+            },
+            {
+              label: multi ? "Rotate 90°" : "Rotate 90°",
+              action: () => {
+                const targets = multi ? selIds : [p.id];
+                targets.forEach((id) => {
+                  const pl = state.placements.find((x) => x.id === id);
+                  if (pl) {
+                    dispatch({
+                      type: "UPDATE_PLACEMENT",
+                      id: pl.id,
+                      patch: { rotation: (pl.rotation + 90) % 360 },
+                    });
+                  }
+                });
+              },
+            },
+            {
+              label: multi ? "Mirror selected" : "Mirror",
+              action: () => {
+                const targets = multi ? selIds : [p.id];
+                targets.forEach((id) => dispatch({ type: "MIRROR_PLACEMENT", id }));
+              },
+            },
+            {
+              label: multi ? "Delete selected" : "Delete",
+              action: () => {
+                const targets = multi ? [...selIds] : [p.id];
+                targets.forEach((id) => dispatch({ type: "DELETE_PLACEMENT", id }));
+              },
+              destructive: true,
+            },
+          ],
+        });
+      },
+    }),
+    [state.tool, state.selection, state.placements, dispatch, w2s],
+  );
+
+  // Shared connection interaction handlers — used by both the route visual
+  // layer and the top-level route hit-area layer.
+  const makeConnectionHandlers = useCallback(
+    (c: Connection) => ({
+      onClick: (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (e.shiftKey) {
+          dispatch({ type: "TOGGLE_SELECT", item: { kind: "connection", id: c.id } });
+        } else {
+          dispatch({ type: "SELECT", selection: [{ kind: "connection", id: c.id }] });
+        }
+      },
+      onContextMenu: (e: React.MouseEvent) => {
+        e.preventDefault();
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        setContextMenu({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+          items: [
+            {
+              label: c.locked ? "Unlock route" : "Lock route",
+              action: () =>
+                dispatch({
+                  type: c.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
+                  id: c.id,
+                }),
+            },
+            {
+              label: "Delete",
+              action: () => dispatch({ type: "DELETE_CONNECTION", id: c.id }),
+              destructive: true,
+            },
+          ],
+        });
+      },
+    }),
+    [dispatch],
+  );
+
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden bg-[#f8fafc] select-none flex items-center justify-center"
+      className="relative h-full w-full overflow-hidden bg-[#f8fafc] select-none"
     >
       <svg
         ref={svgRef}
         width={size.w}
         height={size.h}
         className="block touch-none"
+        style={{
+          cursor: panDrag ? "grabbing" : state.tool === "pan" ? "grab" : drag?.mode === "move" ? "grabbing" : "default",
+        }}
         role="application"
         aria-label="Quantum chip schematic editor canvas"
-        style={{ cursor: panDrag ? "grabbing" : state.tool === "pan" ? "grab" : drag?.mode === "move" ? "grabbing" : "default" }}
         onPointerDown={onPDown}
         onPointerMove={onPMove}
         onPointerUp={onPUp}
         onPointerCancel={onPUp}
         onWheel={onWheel}
         onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-        onDragOver={(e) => _onDragOver(e, svgRef, s2w, state.snap)}
+        onDragOver={(e) => onDragOver(e, svgRef, s2w, state.snap)}
         onDragLeave={onDragLeave}
-        onDrop={(e) => _onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
+        onDrop={(e) => onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
       >
         <defs>
+          {/* boardClip covers the full usable area (inside the ruler strips) */}
           <clipPath id="boardClip">
-            <rect x={left} y={top} width={bw} height={bh} rx={8} />
+            <rect x={RULER_L} y={0} width={size.w - RULER_L} height={size.h - RULER_B} />
           </clipPath>
           <linearGradient id="siliconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#e0f2fe" />
@@ -310,70 +535,79 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           </filter>
         </defs>
 
-        {/* Workbench Background Grid */}
+        {/* ── Full-SVG chip-color background — no white ever shows ──────── */}
+        {/* This rect covers the entire SVG so panning never reveals white.  */}
         <rect
           data-canvas-bg="true"
-          x={0}
-          y={0}
-          width={size.w}
-          height={size.h}
-          fill="transparent"
-          style={{
-            backgroundImage: "radial-gradient(circle, #cbd5e1 1.2px, transparent 1.2px)",
-            backgroundSize: "24px 24px",
-          }}
+          x={0} y={0}
+          width={size.w} height={size.h}
+          fill="url(#siliconGrad)"
         />
 
-        {/* Chip board and content */}
+        {/* ── Everything inside the usable canvas area ─────────────────── */}
         <g clipPath="url(#boardClip)">
+
+          {/* Subtle dot-grid pattern over the chip background */}
           <rect
-            x={left}
-            y={top}
-            width={bw}
-            height={bh}
-            fill="url(#siliconGrad)"
-            stroke="#0284c7"
-            strokeWidth={2.5}
-            filter="url(#glow)"
-            rx={8}
+            data-canvas-bg="true"
+            x={RULER_L} y={0}
+            width={size.w - RULER_L} height={size.h - RULER_B}
+            fill="transparent"
+            style={{
+              backgroundImage: "radial-gradient(circle, rgba(14,165,233,0.3) 1px, transparent 1px)",
+              backgroundSize: "24px 24px",
+            }}
           />
 
-          {/* Snap-aligned grid inside board */}
+          {/* Chip board border — just the outline, no fill (background already chip-color) */}
+          <rect
+            x={left} y={top}
+            width={bw} height={bh}
+            fill="none"
+            stroke="#0284c7"
+            strokeWidth={2}
+            rx={4}
+          />
+
+          {/* Snap-aligned grid inside board — only render visible lines for performance */}
           {state.showGrid && (
-            <g opacity={Math.min(1, state.snap * 10)}>
+            <g opacity={Math.min(1, Math.max(0.15, state.snap * scale * 20))} style={{ pointerEvents: "none" }}>
               {(() => {
                 const step = state.snap;
                 const els = [];
+                // Clip to visible screen area for performance on a 40 mm canvas
+                const visLeft  = s2w(RULER_L,  0).x - step;
+                const visRight = s2w(size.w,   0).x + step;
+                const visTop   = s2w(0, 0).y         + step;
+                const visBot   = s2w(0, size.h - RULER_B).y - step;
                 // Vertical lines
-                const startX = Math.ceil(-CHIP_HALF_W / step) * step;
-                const endX = Math.floor(CHIP_HALF_W / step) * step;
-                for (let x = startX; x <= endX + 0.0001; x = parseFloat((x + step).toFixed(3))) {
+                const startX = Math.max(-CHIP_HALF_W, Math.ceil(visLeft  / step) * step);
+                const endX   = Math.min( CHIP_HALF_W, Math.floor(visRight / step) * step);
+                for (let x = startX; x <= endX + 0.0001; x = parseFloat((x + step).toFixed(6))) {
                   const isMajor = Math.abs(x % 1.0) < 0.001;
                   const a = w2s(x, -CHIP_HALF_H);
-                  const b = w2s(x, CHIP_HALF_H);
+                  const b = w2s(x,  CHIP_HALF_H);
                   els.push(
-                    <line
-                      key={`v-${x}`}
+                    <line key={`v-${x}`}
                       x1={a.px} y1={a.py} x2={b.px} y2={b.py}
-                      stroke={isMajor ? "rgba(14,165,233,0.25)" : "rgba(14,165,233,0.10)"}
+                      stroke={isMajor ? "rgba(14,165,233,0.30)" : "rgba(14,165,233,0.12)"}
                       strokeWidth={isMajor ? 0.8 : 0.4}
-                    />
+                    />,
                   );
                 }
                 // Horizontal lines
-                const startY = Math.ceil(-CHIP_HALF_H / step) * step;
-                const endY = Math.floor(CHIP_HALF_H / step) * step;
-                for (let y = startY; y <= endY + 0.0001; y = parseFloat((y + step).toFixed(3))) {
+                const startY = Math.max(-CHIP_HALF_H, Math.ceil(visBot  / step) * step);
+                const endY   = Math.min( CHIP_HALF_H, Math.floor(visTop / step) * step);
+                for (let y = startY; y <= endY + 0.0001; y = parseFloat((y + step).toFixed(6))) {
                   const isMajor = Math.abs(y % 1.0) < 0.001;
                   const a = w2s(-CHIP_HALF_W, y);
-                  const b = w2s(CHIP_HALF_W, y);
+                  const b = w2s( CHIP_HALF_W, y);
                   els.push(
-                    <line
-                      key={`h-${y}`}
+                    <line key={`h-${y}`}
                       x1={a.px} y1={a.py} x2={b.px} y2={b.py}
-                      stroke={isMajor ? "rgba(14,165,233,0.25)" : "rgba(14,165,233,0.10)"}
+                      stroke={isMajor ? "rgba(14,165,233,0.30)" : "rgba(14,165,233,0.12)"}
                       strokeWidth={isMajor ? 0.8 : 0.4}
-                    />
+                    />,
                   );
                 }
                 return els;
@@ -400,6 +634,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             />
           )}
 
+          {/* ── Z-ORDER LAYERING FOR SELECTION ──────────────────────────────
+              1. Visual glyphs (labels, pin dots, lock icons) — no big hit areas
+              2. Route visuals + a MODEST route hit-rect
+              3. Component hit-areas (large, generous) — always on TOP so a
+                 click anywhere near a component wins over nearby wires/grid.
+             ─────────────────────────────────────────────────────────────── */}
+
+          {/* 1. Visual glyphs only (labels, pins, lock icon, hover tooltip) */}
           {state.placements.map((p, i) => (
             <PlacementGlyph
               key={p.id}
@@ -414,107 +656,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               w2s={w2s}
               scale={scale}
               uiScale={getUiScale(p)}
-              onPointerDown={(e) => {
-                if (state.tool === "pan") return; // let SVG pan handler take over
-                e.stopPropagation();
-                if (e.shiftKey) {
-                  dispatch({ type: "TOGGLE_SELECT", item: { kind: "placement", id: p.id } });
-                } else {
-                  dispatch({ type: "SELECT", selection: [{ kind: "placement", id: p.id }] });
-                }
-                if (p.locked) return;
-                const rect = svgRef.current?.getBoundingClientRect();
-                if (!rect) return;
-                const sc = w2s(p.x, p.y);
-                setDrag({
-                  mode: "move",
-                  id: p.id,
-                  offsetX: e.clientX - rect.left - sc.px,
-                  offsetY: e.clientY - rect.top - sc.py,
-                });
-                setDragStartPos({ id: p.id, x: p.x, y: p.y });
-                (e.currentTarget as Element).setPointerCapture(e.pointerId);
-              }}
-              onPinClick={(pin) =>
-                dispatch({
-                  type: "PIN_CLICK",
-                  placementId: p.id,
-                  pinName: pin,
-                  defaultRouteComponentId: "RouteMeander",
-                })
-              }
-              onRename={(name) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { name } })}
               overlapping={overlappingIds.has(p.id)}
-              onHoverStart={() => setHovered(p.id)}
-              onHoverEnd={() => setHovered(null)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                const rect = containerRef.current?.getBoundingClientRect();
-                if (!rect) return;
-                const selIds = state.selection
-                  .filter((s): s is { kind: "placement"; id: string } => s.kind === "placement")
-                  .map((s) => s.id);
-                const multi = selIds.length > 1 && selIds.includes(p.id);
-                setContextMenu({
-                  x: e.clientX - rect.left,
-                  y: e.clientY - rect.top,
-                  items: [
-                    {
-                      label: "Select similar",
-                      action: () => {
-                        const similar = state.placements
-                          .filter((pl) => pl.componentId === p.componentId)
-                          .map((pl) => ({ kind: "placement" as const, id: pl.id }));
-                        dispatch({ type: "SELECT", selection: similar });
-                      },
-                    },
-                    {
-                      label: multi ? "Duplicate selected" : "Duplicate",
-                      action: () => {
-                        if (multi) {
-                          selIds.forEach((id) => dispatch({ type: "DUPLICATE_PLACEMENT", id }));
-                        } else {
-                          dispatch({ type: "DUPLICATE_PLACEMENT", id: p.id });
-                        }
-                      },
-                    },
-                    {
-                      label: multi ? "Rotate 90°" : "Rotate 90°",
-                      action: () => {
-                        const targets = multi ? selIds : [p.id];
-                        targets.forEach((id) => {
-                          const pl = state.placements.find((x) => x.id === id);
-                          if (pl) {
-                            dispatch({
-                              type: "UPDATE_PLACEMENT",
-                              id: pl.id,
-                              patch: { rotation: (pl.rotation + 90) % 360 },
-                            });
-                          }
-                        });
-                      },
-                    },
-                    {
-                      label: multi ? "Mirror selected" : "Mirror",
-                      action: () => {
-                        const targets = multi ? selIds : [p.id];
-                        targets.forEach((id) => dispatch({ type: "MIRROR_PLACEMENT", id }));
-                      },
-                    },
-                    {
-                      label: multi ? "Delete selected" : "Delete",
-                      action: () => {
-                        const targets = multi ? [...selIds] : [p.id];
-                        targets.forEach((id) => dispatch({ type: "DELETE_PLACEMENT", id }));
-                      },
-                      destructive: true,
-                    },
-                  ],
-                });
-              }}
             />
           ))}
 
+          {/* 2. Route visuals + modest hit-rects (sit below component hit areas) */}
           {state.showConnections && state.connections.map((c) => {
             const a = state.placements.find((x) => x.id === c.from.placementId),
               b = state.placements.find((x) => x.id === c.to.placementId);
@@ -525,66 +671,65 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             const pa = fromPinPos ? w2s(fromPinPos.x, fromPinPos.y) : w2s(a.x, a.y);
             const pb = toPinPos ? w2s(toPinPos.x, toPinPos.y) : w2s(b.x, b.y);
             const rsvg = routeSvg.get(c.id);
+            const handlers = makeConnectionHandlers(c);
             if (rsvg) {
               const sc = scale * MM_TO_PX * UM_TO_MM,
                 { px, py } = w2s(0, 0);
+
+              // Bounding box of the route in screen coords for the hit rect.
+              // Kept modest (HIT_PAD_ROUTE) so it doesn't overwhelm nearby
+              // component hit-areas, which render afterwards and win ties.
+              const rxMin = Math.min(pa.px, pb.px) - HIT_PAD_ROUTE;
+              const ryMin = Math.min(pa.py, pb.py) - HIT_PAD_ROUTE;
+              const rxW   = Math.abs(pb.px - pa.px) + HIT_PAD_ROUTE * 2;
+              const ryH   = Math.abs(pb.py - pa.py) + HIT_PAD_ROUTE * 2;
+
               return (
                 <g
                   key={c.id}
                   className="cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (e.shiftKey) {
-                      dispatch({ type: "TOGGLE_SELECT", item: { kind: "connection", id: c.id } });
-                    } else {
-                      dispatch({ type: "SELECT", selection: [{ kind: "connection", id: c.id }] });
-                    }
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    setContextMenu({
-                      x: e.clientX - rect.left,
-                      y: e.clientY - rect.top,
-                      items: [
-                        {
-                          label: c.locked ? "Unlock route" : "Lock route",
-                          action: () =>
-                            dispatch({
-                              type: c.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
-                              id: c.id,
-                            }),
-                        },
-                        {
-                          label: "Delete",
-                          action: () => dispatch({ type: "DELETE_CONNECTION", id: c.id }),
-                          destructive: true,
-                        },
-                      ],
-                    });
-                  }}
+                  onClick={handlers.onClick}
+                  onContextMenu={handlers.onContextMenu}
                 >
+                  {/* Modest invisible hit rect covering the meander bounding box */}
+                  <rect
+                    x={rxMin} y={ryMin}
+                    width={Math.max(rxW, 32)} height={Math.max(ryH, 32)}
+                    fill="transparent" stroke="none"
+                  />
                   {isSel && (
                     <g
                       transform={`translate(${px} ${py}) scale(${sc} ${-sc})`}
                       opacity={0.3}
+                      style={{ pointerEvents: "none" }}
                       dangerouslySetInnerHTML={{ __html: rsvg }}
                     />
                   )}
                   <g
                     transform={`translate(${px} ${py}) scale(${sc} ${-sc})`}
                     opacity={isSel ? 1 : 0.9}
+                    style={{ pointerEvents: "none" }}
                     dangerouslySetInnerHTML={{ __html: rsvg }}
                   />
+                  {/* Selection highlight border */}
+                  {isSel && (
+                    <rect
+                      x={rxMin - 2} y={ryMin - 2}
+                      width={Math.max(rxW, 32) + 4} height={Math.max(ryH, 32) + 4}
+                      rx={6} fill="none"
+                      stroke="var(--primary)" strokeOpacity={0.35}
+                      strokeWidth={2} strokeDasharray="4 2"
+                      style={{ pointerEvents: "none" }}
+                    />
+                  )}
                   {c.locked && (
-                    <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}>
+                    <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
                       <rect x={-6} y={-7} width={12} height={10} rx={2} fill="#64748b" />
                       <rect x={-3} y={-10} width={6} height={5} rx={1} fill="none" stroke="#64748b" strokeWidth={1.5} />
                     </g>
                   )}
                   {/* Direction arrow at midpoint */}
-                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}>
+                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
                     <polygon
                       points="0,-4 3,2 -3,2"
                       fill={isSel ? "var(--primary)" : "#5B9BD5"}
@@ -597,6 +742,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             }
             return (
               <g key={c.id}>
+                {/* Modest transparent stroke for clicking on thin wire */}
+                <path
+                  d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
+                  stroke="transparent"
+                  strokeWidth={Math.max(8, HIT_PAD_ROUTE)}
+                  fill="none"
+                  className="cursor-pointer"
+                  onClick={handlers.onClick}
+                  onContextMenu={handlers.onContextMenu}
+                />
                 {isSel && (
                   <path
                     d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
@@ -604,56 +759,26 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                     strokeWidth={8}
                     strokeOpacity={0.2}
                     fill="none"
+                    style={{ pointerEvents: "none" }}
                   />
                 )}
                 <path
                   d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
                   stroke={isSel ? "var(--primary)" : c.locked ? "#94a3b8" : "#5B9BD5"}
-                  strokeWidth={isSel ? 2.5 : 1.8}
-                  strokeDasharray={routeQueries.some((q) => q.isLoading) ? "6 4" : c.locked ? "4 2" : "none"}
+                  strokeWidth={isSel ? 2 : 1.4}
+                  strokeDasharray={c.locked ? "4 2" : "5 3"}
+                  strokeOpacity={0.65}
                   fill="none"
-                  className="cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (e.shiftKey) {
-                      dispatch({ type: "TOGGLE_SELECT", item: { kind: "connection", id: c.id } });
-                    } else {
-                      dispatch({ type: "SELECT", selection: [{ kind: "connection", id: c.id }] });
-                    }
-                  }}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    setContextMenu({
-                      x: e.clientX - rect.left,
-                      y: e.clientY - rect.top,
-                      items: [
-                        {
-                          label: c.locked ? "Unlock route" : "Lock route",
-                          action: () =>
-                            dispatch({
-                              type: c.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
-                              id: c.id,
-                            }),
-                        },
-                        {
-                          label: "Delete",
-                          action: () => dispatch({ type: "DELETE_CONNECTION", id: c.id }),
-                          destructive: true,
-                        },
-                      ],
-                    });
-                  }}
+                  style={{ pointerEvents: "none" }}
                 />
                 {c.locked && (
-                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}>
+                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
                     <rect x={-6} y={-7} width={12} height={10} rx={2} fill="#64748b" />
                     <rect x={-3} y={-10} width={6} height={5} rx={1} fill="none" stroke="#64748b" strokeWidth={1.5} />
                   </g>
                 )}
                 {/* Direction arrow at midpoint */}
-                <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}>
+                <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
                   <polygon
                     points="0,-4 3,2 -3,2"
                     fill={isSel ? "var(--primary)" : "#5B9BD5"}
@@ -661,17 +786,60 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                     transform={`rotate(${Math.atan2(pb.py - pa.py, pb.px - pa.px) * 180 / Math.PI})`}
                   />
                 </g>
-                <text
-                  x={(pa.px + pb.px) / 2}
-                  y={(pa.py + pb.py) / 2 - 10}
-                  textAnchor="middle"
-                  fontSize={8}
-                  fill={isSel ? "var(--primary)" : "var(--muted-foreground)"}
-                  className="pointer-events-none select-none"
-                >
-                  {routeQueries.some((q) => q.isLoading) ? "rendering…" : `${a.name}→${b.name}`}
-                </text>
+                {!c.routeComponentId && (
+                  <text
+                    x={(pa.px + pb.px) / 2}
+                    y={(pa.py + pb.py) / 2 - 14}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fill="var(--muted-foreground)"
+                    opacity={0.7}
+                    style={{ pointerEvents: "none" }}
+                    className="select-none"
+                  >
+                    no route component
+                  </text>
+                )}
+                {c.routeComponentId && !routeSvg.get(c.id) && (
+                  <text
+                    x={(pa.px + pb.px) / 2}
+                    y={(pa.py + pb.py) / 2 - 14}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fill="var(--muted-foreground)"
+                    opacity={0.6}
+                    style={{ pointerEvents: "none" }}
+                    className="select-none"
+                  >
+                    {c.routeComponentId} ···
+                  </text>
+                )}
               </g>
+            );
+          })}
+
+          {/* 3. Component hit-areas — rendered LAST so they sit on top of
+                 route hit-rects and the grid, guaranteeing components win
+                 selection priority. Large, generous padding (HIT_PAD/MIN_HIT). */}
+          {state.placements.map((p, i) => {
+            const handlers = makePlacementHandlers(p);
+            return (
+              <PlacementHitArea
+                key={`hit-${p.id}`}
+                placement={p}
+                componentId={p.componentId}
+                pins={pinQueries[i]?.data?.pins ?? []}
+                w2s={w2s}
+                scale={scale}
+                uiScale={getUiScale(p)}
+                selected={isSelected(state.selection, "placement", p.id)}
+                onPointerDown={handlers.onPointerDown}
+                onPinClick={handlers.onPinClick}
+                onRename={handlers.onRename}
+                onHoverStart={() => setHovered(p.id)}
+                onHoverEnd={() => setHovered(null)}
+                onContextMenu={handlers.onContextMenu}
+              />
             );
           })}
         </g>
@@ -709,36 +877,30 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
 
         {state.showRulers && (
         <>
-        {/* Horizontal board ruler */}
-        <g>
+        {/* ── X-axis ruler — sticky to BOTTOM edge of SVG ─────────────────
+            Background covers [RULER_L → size.w] × [size.h-RULER_B → size.h]
+            Ticks point downward from the top of the bar.
+        ──────────────────────────────────────────────────────────────────── */}
+        <g style={{ pointerEvents: "none" }}>
           <rect
-            x={left}
-            y={top - RULER_B}
-            width={bw}
-            height={RULER_B}
-            fill="#f1f5f9"
-            stroke="#cbd5e1"
-            strokeWidth={1}
+            x={RULER_L} y={size.h - RULER_B}
+            width={size.w - RULER_L} height={RULER_B}
+            fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
           />
           {hTicks.map(({ value, px, type }) => {
-            const y1 = type === "major" ? top - 12 : type === "half" ? top - 8 : top - 4;
+            const tickH = type === "major" ? 11 : type === "half" ? 7 : 4;
             return (
-              <g key={`h-${value}`}>
+              <g key={`hx-${value}`}>
                 <line
-                  x1={px}
-                  y1={y1}
-                  x2={px}
-                  y2={top}
-                  stroke={type === "major" ? "#475569" : type === "half" ? "#94a3b8" : "#e2e8f0"}
+                  x1={px} y1={size.h - RULER_B}
+                  x2={px} y2={size.h - RULER_B + tickH}
+                  stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
                   strokeWidth={type === "major" ? 1.2 : 0.8}
                 />
                 {type === "major" && (
                   <text
-                    x={px}
-                    y={top - 16}
-                    fontSize={8.5}
-                    fill="#475569"
-                    fontWeight={600}
+                    x={px} y={size.h - RULER_B + tickH + 9}
+                    fontSize={8} fill="#475569" fontWeight={600}
                     textAnchor="middle"
                     className="pointer-events-none select-none font-mono"
                   >
@@ -750,36 +912,30 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           })}
         </g>
 
-        {/* Vertical board ruler */}
-        <g>
+        {/* ── Y-axis ruler — sticky to LEFT edge of SVG ───────────────────
+            Background covers [0 → RULER_L] × [0 → size.h-RULER_B]
+            Ticks point rightward from the right edge of the bar.
+        ──────────────────────────────────────────────────────────────────── */}
+        <g style={{ pointerEvents: "none" }}>
           <rect
-            x={left - RULER_L}
-            y={top}
-            width={RULER_L}
-            height={bh}
-            fill="#f1f5f9"
-            stroke="#cbd5e1"
-            strokeWidth={1}
+            x={0} y={0}
+            width={RULER_L} height={size.h - RULER_B}
+            fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
           />
           {vTicks.map(({ value, py, type }) => {
-            const x1 = type === "major" ? left - 12 : type === "half" ? left - 8 : left - 4;
+            const tickW = type === "major" ? 11 : type === "half" ? 7 : 4;
             return (
-              <g key={`v-${value}`}>
+              <g key={`vy-${value}`}>
                 <line
-                  x1={x1}
-                  y1={py}
-                  x2={left}
-                  y2={py}
-                  stroke={type === "major" ? "#475569" : type === "half" ? "#94a3b8" : "#e2e8f0"}
+                  x1={RULER_L - tickW} y1={py}
+                  x2={RULER_L}         y2={py}
+                  stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
                   strokeWidth={type === "major" ? 1.2 : 0.8}
                 />
                 {type === "major" && (
                   <text
-                    x={left - 15}
-                    y={py + 3}
-                    fontSize={8.5}
-                    fill="#475569"
-                    fontWeight={600}
+                    x={RULER_L - tickW - 2} y={py + 3.5}
+                    fontSize={8} fill="#475569" fontWeight={600}
                     textAnchor="end"
                     className="pointer-events-none select-none font-mono"
                   >
@@ -791,50 +947,32 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           })}
         </g>
 
-        {/* Cursor crosshair on rulers */}
+        {/* ── Cursor crosshair lines ────────────────────────────────────── */}
         {cursorPos && (
-          <g>
+          <g style={{ pointerEvents: "none" }}>
             <line
-              x1={w2s(cursorPos.x, 0).px}
-              y1={top}
-              x2={w2s(cursorPos.x, 0).px}
-              y2={bottom}
-              stroke="#ef4444"
-              strokeWidth={0.8}
-              strokeDasharray="4 3"
-              opacity={0.6}
+              x1={w2s(cursorPos.x, 0).px} y1={0}
+              x2={w2s(cursorPos.x, 0).px} y2={size.h - RULER_B}
+              stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
             />
             <line
-              x1={left}
-              y1={w2s(0, cursorPos.y).py}
-              x2={right}
-              y2={w2s(0, cursorPos.y).py}
-              stroke="#ef4444"
-              strokeWidth={0.8}
-              strokeDasharray="4 3"
-              opacity={0.6}
+              x1={RULER_L}  y1={w2s(0, cursorPos.y).py}
+              x2={size.w}   y2={w2s(0, cursorPos.y).py}
+              stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
             />
           </g>
         )}
 
-        {/* Corner mm unit label */}
-        <g>
+        {/* ── Corner "mm" label ─────────────────────────────────────────── */}
+        <g style={{ pointerEvents: "none" }}>
           <rect
-            x={left - RULER_L}
-            y={top - RULER_B}
-            width={RULER_L}
-            height={RULER_B}
-            fill="#e2e8f0"
-            stroke="#cbd5e1"
-            strokeWidth={1}
+            x={0} y={size.h - RULER_B}
+            width={RULER_L} height={RULER_B}
+            fill="#e2e8f0" stroke="#cbd5e1" strokeWidth={1}
           />
           <text
-            x={left - RULER_L / 2}
-            y={top - RULER_B / 2 + 3.5}
-            textAnchor="middle"
-            fontSize={10}
-            fontWeight="bold"
-            fill="#0284c7"
+            x={RULER_L / 2} y={size.h - RULER_B / 2 + 3.5}
+            textAnchor="middle" fontSize={9} fontWeight="bold" fill="#0284c7"
             className="pointer-events-none select-none font-sans"
           >
             mm
@@ -892,7 +1030,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         cx={cx}
         cy={cy}
         scale={scale}
+        visible={state.showMiniMap}
         onPan={(x, y) => dispatch({ type: "PAN", x, y })}
+        onClose={() => dispatch({ type: "TOGGLE_MINIMAP" })}
       />
 
       {/* Global Dimension Indicator & Selection HUD */}
@@ -1142,7 +1282,757 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           ))}
         </div>
       )}
+
+      {/* ── Custom Scrollbars ─────────────────────────────────────────────
+          The canvas uses a pan/zoom model — there are no DOM scrollbars.
+          These overlays show scrollbar thumbs derived from pan state and
+          dispatch PAN actions when dragged, giving native scrollbar UX.
+      ──────────────────────────────────────────────────────────────────── */}
+      <CanvasScrollbars
+        size={size}
+        pan={state.pan}
+        scale={scale}
+        onPan={(x, y) => dispatch({ type: "PAN", x, y })}
+      />
     </div>
   );
 });
 
+// ── CanvasScrollbars ──────────────────────────────────────────────────────────
+// Thin overlay scrollbars that reflect pan state and dispatch PAN on drag.
+// The "world" is defined as ±WORLD_MM mm around center; thumb position and
+// size are computed from how much of the world is currently visible.
+
+const WORLD_MM = 20; // virtual world half-extent in mm (±20 mm from center)
+
+function CanvasScrollbars({
+  size,
+  pan,
+  scale,
+  onPan,
+}: {
+  size: { w: number; h: number };
+  pan: { x: number; y: number };
+  scale: number;
+  onPan: (x: number, y: number) => void;
+}) {
+  const TRACK_W = 10; // scrollbar thickness in px
+  const worldPx = WORLD_MM * 2 * MM_TO_PX * scale; // total world width in px
+  const worldHPx = WORLD_MM * 2 * MM_TO_PX * scale; // total world height in px
+
+  // Viewport is size.w × size.h px.
+  // The center of the world maps to (size.w/2 + pan.x, size.h/2 + pan.y).
+  // World left edge in screen coords = center - worldPx/2
+  // Thumb covers the fraction: size.w / worldPx of the track.
+
+  const hTrackW = size.w - TRACK_W; // horizontal track length (leave corner gap)
+  const vTrackH = size.h - TRACK_W;
+
+  const hThumbW = Math.max(30, Math.min(hTrackW, (size.w / worldPx) * hTrackW));
+  const vThumbH = Math.max(30, Math.min(vTrackH, (size.h / worldHPx) * vTrackH));
+
+  // pan.x = 0 means center of world is at screen center → thumb centered
+  // Range of pan.x: from -(worldPx/2 - size.w/2) to +(worldPx/2 - size.w/2)
+  const maxPanX = Math.max(0, worldPx / 2 - size.w / 2);
+  const maxPanY = Math.max(0, worldHPx / 2 - size.h / 2);
+
+  // Normalise pan to [0,1] where 0 = world-left at viewport-left
+  const normX = maxPanX > 0 ? (pan.x + maxPanX) / (2 * maxPanX) : 0.5;
+  const normY = maxPanY > 0 ? (-pan.y + maxPanY) / (2 * maxPanY) : 0.5; // y is inverted
+
+  const hThumbX = normX * (hTrackW - hThumbW);
+  const vThumbY = normY * (vTrackH - vThumbH);
+
+  // Drag state for each scrollbar
+  const hDragRef = useRef<{ startX: number; startPan: number } | null>(null);
+  const vDragRef = useRef<{ startY: number; startPan: number } | null>(null);
+
+  const onHDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    hDragRef.current = { startX: e.clientX, startPan: pan.x };
+  };
+  const onHMove = (e: React.PointerEvent) => {
+    if (!hDragRef.current) return;
+    const dx = e.clientX - hDragRef.current.startX;
+    const panPerPx = (2 * maxPanX) / (hTrackW - hThumbW || 1);
+    onPan(hDragRef.current.startPan + dx * panPerPx, pan.y);
+  };
+  const onHUp = () => { hDragRef.current = null; };
+
+  const onVDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    vDragRef.current = { startY: e.clientY, startPan: pan.y };
+  };
+  const onVMove = (e: React.PointerEvent) => {
+    if (!vDragRef.current) return;
+    const dy = e.clientY - vDragRef.current.startY;
+    const panPerPx = (2 * maxPanY) / (vTrackH - vThumbH || 1);
+    onPan(pan.x, vDragRef.current.startPan - dy * panPerPx);
+  };
+  const onVUp = () => { vDragRef.current = null; };
+
+  const trackStyle: React.CSSProperties = { background: "rgba(0,0,0,0.04)", borderRadius: 6 };
+  const thumbStyle: React.CSSProperties = { background: "rgba(100,116,139,0.45)", borderRadius: 6, position: "absolute", cursor: "pointer" };
+
+  return (
+    <>
+      {/* Horizontal scrollbar */}
+      <div
+        style={{
+          position: "absolute", bottom: 0, left: 0,
+          width: hTrackW, height: TRACK_W,
+          ...trackStyle,
+        }}
+      >
+        <div
+          style={{
+            ...thumbStyle,
+            left: hThumbX, top: 1,
+            width: hThumbW, height: TRACK_W - 2,
+          }}
+          onPointerDown={onHDown}
+          onPointerMove={onHMove}
+          onPointerUp={onHUp}
+          onPointerCancel={onHUp}
+        />
+      </div>
+
+      {/* Vertical scrollbar */}
+      <div
+        style={{
+          position: "absolute", top: 0, right: 0,
+          width: TRACK_W, height: vTrackH,
+          ...trackStyle,
+        }}
+      >
+        <div
+          style={{
+            ...thumbStyle,
+            top: vThumbY, left: 1,
+            height: vThumbH, width: TRACK_W - 2,
+          }}
+          onPointerDown={onVDown}
+          onPointerMove={onVMove}
+          onPointerUp={onVUp}
+          onPointerCancel={onVUp}
+        />
+      </div>
+
+      {/* Corner square */}
+      <div style={{ position: "absolute", bottom: 0, right: 0, width: TRACK_W, height: TRACK_W, background: "rgba(0,0,0,0.04)" }} />
+    </>
+  );
+}
+
+function PlacementPreview({
+  placement,
+  w2s,
+  scale,
+  uiScale,
+}: {
+  placement: Placement;
+  w2s: (x: number, y: number) => { px: number; py: number };
+  scale: number;
+  uiScale: number;
+}) {
+  const q = useQuery(componentPreviewQueryOptions(placement.componentId, placement.params));
+  const p = q.data;
+  const { px, py } = w2s(placement.x, placement.y);
+  const mx = placement.mirrorX ? -1 : 1;
+  if (!p?.svg) {
+    // Fallback placeholder: 0.8 mm square
+    const s = 0.8 * MM_TO_PX * scale * uiScale, h = s / 2;
+    return (
+      <g
+        transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}
+        style={{ pointerEvents: "none" }}
+      >
+        <rect
+          x={-h}
+          y={-h}
+          width={s}
+          height={s}
+          rx={4}
+          fill="color-mix(in oklab, var(--primary) 5%, transparent)"
+          stroke="color-mix(in oklab, var(--foreground) 30%, transparent)"
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+        />
+      </g>
+    );
+  }
+  const vb = p.viewBox;
+  const sc = svgScale(Math.max(vb.w, vb.h), p.units as "um" | "mm", scale, uiScale);
+  return (
+    <g
+      transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}
+      style={{ pointerEvents: "none" }}
+    >
+      <g
+        transform={`scale(${sc} ${-sc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
+        dangerouslySetInnerHTML={{ __html: p.svg }}
+        style={{ transition: "transform 0.12s ease", pointerEvents: "none" }}
+      />
+    </g>
+  );
+}
+
+function DropGhost({
+  componentId,
+  x,
+  y,
+  w2s,
+  scale,
+}: {
+  componentId: string;
+  x: number;
+  y: number;
+  w2s: (x: number, y: number) => { px: number; py: number };
+  scale: number;
+}) {
+  const q = useQuery(componentPreviewQueryOptions(componentId));
+  const p = q.data;
+  const { px, py } = w2s(x, y);
+  if (!p?.svg) {
+    const s = Math.max(24, 40 * scale),
+      h = s / 2;
+    return (
+      <g className="pointer-events-none" transform={`translate(${px} ${py})`}>
+        <rect
+          x={-h}
+          y={-h}
+          width={s}
+          height={s}
+          rx={4}
+          fill="color-mix(in oklab, var(--primary) 10%, transparent)"
+          stroke="var(--primary)"
+          strokeDasharray="5 4"
+          strokeOpacity={0.65}
+        />
+      </g>
+    );
+  }
+  const vb = p.viewBox;
+  const ghostSc = svgScale(Math.max(vb.w, vb.h), p.units as "um" | "mm", scale);
+  return (
+    <g className="pointer-events-none" opacity={0.72}>
+      <g transform={`translate(${px} ${py})`}>
+        <g
+          transform={`scale(${ghostSc} ${-ghostSc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
+          dangerouslySetInnerHTML={{ __html: p.svg }}
+        />
+      </g>
+      <circle
+        cx={px}
+        cy={py}
+        r={4}
+        fill="var(--primary)"
+        stroke="var(--background)"
+        strokeWidth={1.5}
+      />
+    </g>
+  );
+}
+
+/**
+ * Visual-only glyph layer: name label, component-id label, lock icon,
+ * overlap/selection outline, and hover tooltip. Carries NO large hit
+ * rectangle of its own — selection & dragging are handled by
+ * `PlacementHitArea`, which renders afterwards (on top) with a generous
+ * hitbox. This split lets us guarantee component hit-areas always win
+ * over routes/grid in z-order while keeping visuals in their natural
+ * paint position.
+ */
+function PlacementGlyph({
+  placement,
+  componentId,
+  selected,
+  hovered,
+  overlapping,
+  pendingOwner,
+  pendingPin,
+  pins,
+  showComponentIds,
+  w2s,
+  scale,
+  uiScale,
+}: {
+  placement: Placement;
+  componentId: string;
+  selected: boolean;
+  hovered: boolean;
+  overlapping: boolean;
+  pendingOwner: string | null;
+  pendingPin: string | null;
+  pins: PinSpec[];
+  showComponentIds: boolean;
+  w2s: (x: number, y: number) => { px: number; py: number };
+  scale: number;
+  uiScale: number;
+}) {
+  const q = useQuery(componentPreviewQueryOptions(componentId, placement.params));
+  const vb = q.data?.viewBox;
+  const units = (q.data?.units ?? "um") as "um" | "mm";
+  // sz = largest physical dimension in screen pixels, capped at MAX_COMP_MM.
+  const sc = vb
+    ? svgScale(Math.max(vb.w, vb.h), units, scale, uiScale)
+    : svgScale(800, "um", scale, uiScale);  // fallback ~0.8mm
+  const sz = vb
+    ? Math.max(vb.w, vb.h) * sc
+    : 0.8 * MM_TO_PX * scale * uiScale;
+
+  const { px, py } = w2s(placement.x, placement.y),
+    half = sz / 2;
+
+  return (
+    <g
+      transform={`translate(${px} ${py}) rotate(${-placement.rotation})`}
+      style={{ pointerEvents: "none" }}
+    >
+      {overlapping && (
+        <rect
+          x={-half - 8}
+          y={-half - 8}
+          width={sz + 16}
+          height={sz + 16}
+          rx={6}
+          fill="none"
+          stroke="#ef4444"
+          strokeOpacity={0.6}
+          strokeWidth={2}
+          strokeDasharray="4 2"
+        />
+      )}
+      {placement.locked && (
+        <g transform={`translate(${half - 8} ${-half + 2})`}>
+          <rect x={-4} y={-2} width={10} height={8} rx={1} fill="#64748b" />
+          <rect x={-2} y={-5} width={6} height={4} rx={1} fill="none" stroke="#64748b" strokeWidth={1.2} />
+        </g>
+      )}
+      <text
+        x={0}
+        y={half + 14}
+        textAnchor="middle"
+        fontSize={10}
+        fontWeight={700}
+        fill="var(--foreground)"
+        className="select-none"
+      >
+        {placement.name}
+      </text>
+      {showComponentIds && (
+        <text
+          x={0}
+          y={half + 26}
+          textAnchor="middle"
+          fontSize={8}
+          fill="var(--muted-foreground)"
+          className="select-none"
+        >
+          {componentId}
+        </text>
+      )}
+      {placement.locked && (
+        <g transform={`translate(${-half + 4} ${-half + 4})`}>
+          <circle r={6} fill="var(--amber-500)" stroke="var(--foreground)" strokeWidth={1} />
+          <text y={3} textAnchor="middle" fontSize={7} fontWeight={700} fill="var(--foreground)">L</text>
+        </g>
+      )}
+      {hovered && (
+        <g transform={`translate(${half + 8} ${-half})`}>
+          <rect x={0} y={0} width={140} height={42} rx={4} fill="var(--card)" stroke="var(--border)" strokeWidth={1} opacity={0.95} />
+          <text x={6} y={14} fontSize={9} fontWeight={700} fill="var(--foreground)">{placement.componentId}</text>
+          <text x={6} y={28} fontSize={8} fill="var(--muted-foreground)">
+            {Object.entries(placement.params).slice(0, 2).map(([k, v]) => `${k}=${v}`).join(" ")}
+          </text>
+          <text x={6} y={38} fontSize={8} fill="var(--muted-foreground)">x:{placement.x.toFixed(2)} y:{placement.y.toFixed(2)}</text>
+        </g>
+      )}
+      {/* Pin name labels (dots themselves are interactive, drawn in PlacementHitArea) */}
+      {selected && pins.map((pin) => {
+        const cx = pin.hint.x * sc,
+          cy = -pin.hint.y * sc;
+        return (
+          <text
+            key={pin.name}
+            x={cx + 6}
+            y={cy + 3}
+            fontSize={8}
+            fill="var(--foreground)"
+            fontWeight={700}
+            className="select-none"
+          >
+            {pin.name}
+          </text>
+        );
+      })}
+    </g>
+  );
+}
+
+/**
+ * Interactive hit-area layer for a placement. Renders LAST (topmost) so
+ * that clicking anywhere within a generous padded bounding box around the
+ * component — even over a route or the background grid — selects and lets
+ * the user drag the component. Also renders the rename text-edit field,
+ * selection/hover outlines, and pin click targets, all of which need to be
+ * interactive.
+ */
+function PlacementHitArea({
+  placement,
+  componentId,
+  pins,
+  w2s,
+  scale,
+  uiScale,
+  selected,
+  onPointerDown,
+  onPinClick,
+  onRename,
+  onHoverStart,
+  onHoverEnd,
+  onContextMenu,
+}: {
+  placement: Placement;
+  componentId: string;
+  pins: PinSpec[];
+  w2s: (x: number, y: number) => { px: number; py: number };
+  scale: number;
+  uiScale: number;
+  selected: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPinClick: (p: string) => void;
+  onRename: (name: string) => void;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
+}) {
+  const [editingName, setEditingName] = useState(false);
+  const q = useQuery(componentPreviewQueryOptions(componentId, placement.params));
+  const vb = q.data?.viewBox;
+  const units = (q.data?.units ?? "um") as "um" | "mm";
+  // Use the same capped scale as PlacementGlyph/Preview so hit area aligns.
+  const sc = vb
+    ? svgScale(Math.max(vb.w, vb.h), units, scale, uiScale)
+    : svgScale(800, "um", scale, uiScale);
+  const sz = vb
+    ? Math.max(vb.w, vb.h) * sc
+    : 0.8 * MM_TO_PX * scale * uiScale;
+
+  // ── Hit area calculation ──────────────────────────────────────────────────
+  const vbOffX = vb ? (vb.x + vb.w / 2) * sc : 0;
+  const vbOffY = vb ? -(vb.y + vb.h / 2) * sc : 0;
+  const hitW = Math.max(MIN_HIT, sz + HIT_PAD * 2);
+  const hitH = hitW;
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const { px, py } = w2s(placement.x, placement.y),
+    half = sz / 2;
+
+  return (
+    <g
+      transform={`translate(${px} ${py}) rotate(${-placement.rotation})`}
+      className={cn("cursor-grab", selected && "cursor-grabbing")}
+      role="button"
+      aria-label={`${placement.name} (${componentId}) at ${placement.x.toFixed(2)}, ${placement.y.toFixed(2)} mm`}
+      onPointerDown={onPointerDown}
+      onPointerEnter={onHoverStart}
+      onPointerLeave={onHoverEnd}
+      onContextMenu={onContextMenu}
+    >
+      <title>{`${placement.name} (${componentId})\nX: ${placement.x.toFixed(3)} mm, Y: ${placement.y.toFixed(3)} mm\nRotation: ${placement.rotation}°${placement.mirrorX ? ", Mirrored" : ""}${placement.locked ? " [Locked]" : ""}`}</title>
+      {/* Large invisible hit area — generous padding, easy to click anywhere
+          near the component. fill="transparent" (NOT "none") so it remains
+          a valid pointer target. */}
+      <rect
+        x={vbOffX - hitW / 2}
+        y={vbOffY - hitH / 2}
+        width={hitW}
+        height={hitH}
+        fill="transparent"
+        stroke="none"
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setEditingName(true);
+        }}
+      />
+      {selected && (
+        <rect
+          x={vbOffX - hitW / 2 + 4}
+          y={vbOffY - hitH / 2 + 4}
+          width={hitW - 8}
+          height={hitH - 8}
+          rx={6}
+          fill="none"
+          stroke="var(--primary)"
+          strokeOpacity={0.5}
+          strokeWidth={2}
+          strokeDasharray="3 2"
+          style={{ pointerEvents: "none" }}
+        />
+      )}
+      {!selected && (
+        <rect
+          x={vbOffX - hitW / 2 + 4}
+          y={vbOffY - hitH / 2 + 4}
+          width={hitW - 8}
+          height={hitH - 8}
+          rx={6}
+          fill="none"
+          stroke="var(--primary)"
+          strokeOpacity={0}
+          strokeWidth={1.5}
+          className="hover:[stroke-opacity:0.2]"
+          style={{ pointerEvents: "none" }}
+        />
+      )}
+      {editingName && (
+        <foreignObject x={-60} y={half + 4} width={120} height={22} style={{ pointerEvents: "auto" }}>
+          <input
+            type="text"
+            defaultValue={placement.name}
+            autoFocus
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v) onRename(v);
+              setEditingName(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const v = (e.currentTarget as HTMLInputElement).value.trim();
+                if (v) onRename(v);
+                setEditingName(false);
+              } else if (e.key === "Escape") {
+                setEditingName(false);
+              }
+            }}
+            className="h-5 w-full rounded border border-primary bg-background px-1 text-[10px] font-bold text-foreground outline-none"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </foreignObject>
+      )}
+      {pins.map((pin) => {
+        const cx = pin.hint.x * sc,
+          cy = -pin.hint.y * sc;
+        return (
+          <g key={pin.name}>
+            {/* Larger invisible pin hit target so pins are easy to click too */}
+            <circle
+              cx={cx}
+              cy={cy}
+              r={10}
+              fill="transparent"
+              className="cursor-crosshair"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onPinClick(pin.name);
+              }}
+            />
+            <circle
+              cx={cx}
+              cy={cy}
+              r={3.5}
+              fill={selected ? "var(--primary)" : "var(--muted-foreground)"}
+              stroke="var(--background)"
+              strokeWidth={1}
+              style={{ pointerEvents: "none" }}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function MiniMap({
+  placements,
+  connections,
+  selection,
+  size,
+  cx,
+  cy,
+  scale,
+  visible,
+  onPan,
+  onClose,
+}: {
+  placements: Placement[];
+  connections: Connection[];
+  selection: Selection;
+  size: { w: number; h: number };
+  cx: number;
+  cy: number;
+  scale: number;
+  visible: boolean;
+  onPan: (x: number, y: number) => void;
+  onClose: () => void;
+}) {
+  const W = 160;
+  const H = 100;
+  const PAD = 4;
+  const mapScale = Math.min((W - PAD * 2) / CHIP_W_MM, (H - PAD * 2) / CHIP_H_MM);
+  const ox = (W - CHIP_W_MM * mapScale) / 2;
+  const oy = (H - CHIP_H_MM * mapScale) / 2;
+
+  // Draggable panel position
+  const panelRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  const w2m = (wx: number, wy: number) => ({
+    mx: ox + (wx + CHIP_HALF_W) * mapScale,
+    my: H - (oy + (wy + CHIP_HALF_H) * mapScale),
+  });
+
+  // Visible world bounds
+  const visLeft = (0 - cx) / (MM_TO_PX * scale);
+  const visRight = (size.w - cx) / (MM_TO_PX * scale);
+  const visTop = (0 - cy) / (MM_TO_PX * scale);
+  const visBottom = (size.h - cy) / (MM_TO_PX * scale);
+
+  const a = w2m(visLeft, visTop);
+  const b = w2m(visRight, visBottom);
+  const selSet = new Set(selection.filter((s) => s.kind === "placement").map((s) => s.id));
+
+  const onSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const wx = (sx - ox) / mapScale - CHIP_HALF_W;
+    const wy = -(sy - H + oy) / mapScale - CHIP_HALF_H;
+    onPan(-wx * MM_TO_PX * scale + size.w / 2, -wy * MM_TO_PX * scale + size.h / 2);
+  };
+
+  const onDragStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only drag from the header bar, not the SVG
+    if ((e.target as HTMLElement).closest("svg, button")) return;
+    e.preventDefault();
+    const panel = panelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    dragState.current = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top };
+
+    const onMove = (me: MouseEvent) => {
+      if (!dragState.current) return;
+      const dx = me.clientX - dragState.current.startX;
+      const dy = me.clientY - dragState.current.startY;
+      setPos({ left: dragState.current.origLeft + dx, top: dragState.current.origTop + dy });
+    };
+    const onUp = () => {
+      dragState.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const panelStyle: React.CSSProperties = pos
+    ? { position: "fixed", left: pos.left, top: pos.top, right: "auto", bottom: "auto" }
+    : { position: "absolute", top: 12, right: 12 };
+
+  return (
+    <div
+      ref={panelRef}
+      onMouseDown={onDragStart}
+      style={{
+        ...panelStyle,
+        width: W + 2,       // +2 for border
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateX(0) scale(1)" : "translateX(24px) scale(0.95)",
+        pointerEvents: visible ? "auto" : "none",
+        transition: "opacity 220ms ease, transform 220ms ease",
+        zIndex: 50,
+        borderRadius: 8,
+        border: "1px solid var(--border)",
+        background: "var(--card)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+        backdropFilter: "blur(8px)",
+        cursor: "grab",
+        userSelect: "none",
+      }}
+      aria-hidden={!visible}
+    >
+      {/* Drag handle / header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "3px 4px 2px 7px",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.03em", lineHeight: 1.4 }}>
+          TOP VIEW
+        </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 18, height: 18, borderRadius: 4, border: "none",
+            background: "transparent", cursor: "pointer", color: "var(--muted-foreground)",
+            transition: "background 150ms",
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = "var(--destructive)/10")}
+          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          title="Close Top View"
+          aria-label="Close Top View panel"
+        >
+          <X style={{ width: 10, height: 10 }} />
+        </button>
+      </div>
+
+      {/* SVG map */}
+      <div style={{ padding: 2 }}>
+        <svg
+          width={W}
+          height={H}
+          style={{ display: "block", cursor: "crosshair" }}
+          role="img"
+          aria-label="Mini-map overview"
+          onClick={onSvgClick}
+          onMouseDown={e => e.stopPropagation()}  // prevent drag when clicking map
+        >
+          {/* Chip bounds */}
+          <rect
+            x={ox} y={oy}
+            width={CHIP_W_MM * mapScale} height={CHIP_H_MM * mapScale}
+            fill="var(--muted)" stroke="var(--border)" strokeWidth={1} rx={2}
+          />
+          {/* Connections */}
+          {connections.map((c) => {
+            const pa_ = placements.find((p) => p.id === c.from.placementId);
+            const pb_ = placements.find((p) => p.id === c.to.placementId);
+            if (!pa_ || !pb_) return null;
+            const pa = w2m(pa_.x, pa_.y);
+            const pb = w2m(pb_.x, pb_.y);
+            return (
+              <line key={c.id} x1={pa.mx} y1={pa.my} x2={pb.mx} y2={pb.my}
+                stroke="var(--border)" strokeWidth={0.5} opacity={0.5} />
+            );
+          })}
+          {/* Placements */}
+          {placements.map((p) => {
+            const { mx, my } = w2m(p.x, p.y);
+            const isSel = selSet.has(p.id);
+            return (
+              <circle key={p.id} cx={mx} cy={my} r={isSel ? 2.5 : 1.5}
+                fill={isSel ? "var(--primary)" : "var(--foreground)"}
+                opacity={isSel ? 1 : 0.5} />
+            );
+          })}
+          {/* Viewport rectangle */}
+          <rect
+            x={Math.min(a.mx, b.mx)} y={Math.min(a.my, b.my)}
+            width={Math.abs(b.mx - a.mx)} height={Math.abs(b.my - a.my)}
+            fill="none" stroke="var(--primary)" strokeWidth={1} opacity={0.6}
+            pointerEvents="none"
+          />
+        </svg>
+      </div>
+    </div>
+  );
+}

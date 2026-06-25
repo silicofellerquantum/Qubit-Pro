@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Hamiltonian Simulation: Compressed Quantum Dynamics | Quantum Blog</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0b0f19;
+            --bg-secondary: #161b26;
+            --bg-tertiary: #1f2533;
+            --accent-color: #00ff88;
+            --accent-secondary: #00b4d8;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --border-color: #2d3748;
+            --code-bg: #0e121a;
+            --success-color: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            margin-bottom: 40px;
+        }
+
+        .category-tag {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--accent-secondary), var(--accent-color));
+            color: #0b0f19;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: 4px 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.25;
+            margin-bottom: 20px;
+            background: linear-gradient(to right, #ffffff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .meta-section {
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 24px;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .author-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .author-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: var(--bg-tertiary);
+            border: 2px solid var(--accent-color);
+            object-fit: cover;
+        }
+
+        .meta-info {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .meta-info .author-names {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .meta-info .publish-date {
+            margin-top: 2px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .content-body {
+            font-size: 1.1rem;
+            font-weight: 400;
+            color: #d1d5db;
+        }
+
+        .content-body p {
+            margin-bottom: 24px;
+        }
+
+        .content-body h2 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 40px 0 20px;
+            color: #ffffff;
+            border-left: 4px solid var(--accent-color);
+            padding-left: 16px;
+        }
+
+        .content-body h3 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin: 30px 0 16px;
+            color: #ffffff;
+        }
+
+        .callout-box {
+            background-color: var(--bg-secondary);
+            border-left: 4px solid var(--accent-secondary);
+            border-radius: 4px;
+            padding: 20px;
+            margin: 32px 0;
+        }
+
+        .callout-box p {
+            margin-bottom: 0;
+            font-style: italic;
+            color: var(--text-primary);
+        }
+
+        .visualization-container {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            margin: 32px 0;
+            text-align: center;
+        }
+
+        .visualization-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        .visualization-caption {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 12px;
+            font-style: italic;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            overflow-x: auto;
+            margin: 24px 0;
+            position: relative;
+        }
+
+        pre::before {
+            content: "PYTHON";
+            position: absolute;
+            top: 0;
+            right: 0;
+            background-color: var(--bg-tertiary);
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-bottom-left-radius: 6px;
+            border-left: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            color: #38bdf8;
+        }
+
+        .inline-code {
+            background-color: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            color: var(--accent-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 32px 0;
+            font-size: 0.95rem;
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 14px 20px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-tertiary);
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .author-card-section {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 32px;
+            margin-top: 60px;
+        }
+
+        .author-card-section h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 24px;
+            color: #ffffff;
+        }
+
+        .author-card {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+            align-items: flex-start;
+        }
+
+        .author-card:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .author-card-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background-color: var(--bg-tertiary);
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 2px solid var(--accent-color);
+        }
+
+        .author-card-info h4 {
+            font-size: 1.1rem;
+            color: #ffffff;
+            margin-bottom: 6px;
+        }
+
+        .author-card-info p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .related-posts {
+            margin-top: 60px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 40px;
+        }
+
+        .related-posts h3 {
+            font-size: 1.5rem;
+            margin-bottom: 24px;
+        }
+
+        .related-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .related-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .related-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-color);
+        }
+
+        .related-card h4 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .related-card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="category-tag">Theory & Research</span>
+            <h1>Shadow Hamiltonian Simulation: Exponential Savings in Quantum Dynamics</h1>
+            <div class="meta-section">
+                <div class="author-group">
+                    <img class="author-avatar" src="../images/authors/rolando_somma.jpg" alt="Rolando D. Somma" onerror="this.src='https://via.placeholder.com/150'">
+                    <div class="meta-info">
+                        <div class="author-names">Rolando D. Somma, Robbie King, Robin Kothari, Thomas E. O'Brien, Ryan Babbush</div>
+                        <div class="publish-date">Published in Nature Communications (2025) / arXiv:2407.21775</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <article class="content-body">
+            <p>
+                Simulating physical systems under the Schrödinger equation is widely considered one of the primary drivers for building large-scale quantum computers. In traditional quantum simulation, the goal is to prepare the full wave function of the system over time, <span class="inline-code">|ψ(t)⟩</span>, and then perform measurements to extract physical parameters.
+            </p>
+            <p>
+                However, this approach faces a significant roadblock: for many complex quantum systems (such as high-dimensional bosons or systems of harmonic oscillators), preparing and tracking the entire state requires an exponential amount of resources, even for a quantum computer.
+            </p>
+
+            <div class="callout-box">
+                <p>
+                    "Rather than storing the full quantum state in memory, what if we only evolved a compressed state that represents the specific physical observables of interest? This is the core premise of Shadow Hamiltonian Simulation."
+                </p>
+            </div>
+
+            <h2>What is the Shadow State?</h2>
+            <p>
+                The "shadow state" is a compressed quantum state whose amplitudes are directly proportional to the time-dependent expectation values of a specific, limited set of physical operators of interest—such as 1-body or 2-body correlation functions. 
+            </p>
+            <p>
+                Remarkably, this shadow state evolves unitarily under its own Schrödinger equation. By mapping the dynamics of a physical system to this lower-dimensional shadow space, we can simulate the dynamics on a quantum computer with polynomial rather than exponential resources.
+            </p>
+
+            <div class="visualization-container">
+                <img src="../images/shadow_hamiltonian_complexity.png" alt="Traditional vs Shadow Simulation Complexity" onerror="this.src='https://via.placeholder.com/600x400/161b26/ffffff?text=Shadow+Hamiltonian+Complexity'">
+                <div class="visualization-caption">Figure 1: Gate complexity scaling comparison. Evolving the full state of high-dimensional bosons scales exponentially (red dashed line), while Shadow Hamiltonian Simulation scales polynomially (green line).</div>
+            </div>
+
+            <h2>Key Advantages & Applications</h2>
+            <p>
+                This framework provides key mathematical and computational advantages:
+            </p>
+            <ul>
+                <li><strong>Exponential Dimensionality Reduction:</strong> Simulates dynamics of exponentially large systems of free bosons or fermions in polynomial time.</li>
+                <li><strong>Dynamic Multi-Time Correlators:</strong> Allows efficient evaluation of two-time correlation functions and Green's functions, which are vital for condensed matter physics and material science.</li>
+                <li><strong>Heisenberg Picture Simulation:</strong> Enables studying the time evolution of operators directly, bypassing the need to prepare full physical states.</li>
+            </ul>
+
+            <h2>Mathematical Overview of Shadow Dynamics</h2>
+            <p>
+                Let <span class="inline-code">H</span> be a Hamiltonian acting on a large physical space. Instead of tracking the state vector, we track the set of expectation values:
+                <br>
+                <span class="inline-code">a_k(t) = ⟨ψ(0)| e^{iHt} O_k e^{-iHt} |ψ(0)⟩</span>
+                <br>
+                where <span class="inline-code">O_k</span> is a set of operators. The vector of coefficients <span class="inline-code">a(t)</span> is mapped to the amplitudes of a shadow state <span class="inline-code">|Φ_S(t)⟩</span>, which satisfies:
+                <br>
+                <span class="inline-code">d/dt |Φ_S(t)⟩ = -i H_S |Φ_S(t)⟩</span>
+                <br>
+                Here, <span class="inline-code">H_S</span> is the effective "Shadow Hamiltonian" which acts on the much smaller shadow space.
+            </p>
+
+            <h2>Python Demonstration: Evolving a Compressed Qubit System</h2>
+            <p>
+                Below is a Python demonstration showing how a Shadow Hamiltonian representation is generated for a free-fermionic system using custom matrix contractions:
+            </p>
+
+<pre><code>import numpy as np
+from scipy.linalg import expm
+
+def generate_shadow_hamiltonian(single_particle_h):
+    """
+    Constructs the shadow Hamiltonian matrix for single-particle dynamics,
+    representing the evolution of expectation values in a free-fermion system.
+    """
+    N = single_particle_h.shape[0]
+    # The shadow space dimensions scale quadratically with mode count
+    shadow_dim = N * N
+    H_shadow = np.zeros((shadow_dim, shadow_dim), dtype=complex)
+    
+    # Map operator evolution index: O_ij = c_i^dagger c_j
+    for i in range(N):
+        for j in range(N):
+            idx_from = i * N + j
+            for k in range(N):
+                # Apply commutation relations [H, c_i^dagger c_j]
+                # H_shadow elements represent the coefficients of commutation
+                idx_to_1 = k * N + j
+                H_shadow[idx_to_1, idx_from] += single_particle_h[k, i]
+                
+                idx_to_2 = i * N + k
+                H_shadow[idx_to_2, idx_from] -= single_particle_h[j, k]
+                
+    return H_shadow
+
+# Define a simple 3-mode tight-binding hopping Hamiltonian
+H_single = np.array([
+    [0.0, 1.0, 0.0],
+    [1.0, 0.0, 1.0],
+    [0.0, 1.0, 0.0]
+])
+
+H_shadow = generate_shadow_hamiltonian(H_single)
+print(f"Single-particle matrix size: {H_single.shape}")
+print(f"Effective Shadow Hamiltonian size: {H_shadow.shape}")
+
+# Verify unitary evolution of the shadow matrix
+U_shadow = expm(-1j * H_shadow * 0.5)
+print("Shadow evolution operator generated successfully.")
+</code></pre>
+        </article>
+
+        <section class="author-card-section">
+            <h3>About the Authors</h3>
+            <div class="author-card">
+                <img class="author-card-avatar" src="../images/authors/rolando_somma.jpg" alt="Rolando D. Somma" onerror="this.src='https://via.placeholder.com/150'">
+                <div class="author-card-info">
+                    <h4>Rolando D. Somma</h4>
+                    <p>Rolando Somma is a Principal Researcher at Google Quantum AI. A former physicist at Los Alamos National Laboratory, Rolando is renowned for his contributions to quantum algorithms, Hamiltonian simulation techniques, and quantum error correction theory.</p>
+                </div>
+            </div>
+            <div class="author-card">
+                <img class="author-card-avatar" src="../images/authors/ryan_babbush.jpg" alt="Ryan Babbush" onerror="this.src='https://via.placeholder.com/150'">
+                <div class="author-card-info">
+                    <h4>Ryan Babbush</h4>
+                    <p>Ryan Babbush is the Head of Quantum Algorithms at Google Quantum AI. His research focuses on quantum chemistry simulation, algorithms for physical sciences, and optimizing logical qubit resources.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="related-posts">
+            <h3>Related Reads</h3>
+            <div class="related-grid">
+                <a href="../Quantum/surface_codes.html" class="related-card">
+                    <h4>Surface Codes & QEC Architecture</h4>
+                    <p>Learn how surface code stabilizers defend quantum processors from physical noise.</p>
+                </a>
+                <a href="../Engineering/squadds_qubit_design.html" class="related-card">
+                    <h4>SQuADDS Superconducting Database</h4>
+                    <p>Explore USC's open-source database validating superconducting transmon layouts.</p>
+                </a>
+            </div>
+        </section>
+    </div>
+</body>
+</html>

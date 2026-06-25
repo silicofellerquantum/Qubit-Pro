@@ -16,6 +16,13 @@ export function loadDesign(): DesignDocument | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as DesignDocument;
     if (!Array.isArray(parsed.placements) || !Array.isArray(parsed.connections)) return null;
+    // Strip stale route caches on load so all connections re-render fresh.
+    // This ensures fixes to the render backend are always picked up on reload.
+    parsed.connections = parsed.connections.map((c) => ({
+      ...c,
+      cachedSvg: undefined,
+      cachedGeometryHash: undefined,
+    }));
     return parsed;
   } catch {
     return null;

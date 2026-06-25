@@ -272,6 +272,10 @@ export async function fetchProjects(): Promise<Project[]> {
   return api<Project[]>("/api/projects");
 }
 
+export async function fetchProject(id: string): Promise<Project> {
+  return api<Project>(`/api/projects/${id}`);
+}
+
 export async function createProject(data: {
   name: string;
   description?: string;

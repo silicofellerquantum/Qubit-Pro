@@ -1,138 +1,206 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { SilicofellerLogo } from "@/components/silicofeller-logo";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export const Route = createFileRoute("/blog")({
-  head: () => ({
-    meta: [
-      { title: "Blog — SilicoFeller" },
-      {
-        name: "description",
-        content: "Research, insights, and updates from the SilicoFeller team.",
-      },
-    ],
-  }),
-  component: BlogPage,
+  component: BlogLayout,
 });
 
-const POSTS = [
-  {
-    slug: "ai-quantum-chip-design-next-decade",
-    tag: "Research",
-    title: "AI in quantum chip design: the next decade",
-    excerpt:
-      "How large language models are reshaping the way engineers approach qubit topology and error-correction layout generation.",
-    date: "May 2025",
-  },
-  {
-    slug: "fault-tolerant-quantum-chips",
-    tag: "Quantum",
-    title: "The future of fault-tolerant quantum chips",
-    excerpt:
-      "Surface codes, cat qubits, and the race to build error-corrected processors at scale.",
-    date: "Apr 2025",
-  },
-  {
-    slug: "automated-qubit-layout-generation",
-    tag: "Engineering",
-    title: "Automated qubit-layout generation, end to end",
-    excerpt:
-      "A deep dive into how SilicoFeller generates production-ready GDS files from a single natural-language prompt.",
-    date: "Mar 2025",
-  },
-  {
-    slug: "insights-from-quantum-labs",
-    tag: "Industry",
-    title: "Insights from leading quantum labs on AI workflows",
-    excerpt:
-      "We spoke to researchers at five national labs. Here's what they said about adopting AI-assisted design tools.",
-    date: "Feb 2025",
-  },
-] as const;
+const BLOG_NAV = [
+  { label: "About Us",      href: "/#about" },
+  { label: "Technology",    href: "/#technology" },
+  { label: "Features",      href: "/#features" },
+  { label: "Documentation", href: "/documentation" },
+  { label: "Community",     href: "/community" },
+  { label: "Blog",          href: "/blog" },
+  { label: "Team",          href: "/our-team" },
+  { label: "Contact",       href: "/#contact" },
+];
 
-const TAG_COLORS: Record<string, string> = {
-  Research: "#F26B3A",
-  Quantum: "#8A7B25",
-  Engineering: "#F26B3A",
-  Industry: "#8A7B25",
-};
-
-function BlogPage() {
+function BlogLayout() {
   const { user } = useAuth();
+  const [scrolled, setScrolled]     = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Body scroll lock
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
+  // ESC to close
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] text-white">
-      {/* Nav */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0A0A0F]/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-          <Link to="/" aria-label="SilicoFeller home" className="flex items-center">
-            <SilicofellerLogo className="h-7 w-auto" />
+    <div className="relative min-h-[100svh] bg-[#F8F7F2] text-[#0F172A] selection:bg-[#7C3AED]/20 selection:text-[#0F172A] font-sans">
+      {/* Grid background pattern */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 opacity-[0.25] -z-10"
+        style={{ backgroundImage: "var(--grid-pattern)", backgroundSize: "32px 32px" }}
+      />
+
+      {/* ── Fixed header ───────────────────────────────────────────── */}
+      <header
+        className={`fixed inset-x-0 top-0 z-[9999] transition-all duration-300 ${
+          scrolled
+            ? "border-b border-black/10 bg-[#E8E6DE]/90 shadow-[0_8px_30px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+            : "border-b border-transparent bg-[#E8E6DE]/60 backdrop-blur-md"
+        }`}
+      >
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 lg:px-10">
+          <Link to="/" aria-label="SilicoFeller home" className="flex items-center min-h-[44px]">
+            <SilicofellerLogo />
           </Link>
-          <div className="flex items-center gap-3">
-            {user ? (
-              <Button asChild size="sm" className="rounded-full bg-white text-black hover:bg-white/90">
-                <Link to="/dashboard">Dashboard</Link>
-              </Button>
-            ) : (
-              <>
-                <Button asChild variant="ghost" size="sm" className="text-white/70 hover:text-white">
-                  <Link to="/sign-in">Sign in</Link>
-                </Button>
-                <Button asChild size="sm" className="rounded-full bg-white text-black hover:bg-white/90">
-                  <Link to="/sign-up">Get started</Link>
-                </Button>
-              </>
-            )}
+
+          {/* Desktop nav */}
+          <nav className="hidden items-center gap-7 text-sm text-foreground/65 md:flex" aria-label="Main navigation">
+            {BLOG_NAV.map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                className={`min-h-[44px] flex items-center transition-colors hover:text-foreground ${
+                  item.href === "/blog" ? "font-medium text-[#7C3AED]" : ""
+                }`}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+
+          {/* Desktop CTAs + mobile hamburger */}
+          <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2">
+              {user ? (
+                <>
+                  <Button asChild variant="ghost" className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-black/5">
+                    <Link to="/dashboard">Dashboard</Link>
+                  </Button>
+                  <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
+                    <Link to="/schematic-editor">Open designer</Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild variant="ghost" className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-black/5">
+                    <Link to="/sign-in">Sign in</Link>
+                  </Button>
+                  <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
+                    <Link to="/sign-up">Sign up <ArrowRight className="ml-1 h-4 w-4" /></Link>
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Hamburger — mobile only */}
+            <button
+              type="button"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+              aria-controls="blog-mobile-nav"
+              className="md:hidden inline-flex items-center justify-center w-11 h-11 min-h-[44px] min-w-[44px] rounded-lg text-foreground hover:bg-foreground/5 transition-colors"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {mobileOpen ? (
+                  <motion.span key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <X className="h-5 w-5" />
+                  </motion.span>
+                ) : (
+                  <motion.span key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                    <Menu className="h-5 w-5" />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-16">
-        {/* Back link */}
-        <Link
-          to="/"
-          className="inline-flex items-center gap-1.5 text-sm text-white/50 transition-colors hover:text-white"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to home
-        </Link>
-
-        <h1 className="mt-8 text-4xl font-semibold tracking-tight">
-          From the SilicoFeller blog.
-        </h1>
-        <p className="mt-3 text-white/60">
-          Research, engineering, and industry insights from our team.
-        </p>
-
-        {/* Posts grid */}
-        <div className="mt-12 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2">
-          {POSTS.map((p) => (
-            <div
-              key={p.slug}
-              className="group rounded-2xl border border-white/10 bg-white/[0.04] p-6 transition-all hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_20px_60px_-20px_rgba(242,107,58,0.2)]"
+      {/* ── Mobile drawer + backdrop ─────────────────────────────────── */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              key="backdrop"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden fixed inset-0 top-[64px] z-40 bg-black/30 backdrop-blur-[2px]"
+              aria-hidden
+              onClick={() => setMobileOpen(false)}
+            />
+            <motion.div
+              key="drawer"
+              id="blog-mobile-nav"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Mobile navigation"
+              initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="md:hidden fixed inset-x-0 top-[64px] z-50 max-h-[calc(100svh-64px)] overflow-y-auto bg-[#E8E6DE] shadow-xl pb-safe"
             >
-              <div className="aspect-[16/9] w-full rounded-lg bg-gradient-to-br from-[#0A0A0F] via-[#8A7B25] to-[#F26B3A]" />
-              <div className="mt-4 flex items-center justify-between">
-                <p
-                  className="text-[11px] font-semibold uppercase tracking-wider"
-                  style={{ color: TAG_COLORS[p.tag] ?? "#F26B3A" }}
-                >
-                  {p.tag}
-                </p>
-                <span className="text-xs text-white/40">{p.date}</span>
-              </div>
-              <h2 className="mt-2 text-base font-semibold leading-snug text-white group-hover:text-[#F26B3A] transition-colors">
-                {p.title}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-white/55">{p.excerpt}</p>
-              <div className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-[#F26B3A]">
-                Read more <ArrowRight className="h-3 w-3" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </main>
+              <nav className="flex flex-col px-4 sm:px-6 pt-2 pb-8" aria-label="Mobile navigation">
+                {BLOG_NAV.map((item, i) => (
+                  <motion.div key={item.label} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04, duration: 0.2 }}>
+                    <a
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`w-full flex items-center border-b border-black/10 py-4 text-base font-medium min-h-[44px] transition-colors hover:text-[#F26B3A] ${
+                        item.href === "/blog" ? "text-[#7C3AED]" : "text-foreground"
+                      }`}
+                    >
+                      {item.label}
+                    </a>
+                  </motion.div>
+                ))}
+                <motion.div className="mt-6 flex flex-col gap-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: BLOG_NAV.length * 0.04 + 0.05 }}>
+                  {user ? (
+                    <>
+                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
+                        <Link to="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                      </Button>
+                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                        <Link to="/schematic-editor" onClick={() => setMobileOpen(false)}>Open designer</Link>
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
+                        <Link to="/sign-in" onClick={() => setMobileOpen(false)}>Sign in</Link>
+                      </Button>
+                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                        <Link to="/sign-up" onClick={() => setMobileOpen(false)}>
+                          Sign up <ArrowRight className="ml-1 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </>
+                  )}
+                </motion.div>
+              </nav>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <div className="h-[64px]" aria-hidden />
+      <div className="relative z-10">
+        <Outlet />
+      </div>
     </div>
   );
 }

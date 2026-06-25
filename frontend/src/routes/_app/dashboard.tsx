@@ -174,6 +174,10 @@ function WorkspaceHomePage() {
   const [simulations, setSimulations] = useState<any[]>([]);
 
   useEffect(() => {
+    refreshProjects();
+  }, [refreshProjects]);
+
+  useEffect(() => {
     fetchSimulations()
       .then((data) => setSimulations(data))
       .catch(() => {});
@@ -247,7 +251,7 @@ function WorkspaceHomePage() {
 
   return (
     <div className="h-full overflow-y-auto bg-[#F8F9FB]">
-      <div className="mx-auto max-w-[1600px] px-6 py-6 space-y-6">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 py-6 space-y-6">
         {/* Welcome Section */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}

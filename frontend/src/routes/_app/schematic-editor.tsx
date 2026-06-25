@@ -14,7 +14,8 @@ import { EditorCanvas, type EditorCanvasHandle, CHIP_HALF_W, CHIP_HALF_H } from 
 import { EditorToolbar } from "@/components/quantum-editor/editor-toolbar";
 import { CodeIdePanel, type CodePanelMode } from "@/components/quantum-editor/code-ide-panel";
 import { useDesign } from "@/lib/design-context";
-import type { GenerateResponse } from "@/lib/api/backend";
+import { useProject } from "@/lib/project-context";
+import { type GenerateResponse, saveDesignToProject } from "@/lib/api/backend";
 import type { DesignDocument, Placement, Connection } from "@/lib/bridge/types";
 
 let localClipboard = "";
@@ -40,10 +41,11 @@ export const Route = createFileRoute("/_app/schematic-editor")({
   errorComponent: ErrorBoundary,
 });
 
+
 function ErrorBoundary({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   return (
-    <div className="flex min-h-screen items-center justify-center p-6 bg-card text-card-foreground">
+    <div className="flex min-h-[100svh] items-center justify-center p-6 bg-card text-card-foreground">
       <div className="max-w-md rounded-lg border border-border bg-card p-6 shadow-md">
         <h2 className="mb-2 text-lg font-bold text-destructive">Editor failed to load</h2>
         <p className="mb-4 text-sm font-mono text-muted-foreground bg-muted p-3 rounded overflow-auto max-h-40">
@@ -137,23 +139,23 @@ export function toGenerateResponse(
     drc: prev?.drc ?? { passed: true, violations: [] },
     frequency_plan: prev?.frequency_plan
       ? {
-          ...prev.frequency_plan,
-          resonator_frequencies_GHz,
-          resonator_lengths_mm,
-        }
+        ...prev.frequency_plan,
+        resonator_frequencies_GHz,
+        resonator_lengths_mm,
+      }
       : {
-          epsilon_eff: 6.45,
-          qubit_frequencies_GHz: Object.fromEntries(
-            placementQubits.map((q, i) => [q.name, 5.0 + i * 0.05]),
-          ),
-          qubit_groups: {},
-          EJ_GHz: {},
-          EC_GHz: {},
-          resonator_frequencies_GHz,
-          resonator_lengths_mm,
-          detunings_GHz: {},
-          warnings: [],
-        },
+        epsilon_eff: 6.45,
+        qubit_frequencies_GHz: Object.fromEntries(
+          placementQubits.map((q, i) => [q.name, 5.0 + i * 0.05]),
+        ),
+        qubit_groups: {},
+        EJ_GHz: {},
+        EC_GHz: {},
+        resonator_frequencies_GHz,
+        resonator_lengths_mm,
+        detunings_GHz: {},
+        warnings: [],
+      },
     placement: {
       ...(prev?.placement ?? {}),
       solver: prev?.placement?.solver ?? "editor",
@@ -183,6 +185,7 @@ function SchematicEditorShell() {
   const { conversationId, highlight } = Route.useSearch();
   const navigate = useNavigate();
   const { conversations, activeId, setActiveId, updateConversationResult } = useDesign();
+  const { saveDesign, activeProject, createAndActivate } = useProject();
 
   const targetId = conversationId ?? activeId;
   const conversation = useMemo(
@@ -191,6 +194,7 @@ function SchematicEditorShell() {
   );
 
   const [libOpen, setLibOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [codeMode, setCodeMode] = useState<CodePanelMode | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -200,6 +204,58 @@ function SchematicEditorShell() {
   const handleFitView = useCallback(() => {
     canvasRef.current?.fitToContent();
   }, []);
+
+  const handleSave = useCallback(async () => {
+    saveAll();
+    const doc: DesignDocument = {
+      placements: activeTab.state.placements,
+      connections: activeTab.state.connections,
+    };
+
+    // Guard: if the canvas appears empty but the conversation has saved data,
+    // use the conversation result instead of overwriting with empty state
+    let next: GenerateResponse;
+    if (doc.placements.length === 0 && doc.connections.length === 0 && conversation?.result) {
+      next = conversation.result;
+    } else {
+      next = toGenerateResponse(doc, prevResultRef.current);
+    }
+
+    if (activeProject) {
+      // Update the existing project card — never duplicate
+      try {
+        await saveDesign(next);
+        toast.success("Design saved to project");
+      } catch {
+        toast.error("Failed to save to project database");
+      }
+    } else {
+      // No active project — auto-create one so a card appears in Projects page
+      try {
+        const qubitCount = next.num_qubits ?? doc.placements.filter(
+          p => p.componentId === "TransmonPocket" || p.componentId === "TransmonCross"
+        ).length;
+        const designName = conversation?.title ||
+          `${qubitCount > 0 ? `${qubitCount}Q ` : ""}Custom Design`;
+        const newProject = await createAndActivate({
+          name: designName,
+          topology: next.topology ?? "custom",
+          num_qubits: qubitCount,
+          target_frequency_ghz: next.frequency_plan?.qubit_frequencies_GHz
+            ? Object.values(next.frequency_plan.qubit_frequencies_GHz)[0] ?? 5.0
+            : 5.0,
+        });
+        // Use direct API call with newProject.id to avoid stale saveDesign closure
+        await saveDesignToProject(newProject.id, next);
+        toast.success(`Project "${newProject.name}" created and design saved`);
+        // Update the URL so this editor session is linked to the new project's conversation ID.
+        // This ensures the next save uses the existing project instead of creating a duplicate.
+        navigate({ to: "/schematic-editor", search: { conversationId: newProject.id }, replace: true });
+      } catch {
+        toast.error("Failed to create project. Backend may be offline.");
+      }
+    }
+  }, [saveAll, activeProject, activeTab.state.placements, activeTab.state.connections, saveDesign, conversation, createAndActivate]);
 
   // Warn before closing tab if there are unsaved changes
   useEffect(() => {
@@ -275,11 +331,21 @@ function SchematicEditorShell() {
   ]);
 
   // Handle activeId state switching when the user manually switches tabs inside the editor
+  const lastActiveIdRef = useRef(activeId);
   useEffect(() => {
     if (activeTab.id.startsWith("conv_")) {
       const parsedId = activeTab.id.replace("conv_", "");
       if (parsedId !== activeId) {
-        setActiveId(parsedId);
+        if (lastActiveIdRef.current === activeId) {
+          // Change originated from tab click, update design context active ID
+          setActiveId(parsedId);
+          lastActiveIdRef.current = parsedId;
+        } else {
+          // Change originated from design context active ID switch, let tab catch up
+          lastActiveIdRef.current = activeId;
+        }
+      } else {
+        lastActiveIdRef.current = activeId;
       }
     }
   }, [activeTab.id, activeId, setActiveId]);
@@ -309,6 +375,41 @@ function SchematicEditorShell() {
     return () => clearTimeout(t);
   }, [activeTab.state.placements, activeTab.state.connections, activeTab.id, conversation?.id, updateConversationResult]);
 
+  // Debounced auto-save to database project
+  const lastDbSaveRef = useRef("");
+  useEffect(() => {
+    if (!activeProject || !conversation || activeTab.id !== `conv_${conversation.id}`) return;
+
+    const docKey = JSON.stringify({
+      p: activeTab.state.placements.map((p) => [p.id, p.x, p.y, p.rotation]),
+      c: activeTab.state.connections.map((c) => [c.id, c.from.placementId, c.from.pinName, c.to.placementId, c.to.pinName]),
+    });
+
+    if (docKey === lastDbSaveRef.current) return;
+
+    // Guard: never autosave an empty canvas if the conversation already has a non-empty saved design.
+    // This prevents the initial load phase (empty canvas before loadIntoCanvas runs) from overwriting data.
+    const canvasIsEmpty = activeTab.state.placements.length === 0 && activeTab.state.connections.length === 0;
+    const conversationHasDesign = conversation.result?.design?.placements?.length ?? 0;
+    if (canvasIsEmpty && conversationHasDesign > 0) return;
+
+    const t = setTimeout(async () => {
+      const doc: DesignDocument = {
+        placements: activeTab.state.placements,
+        connections: activeTab.state.connections,
+      };
+      const next = toGenerateResponse(doc, prevResultRef.current);
+      try {
+        await saveDesign(next);
+        lastDbSaveRef.current = docKey;
+      } catch {
+        // Silently ignore background database save errors
+      }
+    }, 3000);
+
+    return () => clearTimeout(t);
+  }, [activeTab.state.placements, activeTab.state.connections, activeTab.id, activeProject, conversation?.id, saveDesign, conversation?.result]);
+
   // Keyboard Shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -317,7 +418,7 @@ function SchematicEditorShell() {
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        saveAll();
+        handleSave();
       }
 
       if ((e.ctrlKey || e.metaKey) && /^[1-9]$/.test(e.key)) {
@@ -634,7 +735,7 @@ function SchematicEditorShell() {
         if (selPlacements.length > 0) {
           const payload = JSON.stringify({ version: 1, placements: selPlacements });
           localClipboard = payload;
-          navigator.clipboard.writeText(payload).catch(() => {});
+          navigator.clipboard.writeText(payload).catch(() => { });
           toast.success(`${selPlacements.length} component${selPlacements.length > 1 ? "s" : ""} copied`);
         }
       } else if (!inInput && (e.metaKey || e.ctrlKey) && e.key === "v") {
@@ -651,7 +752,7 @@ function SchematicEditorShell() {
         if (localClipboard) {
           tryPaste(localClipboard);
         } else {
-          navigator.clipboard.readText().then(tryPaste).catch(() => {});
+          navigator.clipboard.readText().then(tryPaste).catch(() => { });
         }
       } else if (!inInput && (e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
@@ -710,6 +811,7 @@ function SchematicEditorShell() {
         onFitView={handleFitView}
         onShowCode={(mode) => setCodeMode(mode)}
         canvasRef={canvasRef}
+        onSave={handleSave}
       />
 
       {/* Main Flex Workspace */}
@@ -723,15 +825,48 @@ function SchematicEditorShell() {
           </div>
         )}
 
-        {/* Canvas */}
+        {/* Canvas — flex:1, fills all space between panels */}
         <div className="flex-1 min-w-0 overflow-hidden relative h-full bg-background">
           <EditorCanvas key={activeTab.id} ref={canvasRef} />
         </div>
 
-        {/* Property Inspector */}
-        {activeTab.state.selection && (
-          <div className="w-80 shrink-0 border-l border-border bg-card overflow-y-auto p-3 flex flex-col">
-            <PropertyInspector />
+        {/* Property Inspector — collapsible via X button */}
+        {inspectorOpen ? (
+          <div
+            className="border-l border-border bg-card flex flex-col"
+            style={{ width: 280, minWidth: 280, flexShrink: 0 }}
+          >
+            {/* Panel header with close button */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inspector</span>
+              <button
+                onClick={() => setInspectorOpen(false)}
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Close panel"
+                aria-label="Close inspector panel"
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              <PropertyInspector />
+            </div>
+          </div>
+        ) : (
+          /* Thin collapsed tab — click to re-open */
+          <div className="shrink-0 border-l border-border bg-card flex flex-col items-center py-3" style={{ width: 28 }}>
+            <button
+              onClick={() => setInspectorOpen(true)}
+              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              title="Open inspector"
+              aria-label="Open inspector panel"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M8 2L4 6L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           </div>
         )}
 
@@ -748,7 +883,7 @@ function SchematicEditorShell() {
         open={showPalette}
         onOpenChange={setShowPalette}
         onFitView={handleFitView}
-        onSave={() => { saveAll(); toast.success("Design saved"); }}
+        onSave={handleSave}
         state={activeTab.state}
         dispatch={(a) => dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: a })}
       />
@@ -882,7 +1017,7 @@ function CommandPalette({
               if (selPlacements.length > 0) {
                 const payload = JSON.stringify({ version: 1, placements: selPlacements });
                 localClipboard = payload;
-                navigator.clipboard.writeText(payload).catch(() => {});
+                navigator.clipboard.writeText(payload).catch(() => { });
               }
             })}>Copy selected</CommandItem>
           )}
