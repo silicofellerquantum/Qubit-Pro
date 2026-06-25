@@ -67,6 +67,53 @@ export interface EditorState {
   past: Snapshot[];
   future: Snapshot[];
   rev: number;
+  /**
+   * Set whenever a connection attempt is blocked by validation.
+   * Consumers (e.g. the canvas) watch this field and show the
+   * appropriate user feedback. Reset to null on the next successful
+   * action or on CANCEL_PIN.
+   */
+  lastBlockReason: string | null;
+}
+
+// ---------- Pin capacity helpers ----------
+
+/**
+ * Default maximum connections per pin.
+ * A single physical pin can carry exactly one signal in quantum hardware.
+ * This constant is the fallback until per-pin metadata is available.
+ */
+export const DEFAULT_MAX_CONNECTIONS_PER_PIN = 1;
+
+/**
+ * Count how many connections are currently attached to a specific pin.
+ * Counts both ends (from + to) so directionality does not matter.
+ */
+export function pinOccupancy(
+  connections: Connection[],
+  placementId: string,
+  pinName: string,
+): number {
+  return connections.filter(
+    (c) =>
+      (c.from.placementId === placementId && c.from.pinName === pinName) ||
+      (c.to.placementId === placementId && c.to.pinName === pinName),
+  ).length;
+}
+
+/**
+ * Return the maximum number of connections allowed on a pin.
+ * Reads PinSpec metadata when available; falls back to the global default.
+ * This is the single extension point: once PinSpec gains `maxConnections`,
+ * update this function and all validation automatically benefits.
+ */
+export function maxConnectionsForPin(
+  // Reserved for future PinSpec metadata lookup
+  _placementId: string,
+  _pinName: string,
+): number {
+  // Future: look up PinSpec.maxConnections from a pin catalog / metadata store.
+  return DEFAULT_MAX_CONNECTIONS_PER_PIN;
 }
 
 interface Snapshot {
@@ -151,6 +198,7 @@ export const initialEditorState: EditorState = {
   past: [],
   future: [],
   rev: 0,
+  lastBlockReason: null,
 };
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -234,11 +282,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const connections = action.transient
         ? state.connections
         : state.connections.map((c) => {
-            const touches =
-              c.from.placementId === action.id || c.to.placementId === action.id;
-            if (!touches) return c;
-            return { ...c, cachedGeometryHash: undefined };
-          });
+          const touches =
+            c.from.placementId === action.id || c.to.placementId === action.id;
+          if (!touches) return c;
+          return { ...c, cachedGeometryHash: undefined };
+        });
       const next = {
         ...state,
         placements: state.placements.map((p) =>
@@ -276,30 +324,64 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!state.pendingPin) {
         return {
           ...state,
+          lastBlockReason: null,
           pendingPin: { placementId: action.placementId, pinName: action.pinName },
         };
       }
+      // Same pin clicked again → cancel
       if (
         state.pendingPin.placementId === action.placementId &&
         state.pendingPin.pinName === action.pinName
       ) {
-        return { ...state, pendingPin: null };
+        return { ...state, pendingPin: null, lastBlockReason: null };
       }
-      // Prevent self-loops
+      // Prevent self-loops (same placement, different pin)
       if (state.pendingPin.placementId === action.placementId) {
-        return { ...state, pendingPin: null };
+        return { ...state, pendingPin: null, lastBlockReason: null };
       }
-      // Prevent duplicate connections between same pins (either direction)
+      // ── Prevent duplicate connections (either direction) ──────────────────
       const alreadyExists = state.connections.some((c) => {
-        const a = c.from.placementId === state.pendingPin!.placementId && c.from.pinName === state.pendingPin!.pinName;
-        const b = c.to.placementId === action.placementId && c.to.pinName === action.pinName;
-        const c2 = c.from.placementId === action.placementId && c.from.pinName === action.pinName;
-        const d = c.to.placementId === state.pendingPin!.placementId && c.to.pinName === state.pendingPin!.pinName;
-        return (a && b) || (c2 && d);
+        const fwd =
+          c.from.placementId === state.pendingPin!.placementId &&
+          c.from.pinName === state.pendingPin!.pinName &&
+          c.to.placementId === action.placementId &&
+          c.to.pinName === action.pinName;
+        const rev =
+          c.from.placementId === action.placementId &&
+          c.from.pinName === action.pinName &&
+          c.to.placementId === state.pendingPin!.placementId &&
+          c.to.pinName === state.pendingPin!.pinName;
+        return fwd || rev;
       });
       if (alreadyExists) {
-        return { ...state, pendingPin: null };
+        return {
+          ...state,
+          pendingPin: null,
+          lastBlockReason: `Pin "${state.pendingPin.pinName}" is already connected to pin "${action.pinName}". Duplicate connections are not allowed.`,
+        };
       }
+      // ── Single-connection-per-pin capacity check ─────────────────────────
+      // Check the "from" pin (the first pin the user clicked, i.e. pendingPin)
+      const fromMax = maxConnectionsForPin(state.pendingPin.placementId, state.pendingPin.pinName);
+      const fromCount = pinOccupancy(state.connections, state.pendingPin.placementId, state.pendingPin.pinName);
+      if (fromCount >= fromMax) {
+        return {
+          ...state,
+          pendingPin: null,
+          lastBlockReason: `Pin "${state.pendingPin.pinName}" already has a connection. Maximum allowed: ${fromMax}.`,
+        };
+      }
+      // Check the "to" pin (the second pin the user clicked)
+      const toMax = maxConnectionsForPin(action.placementId, action.pinName);
+      const toCount = pinOccupancy(state.connections, action.placementId, action.pinName);
+      if (toCount >= toMax) {
+        return {
+          ...state,
+          pendingPin: null,
+          lastBlockReason: `Pin "${action.pinName}" already has a connection. Maximum allowed: ${toMax}.`,
+        };
+      }
+      // ── All checks passed — commit the connection ─────────────────────────
       const id = `conn_${state.pendingPin.placementId}_${state.pendingPin.pinName}__${action.placementId}_${action.pinName}_${Date.now()}`;
       const conn: Connection = {
         id,
@@ -311,12 +393,13 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         ...bump(state),
         pendingPin: null,
+        lastBlockReason: null,
         connections: [...state.connections, conn],
         selection: [{ kind: "connection", id }],
       };
     }
     case "CANCEL_PIN":
-      return { ...state, pendingPin: null };
+      return { ...state, pendingPin: null, lastBlockReason: null };
     case "DELETE_CONNECTION":
       return {
         ...state,
@@ -376,8 +459,8 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         selection: exists
           ? sel.filter(
-              (s) => !(s.kind === action.item.kind && s.id === action.item.id),
-            )
+            (s) => !(s.kind === action.item.kind && s.id === action.item.id),
+          )
           : [...sel, action.item],
         pendingPin: null,
       };
@@ -492,10 +575,10 @@ export function DesignStoreProvider({ children }: { children: ReactNode }) {
     loadedRef.current = true;
     const saved = loadDesign();
     if (saved) {
-        dispatch({ type: "LOAD", doc: saved });
-        // Clear any stale route geometry so connections re-render with the current backend
-        dispatch({ type: "CLEAR_ROUTE_CACHE" });
-      }
+      dispatch({ type: "LOAD", doc: saved });
+      // Clear any stale route geometry so connections re-render with the current backend
+      dispatch({ type: "CLEAR_ROUTE_CACHE" });
+    }
   }, []);
 
   // Auto-save whenever placements/connections change.
