@@ -1,5 +1,11 @@
 import sys
 import os
+
+# ── Must be set BEFORE any matplotlib/Qt imports ────────────────────────────
+os.environ["MPLBACKEND"] = "Agg"
+os.environ["QISKIT_METAL_HEADLESS"] = "1"
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
 import json
 import inspect
 import math
@@ -45,6 +51,26 @@ except ImportError:
         @staticmethod
         def setAttribute(attr, val=True): pass
 
+    class QApplication(QCoreApplication):
+        @staticmethod
+        def instance(): return None
+        @staticmethod
+        def testAttribute(attr): return False
+        @staticmethod
+        def setAttribute(attr, val=True): pass
+        def __init__(self, *a, **k): pass
+
+    class QFileDialog:
+        @staticmethod
+        def getSaveFileName(*args, **kwargs): return ("", "")
+        @staticmethod
+        def getOpenFileName(*args, **kwargs): return ("", "")
+        @staticmethod
+        def getOpenFileNames(*args, **kwargs): return ([], "")
+        @staticmethod
+        def getExistingDirectory(*args, **kwargs): return ""
+        def __init__(self, *a, **k): pass
+
     class QVersionNumber:
         @staticmethod
         def segments(): return (5, 15, 2)
@@ -69,6 +95,8 @@ except ImportError:
             
             if name == 'Qt': return Qt
             if name == 'QCoreApplication': return QCoreApplication
+            if name == 'QApplication': return QApplication
+            if name == 'QFileDialog': return QFileDialog
             if name == 'QVersionNumber': return QVersionNumber
             if name == 'QLibraryInfo': return QLibraryInfo
             if name == 'Signal': return Signal
@@ -76,7 +104,12 @@ except ImportError:
             
             class DummyClass:
                 def __init__(self, *args, **kwargs): pass
+                def __getattr__(self, n): return lambda *a, **k: None
+                @classmethod
+                def __class_getitem__(cls, item): return cls
             DummyClass.__name__ = name
+            # Make static method calls work on DummyClass attributes
+            DummyClass.__getattr__ = lambda self, n: (lambda *a, **k: None)
             return DummyClass
 
     pyside2 = MockModule("PySide2")
@@ -104,9 +137,31 @@ except ImportError:
     sys.modules["shiboken2"] = shiboken2
     setattr(pyside2, "shiboken2", shiboken2)
 
-# Headless environment configurations
-os.environ["QISKIT_METAL_HEADLESS"] = "1"
-os.environ["MPLBACKEND"] = "Agg"
+    # ── Pre-stub matplotlib Qt backends so qiskit_metal's GUI imports don't fail
+    # qiskit_metal/_gui explicitly imports backend_qt5agg regardless of MPLBACKEND.
+    # We stub out the entire backend chain so it becomes a no-op.
+    class _FakeCanvas:
+        def __init__(self, *a, **k): pass
+        def draw(self, *a, **k): pass
+        def get_renderer(self, *a, **k): return None
+
+    class _FakeBackendQT5Agg(ModuleType):
+        FigureCanvasQTAgg = _FakeCanvas
+        FigureCanvasQT = _FakeCanvas
+        NavigationToolbar2QT = type("NavigationToolbar2QT", (), {"__init__": lambda s, *a, **k: None})
+        def __getattr__(self, name):
+            return _FakeCanvas
+
+    for _mpl_mod in [
+        "matplotlib.backends.backend_qt5agg",
+        "matplotlib.backends.backend_qtagg",
+        "matplotlib.backends.backend_qt",
+        "matplotlib.backends.qt_compat",
+    ]:
+        if _mpl_mod not in sys.modules:
+            sys.modules[_mpl_mod] = _FakeBackendQT5Agg(_mpl_mod)
+
+# Headless environment already set at top of file.
 
 try:
     import importlib
@@ -158,10 +213,16 @@ except Exception as e:
 # ── Geometry & SVG Helpers ──────────────────────────────────────────────────
 
 def _make_default_connection_pads(cls: type) -> dict:
-    default_opts = getattr(cls, "default_options", {})
-    if "_default_connection_pads" not in default_opts:
+    """Build default connection_pads by checking cls and parent default_options."""
+    # Walk MRO to find _default_connection_pads (may be in parent class)
+    base = None
+    for klass in cls.__mro__:
+        default_opts = getattr(klass, "default_options", {})
+        if "_default_connection_pads" in default_opts:
+            base = dict(default_opts["_default_connection_pads"])
+            break
+    if base is None:
         return {}
-    base = dict(default_opts["_default_connection_pads"])
     if "connector_location" in base:
         base.pop("connector_location", None)
         return {
@@ -247,6 +308,26 @@ def fillet_polyline(coords: list[tuple[float, float]], radius: float, num_points
         
     new_coords.append(coords[-1])
     return new_coords
+
+
+def _geom_to_svg_subtract(geom, color: str, scale: float, out: list) -> None:
+    """Render subtract-flagged geometry as a faint dashed outline (pocket indicator)."""
+    gtype = geom.geom_type
+    if gtype == "Polygon":
+        if geom.is_empty:
+            return
+        # Draw only the exterior ring as a dashed outline
+        coords = list(geom.exterior.coords)
+        if len(coords) >= 2:
+            pts = " ".join(f"{x*scale:.1f},{y*scale:.1f}" for x, y in coords)
+            out.append(
+                f'<polygon points="{pts}" fill="{color}" fill-opacity="0.08" '
+                f'stroke="{color}" stroke-opacity="0.35" stroke-width="4" '
+                f'stroke-dasharray="12 6"/>'
+            )
+    elif gtype in ("MultiPolygon", "GeometryCollection"):
+        for g in geom.geoms:
+            _geom_to_svg_subtract(g, color, scale, out)
 
 
 def _geom_to_svg(geom, color: str, scale: float, out: list, width=None, fillet=None) -> None:
@@ -416,16 +497,20 @@ def handle_component_preview(job: dict) -> dict:
 
     MM = 1000.0
     COLORS = {"poly": "#5B9BD5", "path": "#2E5FA3", "junction": "#D4820A"}
+    # Subtract geometry (e.g. pocket outlines, etch gaps) rendered as ghost
+    # outlines so they don't visually bury the actual metal layers.
+    SUBTRACT_COLORS = {"poly": "#5B9BD5", "path": "#2E5FA3", "junction": "#D4820A"}
     cid = instance.id
-    bounds, paths = [], []
+    bounds = []
+    metal_paths: list[str] = []    # non-subtract geometry (rendered first)
+    subtract_paths: list[str] = [] # subtract geometry (rendered last as ghost)
 
     for tname, gdf in tables.items():
         if gdf is None or len(gdf) == 0:
             continue
         color = COLORS.get(tname, "#5B9BD5")
+        sub_color = SUBTRACT_COLORS.get(tname, "#5B9BD5")
         rows = gdf[gdf["component"] == cid] if "component" in gdf.columns else gdf
-        # For preview we render ALL rows including subtract=True ones so the
-        # component outline is always visible (subtract is irrelevant in isolation).
         for _, row in rows.iterrows():
             g = row.get("geometry")
             if g is None or g.is_empty:
@@ -433,7 +518,15 @@ def handle_component_preview(job: dict) -> dict:
             bounds.append(g.bounds)
             width = row.get("width") if "width" in row else None
             fillet = row.get("fillet") if "fillet" in row else None
-            _geom_to_svg(g, color, MM, paths, width=width, fillet=fillet)
+            is_subtract = bool(row.get("subtract", False))
+            if is_subtract:
+                # Render subtract geometry as a faint dashed outline so it shows
+                # the pocket/etch extent without covering the metal geometry.
+                _geom_to_svg_subtract(g, sub_color, MM, subtract_paths)
+            else:
+                _geom_to_svg(g, color, MM, metal_paths, width=width, fillet=fillet)
+
+    paths = metal_paths + subtract_paths
 
     if not paths or not bounds:
         # Fallback: try rendering without subtract filtering at all
