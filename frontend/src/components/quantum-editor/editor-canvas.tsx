@@ -7,6 +7,7 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
+import { toast } from "sonner";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Minus, Hand, MousePointer2, X } from "lucide-react";
 import { prefixForCategory, type EditorState, type Selection, isSelected, getSingleSelection } from "@/lib/editor/design-store";
@@ -70,7 +71,7 @@ function svgScale(
 ): number {
   const physSc = MM_TO_PX * scale * uiScale * (svgUnits === "um" ? UM_TO_MM : 1);
   const maxDimMm = vbMaxDim * (svgUnits === "um" ? UM_TO_MM : 1);
-  const capSc    = maxDimMm > MAX_COMP_MM
+  const capSc = maxDimMm > MAX_COMP_MM
     ? (MAX_COMP_MM * MM_TO_PX * scale * uiScale) / vbMaxDim
     : physSc;
   return capSc;
@@ -122,6 +123,19 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     y: number;
     items: { label: string; action: () => void; disabled?: boolean; destructive?: boolean }[];
   } | null>(null);
+
+  // ── Connection block feedback ────────────────────────────────────────────────
+  // When the reducer blocks a connection attempt it sets lastBlockReason.
+  // We surface that as a toast so the user gets clear, immediate feedback.
+  useEffect(() => {
+    if (state.lastBlockReason) {
+      toast.error("Connection blocked", {
+        description: state.lastBlockReason,
+        duration: 4000,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.lastBlockReason, state.rev]);
 
   // Close context menu on any click outside
   useEffect(() => {
@@ -328,7 +342,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     };
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // attach once — state is read via refs
 
   // No-op synthetic handler (keeps TypeScript happy for the onWheel prop)
@@ -576,17 +590,17 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                 const step = state.snap;
                 const els = [];
                 // Clip to visible screen area for performance on a 40 mm canvas
-                const visLeft  = s2w(RULER_L,  0).x - step;
-                const visRight = s2w(size.w,   0).x + step;
-                const visTop   = s2w(0, 0).y         + step;
-                const visBot   = s2w(0, size.h - RULER_B).y - step;
+                const visLeft = s2w(RULER_L, 0).x - step;
+                const visRight = s2w(size.w, 0).x + step;
+                const visTop = s2w(0, 0).y + step;
+                const visBot = s2w(0, size.h - RULER_B).y - step;
                 // Vertical lines
-                const startX = Math.max(-CHIP_HALF_W, Math.ceil(visLeft  / step) * step);
-                const endX   = Math.min( CHIP_HALF_W, Math.floor(visRight / step) * step);
+                const startX = Math.max(-CHIP_HALF_W, Math.ceil(visLeft / step) * step);
+                const endX = Math.min(CHIP_HALF_W, Math.floor(visRight / step) * step);
                 for (let x = startX; x <= endX + 0.0001; x = parseFloat((x + step).toFixed(6))) {
                   const isMajor = Math.abs(x % 1.0) < 0.001;
                   const a = w2s(x, -CHIP_HALF_H);
-                  const b = w2s(x,  CHIP_HALF_H);
+                  const b = w2s(x, CHIP_HALF_H);
                   els.push(
                     <line key={`v-${x}`}
                       x1={a.px} y1={a.py} x2={b.px} y2={b.py}
@@ -596,12 +610,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                   );
                 }
                 // Horizontal lines
-                const startY = Math.max(-CHIP_HALF_H, Math.ceil(visBot  / step) * step);
-                const endY   = Math.min( CHIP_HALF_H, Math.floor(visTop / step) * step);
+                const startY = Math.max(-CHIP_HALF_H, Math.ceil(visBot / step) * step);
+                const endY = Math.min(CHIP_HALF_H, Math.floor(visTop / step) * step);
                 for (let y = startY; y <= endY + 0.0001; y = parseFloat((y + step).toFixed(6))) {
                   const isMajor = Math.abs(y % 1.0) < 0.001;
                   const a = w2s(-CHIP_HALF_W, y);
-                  const b = w2s( CHIP_HALF_W, y);
+                  const b = w2s(CHIP_HALF_W, y);
                   els.push(
                     <line key={`h-${y}`}
                       x1={a.px} y1={a.py} x2={b.px} y2={b.py}
@@ -681,8 +695,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               // component hit-areas, which render afterwards and win ties.
               const rxMin = Math.min(pa.px, pb.px) - HIT_PAD_ROUTE;
               const ryMin = Math.min(pa.py, pb.py) - HIT_PAD_ROUTE;
-              const rxW   = Math.abs(pb.px - pa.px) + HIT_PAD_ROUTE * 2;
-              const ryH   = Math.abs(pb.py - pa.py) + HIT_PAD_ROUTE * 2;
+              const rxW = Math.abs(pb.px - pa.px) + HIT_PAD_ROUTE * 2;
+              const ryH = Math.abs(pb.py - pa.py) + HIT_PAD_ROUTE * 2;
 
               return (
                 <g
@@ -876,109 +890,109 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         })()}
 
         {state.showRulers && (
-        <>
-        {/* ── X-axis ruler — sticky to BOTTOM edge of SVG ─────────────────
+          <>
+            {/* ── X-axis ruler — sticky to BOTTOM edge of SVG ─────────────────
             Background covers [RULER_L → size.w] × [size.h-RULER_B → size.h]
             Ticks point downward from the top of the bar.
         ──────────────────────────────────────────────────────────────────── */}
-        <g style={{ pointerEvents: "none" }}>
-          <rect
-            x={RULER_L} y={size.h - RULER_B}
-            width={size.w - RULER_L} height={RULER_B}
-            fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
-          />
-          {hTicks.map(({ value, px, type }) => {
-            const tickH = type === "major" ? 11 : type === "half" ? 7 : 4;
-            return (
-              <g key={`hx-${value}`}>
-                <line
-                  x1={px} y1={size.h - RULER_B}
-                  x2={px} y2={size.h - RULER_B + tickH}
-                  stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
-                  strokeWidth={type === "major" ? 1.2 : 0.8}
-                />
-                {type === "major" && (
-                  <text
-                    x={px} y={size.h - RULER_B + tickH + 9}
-                    fontSize={8} fill="#475569" fontWeight={600}
-                    textAnchor="middle"
-                    className="pointer-events-none select-none font-mono"
-                  >
-                    {value}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </g>
+            <g style={{ pointerEvents: "none" }}>
+              <rect
+                x={RULER_L} y={size.h - RULER_B}
+                width={size.w - RULER_L} height={RULER_B}
+                fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
+              />
+              {hTicks.map(({ value, px, type }) => {
+                const tickH = type === "major" ? 11 : type === "half" ? 7 : 4;
+                return (
+                  <g key={`hx-${value}`}>
+                    <line
+                      x1={px} y1={size.h - RULER_B}
+                      x2={px} y2={size.h - RULER_B + tickH}
+                      stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
+                      strokeWidth={type === "major" ? 1.2 : 0.8}
+                    />
+                    {type === "major" && (
+                      <text
+                        x={px} y={size.h - RULER_B + tickH + 9}
+                        fontSize={8} fill="#475569" fontWeight={600}
+                        textAnchor="middle"
+                        className="pointer-events-none select-none font-mono"
+                      >
+                        {value}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
 
-        {/* ── Y-axis ruler — sticky to LEFT edge of SVG ───────────────────
+            {/* ── Y-axis ruler — sticky to LEFT edge of SVG ───────────────────
             Background covers [0 → RULER_L] × [0 → size.h-RULER_B]
             Ticks point rightward from the right edge of the bar.
         ──────────────────────────────────────────────────────────────────── */}
-        <g style={{ pointerEvents: "none" }}>
-          <rect
-            x={0} y={0}
-            width={RULER_L} height={size.h - RULER_B}
-            fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
-          />
-          {vTicks.map(({ value, py, type }) => {
-            const tickW = type === "major" ? 11 : type === "half" ? 7 : 4;
-            return (
-              <g key={`vy-${value}`}>
+            <g style={{ pointerEvents: "none" }}>
+              <rect
+                x={0} y={0}
+                width={RULER_L} height={size.h - RULER_B}
+                fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
+              />
+              {vTicks.map(({ value, py, type }) => {
+                const tickW = type === "major" ? 11 : type === "half" ? 7 : 4;
+                return (
+                  <g key={`vy-${value}`}>
+                    <line
+                      x1={RULER_L - tickW} y1={py}
+                      x2={RULER_L} y2={py}
+                      stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
+                      strokeWidth={type === "major" ? 1.2 : 0.8}
+                    />
+                    {type === "major" && (
+                      <text
+                        x={RULER_L - tickW - 2} y={py + 3.5}
+                        fontSize={8} fill="#475569" fontWeight={600}
+                        textAnchor="end"
+                        className="pointer-events-none select-none font-mono"
+                      >
+                        {value}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+
+            {/* ── Cursor crosshair lines ────────────────────────────────────── */}
+            {cursorPos && (
+              <g style={{ pointerEvents: "none" }}>
                 <line
-                  x1={RULER_L - tickW} y1={py}
-                  x2={RULER_L}         y2={py}
-                  stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
-                  strokeWidth={type === "major" ? 1.2 : 0.8}
+                  x1={w2s(cursorPos.x, 0).px} y1={0}
+                  x2={w2s(cursorPos.x, 0).px} y2={size.h - RULER_B}
+                  stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
                 />
-                {type === "major" && (
-                  <text
-                    x={RULER_L - tickW - 2} y={py + 3.5}
-                    fontSize={8} fill="#475569" fontWeight={600}
-                    textAnchor="end"
-                    className="pointer-events-none select-none font-mono"
-                  >
-                    {value}
-                  </text>
-                )}
+                <line
+                  x1={RULER_L} y1={w2s(0, cursorPos.y).py}
+                  x2={size.w} y2={w2s(0, cursorPos.y).py}
+                  stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
+                />
               </g>
-            );
-          })}
-        </g>
+            )}
 
-        {/* ── Cursor crosshair lines ────────────────────────────────────── */}
-        {cursorPos && (
-          <g style={{ pointerEvents: "none" }}>
-            <line
-              x1={w2s(cursorPos.x, 0).px} y1={0}
-              x2={w2s(cursorPos.x, 0).px} y2={size.h - RULER_B}
-              stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
-            />
-            <line
-              x1={RULER_L}  y1={w2s(0, cursorPos.y).py}
-              x2={size.w}   y2={w2s(0, cursorPos.y).py}
-              stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
-            />
-          </g>
-        )}
-
-        {/* ── Corner "mm" label ─────────────────────────────────────────── */}
-        <g style={{ pointerEvents: "none" }}>
-          <rect
-            x={0} y={size.h - RULER_B}
-            width={RULER_L} height={RULER_B}
-            fill="#e2e8f0" stroke="#cbd5e1" strokeWidth={1}
-          />
-          <text
-            x={RULER_L / 2} y={size.h - RULER_B / 2 + 3.5}
-            textAnchor="middle" fontSize={9} fontWeight="bold" fill="#0284c7"
-            className="pointer-events-none select-none font-sans"
-          >
-            mm
-          </text>
-        </g>
-        </>
+            {/* ── Corner "mm" label ─────────────────────────────────────────── */}
+            <g style={{ pointerEvents: "none" }}>
+              <rect
+                x={0} y={size.h - RULER_B}
+                width={RULER_L} height={RULER_B}
+                fill="#e2e8f0" stroke="#cbd5e1" strokeWidth={1}
+              />
+              <text
+                x={RULER_L / 2} y={size.h - RULER_B / 2 + 3.5}
+                textAnchor="middle" fontSize={9} fontWeight="bold" fill="#0284c7"
+                className="pointer-events-none select-none font-sans"
+              >
+                mm
+              </text>
+            </g>
+          </>
         )}
       </svg>
 
@@ -1037,171 +1051,171 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
 
       {/* Global Dimension Indicator & Selection HUD */}
       {state.showHUD && (
-      <div className="absolute bottom-3 right-4 flex items-center gap-3 rounded-full border border-border bg-card/95 px-3 py-1 shadow-sm backdrop-blur">
-        {getSingleSelection(state.selection)?.kind === "placement" &&
-          (() => {
-            const sel = getSingleSelection(state.selection);
-            const p = sel ? state.placements.find((x) => x.id === sel.id) : null;
-            return p ? (
-              <div className="flex items-center gap-3 border-r border-border pr-3">
-                <span className="text-[11px] text-muted-foreground">
-                  <strong className="text-foreground font-semibold">X:</strong> {p.x.toFixed(3)}
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  <strong className="text-foreground font-semibold">Y:</strong> {p.y.toFixed(3)}
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  <strong className="text-foreground font-semibold">Rot:</strong> {p.rotation}°
-                </span>
-              </div>
-            ) : null;
-          })()}
-        <div className="flex items-center gap-1.5 border-r border-border pr-3">
-          <span className="text-[11px] font-semibold text-muted-foreground">Tool:</span>
-          <span className="text-[11px] font-bold text-foreground capitalize">{state.tool}</span>
-        </div>
-        {cursorPos && (
-          <div className="flex items-center gap-1 border-r border-border pr-3">
-            <span className="text-[11px] font-semibold text-muted-foreground">Cursor:</span>
-            <span className="text-[11px] font-mono font-bold text-foreground">
-              {cursorPos.x.toFixed(3)}, {cursorPos.y.toFixed(3)}
-            </span>
+        <div className="absolute bottom-3 right-4 flex items-center gap-3 rounded-full border border-border bg-card/95 px-3 py-1 shadow-sm backdrop-blur">
+          {getSingleSelection(state.selection)?.kind === "placement" &&
+            (() => {
+              const sel = getSingleSelection(state.selection);
+              const p = sel ? state.placements.find((x) => x.id === sel.id) : null;
+              return p ? (
+                <div className="flex items-center gap-3 border-r border-border pr-3">
+                  <span className="text-[11px] text-muted-foreground">
+                    <strong className="text-foreground font-semibold">X:</strong> {p.x.toFixed(3)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    <strong className="text-foreground font-semibold">Y:</strong> {p.y.toFixed(3)}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    <strong className="text-foreground font-semibold">Rot:</strong> {p.rotation}°
+                  </span>
+                </div>
+              ) : null;
+            })()}
+          <div className="flex items-center gap-1.5 border-r border-border pr-3">
+            <span className="text-[11px] font-semibold text-muted-foreground">Tool:</span>
+            <span className="text-[11px] font-bold text-foreground capitalize">{state.tool}</span>
           </div>
-        )}
-        {drag && dragStartPos && (
-          <div className="flex items-center gap-1 border-r border-border pr-3">
-            <span className="text-[11px] font-semibold text-muted-foreground">Delta:</span>
-            <span className="text-[11px] font-mono font-bold text-foreground">
-              {(cursorPos!.x - dragStartPos.x).toFixed(3)}, {(cursorPos!.y - dragStartPos.y).toFixed(3)}
-            </span>
+          {cursorPos && (
+            <div className="flex items-center gap-1 border-r border-border pr-3">
+              <span className="text-[11px] font-semibold text-muted-foreground">Cursor:</span>
+              <span className="text-[11px] font-mono font-bold text-foreground">
+                {cursorPos.x.toFixed(3)}, {cursorPos.y.toFixed(3)}
+              </span>
+            </div>
+          )}
+          {drag && dragStartPos && (
+            <div className="flex items-center gap-1 border-r border-border pr-3">
+              <span className="text-[11px] font-semibold text-muted-foreground">Delta:</span>
+              <span className="text-[11px] font-mono font-bold text-foreground">
+                {(cursorPos!.x - dragStartPos.x).toFixed(3)}, {(cursorPos!.y - dragStartPos.y).toFixed(3)}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] font-semibold text-muted-foreground">Snap:</span>
+            {[0.01, 0.05, 0.1, 0.5, 1.0].map((v) => (
+              <button
+                key={v}
+                className={`text-[10px] font-bold px-1 rounded ${state.snap === v ? "text-foreground bg-muted" : "text-muted-foreground hover:text-primary"}`}
+                onClick={() => dispatch({ type: "SET_SNAP", snap: v })}
+                title={`Snap to ${v} mm`}
+              >
+                {v}
+              </button>
+            ))}
           </div>
-        )}
-        <div className="flex items-center gap-1">
-          <span className="text-[11px] font-semibold text-muted-foreground">Snap:</span>
-          {[0.01, 0.05, 0.1, 0.5, 1.0].map((v) => (
+          <div className="flex items-center gap-1 border-l border-border pl-3">
             <button
-              key={v}
-              className={`text-[10px] font-bold px-1 rounded ${state.snap === v ? "text-foreground bg-muted" : "text-muted-foreground hover:text-primary"}`}
-              onClick={() => dispatch({ type: "SET_SNAP", snap: v })}
-              title={`Snap to ${v} mm`}
+              className={`text-[11px] font-bold ${state.showGrid ? "text-foreground" : "text-muted-foreground"} hover:text-primary`}
+              onClick={() => dispatch({ type: "TOGGLE_GRID" })}
+              title="Toggle grid visibility"
             >
-              {v}
+              {state.showGrid ? "Grid" : "Grid off"}
             </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 border-l border-border pl-3">
-          <button
-            className={`text-[11px] font-bold ${state.showGrid ? "text-foreground" : "text-muted-foreground"} hover:text-primary`}
-            onClick={() => dispatch({ type: "TOGGLE_GRID" })}
-            title="Toggle grid visibility"
-          >
-            {state.showGrid ? "Grid" : "Grid off"}
-          </button>
-        </div>
-        <div className="flex items-center gap-1 border-l border-border pl-3">
-          <button
-            className={`text-[11px] font-bold ${state.showConnections ? "text-foreground" : "text-muted-foreground"} hover:text-primary`}
-            onClick={() => dispatch({ type: "TOGGLE_CONNECTIONS" })}
-            title="Toggle connections visibility"
-          >
-            {state.showConnections ? "Routes" : "Routes off"}
-          </button>
-          <button
-            className={`text-[11px] font-bold ${state.showRulers ? "text-foreground" : "text-muted-foreground"} hover:text-primary`}
-            onClick={() => dispatch({ type: "TOGGLE_RULERS" })}
-            title="Toggle rulers (U)"
-          >
-            {state.showRulers ? "Rulers" : "Rulers off"}
-          </button>
-        </div>
-        <div className="flex items-center gap-1 border-l border-border pl-3">
-          <button
-            className={`text-[11px] font-bold ${state.showComponentIds ? "text-foreground" : "text-muted-foreground"} hover:text-primary`}
-            onClick={() => dispatch({ type: "TOGGLE_COMPONENT_IDS" })}
-            title="Toggle component ID labels"
-          >
-            {state.showComponentIds ? "IDs" : "IDs off"}
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5 border-l border-border pl-3">
-          <span className="text-[11px] font-semibold text-muted-foreground">Zoom:</span>
-          <button
-            className="text-[11px] font-bold text-muted-foreground hover:text-foreground px-1 leading-none"
-            onClick={() => dispatch({ type: "ZOOM", zoom: Math.max(SCALE_MIN, state.zoom * 0.9) })}
-            title="Zoom out"
-          >
-            −
-          </button>
-          <span className="text-[11px] font-bold text-foreground">{Math.round(state.zoom * 100)}%</span>
-          <button
-            className="text-[11px] font-bold text-muted-foreground hover:text-foreground px-1 leading-none"
-            onClick={() => dispatch({ type: "ZOOM", zoom: Math.min(SCALE_MAX, state.zoom * 1.1) })}
-            title="Zoom in"
-          >
-            +
-          </button>
-          <button
-            className="text-[11px] font-bold text-muted-foreground hover:text-foreground px-1 leading-none"
-            onClick={zoomToSelection}
-            title="Zoom to selection (Shift+F)"
-          >
-            ⊕
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5 border-l border-border pl-3">
-          <span className="text-[11px] font-semibold text-muted-foreground">Scale:</span>
-          <span className="text-[11px] font-mono font-bold text-foreground">{Math.round(MM_TO_PX * scale)} px/mm</span>
-        </div>
-        <div className="flex items-center gap-1.5 border-l border-border pl-3">
-          <span className="text-[11px] font-semibold text-muted-foreground">Objects:</span>
-          <span className="text-[11px] font-bold text-foreground">{state.placements.length}P · {state.connections.length}C</span>
-        </div>
-        <div className="flex items-center gap-1.5 border-l border-border pl-3">
-          <span className="text-[11px] font-semibold text-muted-foreground">Chip:</span>
-          <span className="text-[11px] font-bold text-foreground">{CHIP_W_MM} × {CHIP_H_MM} mm</span>
-        </div>
-        <div className="flex items-center gap-1.5 border-l border-border pl-3">
-          <button
-            className="text-[11px] font-bold text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              dispatch({ type: "ZOOM", zoom: 1 });
-              dispatch({ type: "PAN", x: size.w / 2, y: size.h / 2 });
-            }}
-            title="Reset view (1:1, center)"
-          >
-            1:1
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5 border-l border-border pl-3">
-          <button
-            className="text-[11px] font-bold text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              if (state.placements.length === 0) {
+          </div>
+          <div className="flex items-center gap-1 border-l border-border pl-3">
+            <button
+              className={`text-[11px] font-bold ${state.showConnections ? "text-foreground" : "text-muted-foreground"} hover:text-primary`}
+              onClick={() => dispatch({ type: "TOGGLE_CONNECTIONS" })}
+              title="Toggle connections visibility"
+            >
+              {state.showConnections ? "Routes" : "Routes off"}
+            </button>
+            <button
+              className={`text-[11px] font-bold ${state.showRulers ? "text-foreground" : "text-muted-foreground"} hover:text-primary`}
+              onClick={() => dispatch({ type: "TOGGLE_RULERS" })}
+              title="Toggle rulers (U)"
+            >
+              {state.showRulers ? "Rulers" : "Rulers off"}
+            </button>
+          </div>
+          <div className="flex items-center gap-1 border-l border-border pl-3">
+            <button
+              className={`text-[11px] font-bold ${state.showComponentIds ? "text-foreground" : "text-muted-foreground"} hover:text-primary`}
+              onClick={() => dispatch({ type: "TOGGLE_COMPONENT_IDS" })}
+              title="Toggle component ID labels"
+            >
+              {state.showComponentIds ? "IDs" : "IDs off"}
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-border pl-3">
+            <span className="text-[11px] font-semibold text-muted-foreground">Zoom:</span>
+            <button
+              className="text-[11px] font-bold text-muted-foreground hover:text-foreground px-1 leading-none"
+              onClick={() => dispatch({ type: "ZOOM", zoom: Math.max(SCALE_MIN, state.zoom * 0.9) })}
+              title="Zoom out"
+            >
+              −
+            </button>
+            <span className="text-[11px] font-bold text-foreground">{Math.round(state.zoom * 100)}%</span>
+            <button
+              className="text-[11px] font-bold text-muted-foreground hover:text-foreground px-1 leading-none"
+              onClick={() => dispatch({ type: "ZOOM", zoom: Math.min(SCALE_MAX, state.zoom * 1.1) })}
+              title="Zoom in"
+            >
+              +
+            </button>
+            <button
+              className="text-[11px] font-bold text-muted-foreground hover:text-foreground px-1 leading-none"
+              onClick={zoomToSelection}
+              title="Zoom to selection (Shift+F)"
+            >
+              ⊕
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-border pl-3">
+            <span className="text-[11px] font-semibold text-muted-foreground">Scale:</span>
+            <span className="text-[11px] font-mono font-bold text-foreground">{Math.round(MM_TO_PX * scale)} px/mm</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-border pl-3">
+            <span className="text-[11px] font-semibold text-muted-foreground">Objects:</span>
+            <span className="text-[11px] font-bold text-foreground">{state.placements.length}P · {state.connections.length}C</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-border pl-3">
+            <span className="text-[11px] font-semibold text-muted-foreground">Chip:</span>
+            <span className="text-[11px] font-bold text-foreground">{CHIP_W_MM} × {CHIP_H_MM} mm</span>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-border pl-3">
+            <button
+              className="text-[11px] font-bold text-muted-foreground hover:text-foreground"
+              onClick={() => {
                 dispatch({ type: "ZOOM", zoom: 1 });
                 dispatch({ type: "PAN", x: size.w / 2, y: size.h / 2 });
-                return;
-              }
-              const xs = state.placements.map((p) => p.x);
-              const ys = state.placements.map((p) => p.y);
-              const minX = Math.min(...xs), maxX = Math.max(...xs);
-              const minY = Math.min(...ys), maxY = Math.max(...ys);
-              const pad = 2;
-              const contentW = (maxX - minX + pad * 2) * MM_TO_PX;
-              const contentH = (maxY - minY + pad * 2) * MM_TO_PX;
-              const scaleX = size.w / contentW;
-              const scaleY = size.h / contentH;
-              const newZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, Math.min(scaleX, scaleY) * 0.9));
-              const cxWorld = (minX + maxX) / 2;
-              const cyWorld = (minY + maxY) / 2;
-              dispatch({ type: "ZOOM", zoom: newZoom });
-              dispatch({ type: "PAN", x: size.w / 2 - cxWorld * MM_TO_PX * newZoom, y: size.h / 2 + cyWorld * MM_TO_PX * newZoom });
-            }}
-            title="Fit all placements to screen"
-          >
-            Fit
-          </button>
+              }}
+              title="Reset view (1:1, center)"
+            >
+              1:1
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 border-l border-border pl-3">
+            <button
+              className="text-[11px] font-bold text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                if (state.placements.length === 0) {
+                  dispatch({ type: "ZOOM", zoom: 1 });
+                  dispatch({ type: "PAN", x: size.w / 2, y: size.h / 2 });
+                  return;
+                }
+                const xs = state.placements.map((p) => p.x);
+                const ys = state.placements.map((p) => p.y);
+                const minX = Math.min(...xs), maxX = Math.max(...xs);
+                const minY = Math.min(...ys), maxY = Math.max(...ys);
+                const pad = 2;
+                const contentW = (maxX - minX + pad * 2) * MM_TO_PX;
+                const contentH = (maxY - minY + pad * 2) * MM_TO_PX;
+                const scaleX = size.w / contentW;
+                const scaleY = size.h / contentH;
+                const newZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, Math.min(scaleX, scaleY) * 0.9));
+                const cxWorld = (minX + maxX) / 2;
+                const cyWorld = (minY + maxY) / 2;
+                dispatch({ type: "ZOOM", zoom: newZoom });
+                dispatch({ type: "PAN", x: size.w / 2 - cxWorld * MM_TO_PX * newZoom, y: size.h / 2 + cyWorld * MM_TO_PX * newZoom });
+              }}
+              title="Fit all placements to screen"
+            >
+              Fit
+            </button>
+          </div>
         </div>
-      </div>
       )}
 
       {state.pendingPin && (
