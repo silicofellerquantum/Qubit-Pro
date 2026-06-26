@@ -155,7 +155,17 @@ export type EditorAction =
   | { type: "TOGGLE_MINIMAP" }
   | { type: "UNDO" }
   | { type: "REDO" }
-  | { type: "LOAD"; doc: DesignDocument };
+  | { type: "LOAD"; doc: DesignDocument }
+  | { type: "AUTO_ALIGN"; layout?: AlignLayout };
+
+export type AlignLayout =
+  | "grid"        // balanced rows × cols (default)
+  | "horizontal"  // single row
+  | "vertical"    // single column
+  | "rhombus"     // diamond / rhombus pattern
+  | "u-shape"     // three sides of a rectangle (U)
+  | "circle"      // qubits on a circle
+  | "h-shape";    // two parallel rows with gap in between (H / IBM heavy-hex style)
 
 function snapshot(s: EditorState): Snapshot {
   return {
@@ -494,6 +504,134 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const next = !state.showMiniMap;
       try { localStorage.setItem("editor_minimap_visible", String(next)); } catch { /* ignore */ }
       return { ...state, showMiniMap: next };
+    }
+    case "AUTO_ALIGN": {
+      // ── Multi-layout Qubit Auto-Align ───────────────────────────────────
+      // Supported layouts: grid | horizontal | vertical | rhombus |
+      //                    u-shape | circle | h-shape
+      //
+      // Resonator-clearance guarantee: pitch ≥ pocket(1mm) + 2×clearance(1.5mm)
+      // = 4mm so each qubit has a 1.5mm exclusive zone for its meander route.
+      // ────────────────────────────────────────────────────────────────────
+      const QUBIT_RE  = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
+      const POCKET_MM = 1.0;
+      const CLEARANCE = 1.5;
+      const MIN_PITCH = 2.5;
+      const PITCH     = Math.max(MIN_PITCH, POCKET_MM + 2 * CLEARANCE); // 4.0 mm
+
+      const qubits = state.placements.filter(
+        (p) => !p.locked && QUBIT_RE.test(p.componentId),
+      );
+      if (qubits.length === 0) return state;
+
+      const N      = qubits.length;
+      const layout = action.layout ?? "grid";
+
+      // Cluster centroid — keep layout on-screen
+      const cx = qubits.reduce((s, p) => s + p.x, 0) / N;
+      const cy = qubits.reduce((s, p) => s + p.y, 0) / N;
+
+      // Sort qubits by (y, x) to preserve reading order
+      const sorted = [...qubits].sort((a, b) =>
+        a.y !== b.y ? a.y - b.y : a.x - b.x,
+      );
+
+      let slots: Array<{ x: number; y: number }> = [];
+
+      // ── GRID (balanced rows × cols) ──────────────────────────────────
+      if (layout === "grid") {
+        const cols = Math.ceil(Math.sqrt(N));
+        const rows = Math.ceil(N / cols);
+        const ox = cx - ((cols - 1) * PITCH) / 2;
+        const oy = cy - ((rows - 1) * PITCH) / 2;
+        for (let r = 0; r < rows; r++)
+          for (let c = 0; c < cols && slots.length < N; c++)
+            slots.push({ x: ox + c * PITCH, y: oy + r * PITCH });
+      }
+      // ── HORIZONTAL (single row) ──────────────────────────────────────
+      else if (layout === "horizontal") {
+        const ox = cx - ((N - 1) * PITCH) / 2;
+        for (let i = 0; i < N; i++)
+          slots.push({ x: ox + i * PITCH, y: cy });
+      }
+      // ── VERTICAL (single column) ─────────────────────────────────────
+      else if (layout === "vertical") {
+        const oy = cy - ((N - 1) * PITCH) / 2;
+        for (let i = 0; i < N; i++)
+          slots.push({ x: cx, y: oy + i * PITCH });
+      }
+      // ── RHOMBUS / DIAMOND ────────────────────────────────────────────
+      else if (layout === "rhombus") {
+        const D = PITCH;
+        const V = PITCH * Math.sin(Math.PI / 4);
+        const k = Math.ceil(Math.sqrt(N));
+        const rowSizes: number[] = [];
+        for (let i = 1; i <= k; i++) rowSizes.push(i);
+        for (let i = k - 1; i >= 1; i--) rowSizes.push(i);
+        let filled = 0;
+        for (let ri = 0; ri < rowSizes.length && filled < N; ri++) {
+          const w    = rowSizes[ri];
+          const rowY = cy + (ri - (rowSizes.length - 1) / 2) * V;
+          for (let ci = 0; ci < w && filled < N; ci++) {
+            const rowX = cx + (ci - (w - 1) / 2) * D;
+            slots.push({ x: rowX, y: rowY });
+            filled++;
+          }
+        }
+      }
+      // ── U-SHAPE ──────────────────────────────────────────────────────
+      else if (layout === "u-shape") {
+        const side   = Math.max(2, Math.ceil(N / 3));
+        const topW   = N - 2 * (side - 1);
+        const totalH = (side - 1) * PITCH;
+        const totalW = Math.max(topW - 1, 1) * PITCH;
+        const ox     = cx - totalW / 2;
+        const oy     = cy - totalH / 2;
+        for (let i = side - 1; i >= 0 && slots.length < N; i--)
+          slots.push({ x: ox, y: oy + i * PITCH });
+        for (let i = 1; i < topW - 1 && slots.length < N; i++)
+          slots.push({ x: ox + i * PITCH, y: oy });
+        for (let i = 0; i < side && slots.length < N; i++)
+          slots.push({ x: ox + (topW - 1) * PITCH, y: oy + i * PITCH });
+      }
+      // ── CIRCLE ───────────────────────────────────────────────────────
+      else if (layout === "circle") {
+        const minR = N > 1 ? PITCH / (2 * Math.sin(Math.PI / N)) : 0;
+        const R    = Math.max(minR, PITCH);
+        for (let i = 0; i < N; i++) {
+          const angle = (2 * Math.PI * i) / N - Math.PI / 2;
+          slots.push({ x: cx + R * Math.cos(angle), y: cy + R * Math.sin(angle) });
+        }
+      }
+      // ── H-SHAPE (two staggered rows, IBM heavy-hex style) ────────────
+      else if (layout === "h-shape") {
+        const topN   = Math.ceil(N / 2);
+        const botN   = N - topN;
+        const rowY   = PITCH / 2;
+        const stagger = PITCH / 2;
+        const topOx  = cx - ((topN - 1) * PITCH) / 2;
+        for (let i = 0; i < topN; i++)
+          slots.push({ x: topOx + i * PITCH, y: cy - rowY });
+        const botOx = cx - ((botN - 1) * PITCH) / 2 + stagger;
+        for (let i = 0; i < botN; i++)
+          slots.push({ x: botOx + i * PITCH, y: cy + rowY });
+      }
+
+      // Apply new positions
+      const movedIds = new Set(sorted.map((q) => q.id));
+      return {
+        ...state,
+        ...bump(state),
+        placements: state.placements.map((p) => {
+          if (!movedIds.has(p.id)) return p;
+          const idx = sorted.findIndex((q) => q.id === p.id);
+          return { ...p, x: slots[idx].x, y: slots[idx].y };
+        }),
+        connections: state.connections.map((c) => ({
+          ...c,
+          cachedGeometryHash: undefined,
+        })),
+      };
     }
     case "UNDO": {
       if (state.past.length === 0) return state;

@@ -3,6 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Undo2, Redo2, MousePointer2, Hand, Code2, Maximize,
   Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map, RefreshCw,
+  AlignCenter, AlignHorizontalJustifyCenter, AlignVerticalJustifyCenter,
+  Circle, Hexagon, Minus, LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -14,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { type Tool } from "@/lib/editor/design-store";
+import { type Tool, type AlignLayout } from "@/lib/editor/design-store";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import type { CodePanelMode } from "./code-ide-panel";
 import type { EditorCanvasHandle } from "./editor-canvas";
@@ -154,6 +156,66 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
             </TooltipTrigger>
             <TooltipContent>Fit all components into view (F)</TooltipContent>
           </Tooltip>
+
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost" size="sm"
+                    className="h-8 gap-1.5 text-[11px]"
+                    disabled={state.placements.length === 0}
+                  >
+                    <AlignCenter className="h-3.5 w-3.5" />
+                    <span className="hidden md:inline">Auto Align</span>
+                    <ChevronDown className="h-3 w-3 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Choose an auto-align layout for qubits</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="start" className="w-52">
+              {(
+                [
+                  { layout: "grid"       as AlignLayout, label: "Grid",       desc: "Balanced rows × cols",               Icon: LayoutGrid },
+                  { layout: "horizontal" as AlignLayout, label: "Horizontal", desc: "Single row left → right",             Icon: AlignHorizontalJustifyCenter },
+                  { layout: "vertical"   as AlignLayout, label: "Vertical",   desc: "Single column top → bottom",          Icon: AlignVerticalJustifyCenter },
+                  { layout: "rhombus"    as AlignLayout, label: "Rhombus",    desc: "Diamond / rhombus pattern",            Icon: Hexagon },
+                  { layout: "u-shape"    as AlignLayout, label: "U-Shape",    desc: "Three sides — open bottom",            Icon: Minus },
+                  { layout: "circle"     as AlignLayout, label: "Circle",     desc: "Equidistant ring",                     Icon: Circle },
+                  { layout: "h-shape"    as AlignLayout, label: "H-Shape",    desc: "Two staggered rows (heavy-hex style)", Icon: AlignCenter },
+                ] as const
+              ).map(({ layout, label, desc, Icon }) => (
+                <DropdownMenuItem
+                  key={layout}
+                  className="flex items-start gap-2 py-2 cursor-pointer"
+                  onClick={() => {
+                    const qubits = state.placements.filter(
+                      (p) => !p.locked &&
+                        /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i
+                          .test(p.componentId),
+                    );
+                    if (qubits.length === 0) {
+                      toast.info("No unlocked qubits to align.");
+                      return;
+                    }
+                    dispatch({ type: "AUTO_ALIGN", layout });
+                    dispatch({ type: "CLEAR_ROUTE_CACHE" });
+                    qc.removeQueries({ queryKey: ["bridge", "render-route"] });
+                    toast.success(
+                      `${label}: aligned ${qubits.length} qubit${qubits.length > 1 ? "s" : ""} — resonators won't overlap`,
+                    );
+                  }}
+                >
+                  <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-medium text-[12px]">{label}</span>
+                    <span className="text-[10px] text-muted-foreground">{desc}</span>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Tooltip>
             <TooltipTrigger asChild>
