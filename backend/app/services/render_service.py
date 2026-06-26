@@ -334,7 +334,14 @@ class RenderService:
             re = result.get("route_errors", {}).get(connection_id, "empty SVG")
             log.warning("Route %s produced no SVG: %s", connection_id, re)
             return None
-        return RouteRender(connectionId=connection_id, svg=svg)
+        resolved_opts = result.get("resolved_route_options", {}).get(connection_id)
+        resolved_pts = result.get("resolved_path_points", {}).get(connection_id)
+        return RouteRender(
+            connectionId=connection_id,
+            svg=svg,
+            resolvedRouteOptions=resolved_opts,
+            resolvedPathPoints=resolved_pts,
+        )
 
     def render_design(self, design: DesignDocument) -> RenderResult:
         if not design.placements:
@@ -380,7 +387,12 @@ class RenderService:
         raw = result.get("vb", [-4500, -3000, 9000, 6000])
         vb  = ViewBox(x=float(raw[0]), y=float(raw[1]), w=float(raw[2]), h=float(raw[3]))
         
-        routes = [RouteRender(connectionId=cid, svg=s) for cid, s in result.get("routes", {}).items() if s]
+        routes = [RouteRender(
+            connectionId=cid,
+            svg=s,
+            resolvedRouteOptions=result.get("resolved_route_options", {}).get(cid),
+            resolvedPathPoints=result.get("resolved_path_points", {}).get(cid),
+        ) for cid, s in result.get("routes", {}).items() if s]
         
         for c in design.connections:
             if c.locked and c.cachedSvg:

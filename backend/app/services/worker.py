@@ -701,11 +701,140 @@ def handle_full_design(job: dict) -> dict:
     ymax = max(b[3] for b in bounds) * MM
     pad = max((xmax - xmin) * 0.08, (ymax - ymin) * 0.08, 200)
 
+    # ── Extract resolved RouteMeander options AND path points after rebuild ───
+    # These are the authoritative values that produced the SVG geometry.
+    # Path points are the exact (x, y, tangent) vertices Qiskit Metal computed;
+    # the frontend must render these directly without any rounding, snapping,
+    # or re-computation of fillets/arcs.
+    resolved_route_options: dict[str, dict] = {}
+    resolved_path_points: dict[str, list] = {}
+
+    _ROUTE_OPTION_KEYS = (
+        "total_length", "fillet",
+        "lead", "meander",
+        "trace_width", "trace_gap",
+        "asymmetry", "snap",
+    )
+
+    for conn_id, inst_id in route_id_map.items():
+        try:
+            # Find the route component instance by its numeric id
+            route_inst = next(
+                (c for c in design.components.values() if c.id == inst_id),
+                None,
+            )
+            if route_inst is None:
+                continue
+
+            # ── 1. Extract resolved options ───────────────────────────────────
+            opts = getattr(route_inst, "options", None)
+            if opts is not None:
+                extracted: dict = {}
+                for key in _ROUTE_OPTION_KEYS:
+                    val = opts.get(key)
+                    if val is not None:
+                        # Convert nested Dict objects to plain Python dicts so
+                        # they serialise cleanly through json.dumps
+                        try:
+                            from qiskit_metal import Dict as QDict
+                            if isinstance(val, QDict):
+                                extracted[key] = dict(val)
+                            else:
+                                extracted[key] = val
+                        except Exception:
+                            extracted[key] = str(val)
+                if extracted:
+                    resolved_route_options[conn_id] = extracted
+
+            # ── 2. Extract resolved path points (x, y, tangent) ──────────────
+            # QRoute stores the computed path in .get_points() or .intermediate_pts
+            # Use high precision (1e-9 m → round to 9 decimal places in mm units).
+            # Priority: get_points() → intermediate_pts → head_pts/tail_pts
+            pts: list = []
+            try:
+                if hasattr(route_inst, "get_points"):
+                    raw_pts = route_inst.get_points()
+                    # get_points() returns numpy array of shape (N,2) in metres
+                    import numpy as np
+                    if raw_pts is not None and hasattr(raw_pts, "__len__") and len(raw_pts) > 0:
+                        arr = np.asarray(raw_pts, dtype=float)
+                        if arr.ndim == 2 and arr.shape[1] >= 2:
+                            pts = [
+                                {"x": round(float(p[0]), 9), "y": round(float(p[1]), 9)}
+                                for p in arr
+                            ]
+            except Exception as exc:
+                log.debug("get_points() failed for %s: %s", conn_id, exc)
+
+            # Fallback: extract from QGeometry path table as LineString coords
+            if not pts:
+                try:
+                    path_tbl = design.qgeometry.tables.get("path")
+                    if path_tbl is not None and len(path_tbl) > 0:
+                        rows = path_tbl[path_tbl["component"] == inst_id]
+                        for _, row in rows.iterrows():
+                            g = row.get("geometry")
+                            if g is not None and not g.is_empty:
+                                coords = list(g.coords)
+                                # coords are in metres from Qiskit Metal
+                                pts = [
+                                    {"x": round(float(c[0]), 9), "y": round(float(c[1]), 9)}
+                                    for c in coords
+                                ]
+                                break
+                except Exception as exc:
+                    log.debug("Path table extraction failed for %s: %s", conn_id, exc)
+
+            # Also extract port connection points from the start/end pins
+            # so the frontend can verify port anchor alignment exactly
+            try:
+                port_anchors: dict = {}
+                if hasattr(route_inst, "qroute_part1") and hasattr(route_inst, "qroute_part2"):
+                    # QRoute stores head/tail pin data
+                    pass
+                # Read from pin_inputs options to get the actual resolved pin positions
+                if opts is not None:
+                    pin_inputs = opts.get("pin_inputs", {})
+                    for side, key in [("start", "start_pin"), ("end", "end_pin")]:
+                        pin_ref = pin_inputs.get(key, {})
+                        comp_name = pin_ref.get("component", "")
+                        pin_name = pin_ref.get("pin", "")
+                        if comp_name and pin_name and comp_name in design.components:
+                            comp_inst = design.components[comp_name]
+                            if pin_name in comp_inst.pins:
+                                pin_data = comp_inst.pins[pin_name]
+                                mid = pin_data.get("middle")
+                                nrm = pin_data.get("normal")
+                                if mid is not None:
+                                    import numpy as np
+                                    mid_arr = np.asarray(mid, dtype=float)
+                                    nrm_arr = np.asarray(nrm, dtype=float) if nrm is not None else None
+                                    port_anchors[side] = {
+                                        "x": round(float(mid_arr[0]), 9),
+                                        "y": round(float(mid_arr[1]), 9),
+                                        "normal_x": round(float(nrm_arr[0]), 9) if nrm_arr is not None else 0.0,
+                                        "normal_y": round(float(nrm_arr[1]), 9) if nrm_arr is not None else 0.0,
+                                    }
+                if port_anchors:
+                    if conn_id not in resolved_route_options:
+                        resolved_route_options[conn_id] = {}
+                    resolved_route_options[conn_id]["_port_anchors"] = port_anchors
+            except Exception as exc:
+                log.debug("Port anchor extraction failed for %s: %s", conn_id, exc)
+
+            if pts:
+                resolved_path_points[conn_id] = pts
+
+        except Exception as exc:
+            log.debug("Could not extract resolved data for route %s: %s", conn_id, exc)
+
     return {
         "svg": "\n".join(comp_svg),
         "vb":  [xmin-pad, ymin-pad, (xmax-xmin)+2*pad, (ymax-ymin)+2*pad],
         "routes": {cid: "\n".join(svgs) for cid, svgs in route_svgs.items()},
         "route_errors": route_errors,
+        "resolved_route_options": resolved_route_options,
+        "resolved_path_points": resolved_path_points,
     }
 
 

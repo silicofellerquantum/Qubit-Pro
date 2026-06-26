@@ -127,6 +127,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   // ── Connection block feedback ────────────────────────────────────────────────
   // When the reducer blocks a connection attempt it sets lastBlockReason.
   // We surface that as a toast so the user gets clear, immediate feedback.
+  // Depend only on lastBlockReason — NOT on rev — so the toast fires exactly
+  // once per new block reason and never replays on unrelated state changes
+  // such as component moves or route geometry refreshes.
   useEffect(() => {
     if (state.lastBlockReason) {
       toast.error("Connection blocked", {
@@ -134,8 +137,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         duration: 4000,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.lastBlockReason, state.rev]);
+  }, [state.lastBlockReason]);
 
   // Close context menu on any click outside
   useEffect(() => {

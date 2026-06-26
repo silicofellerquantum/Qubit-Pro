@@ -5,7 +5,16 @@ import math
 import re
 from app.core.editor_models import DesignDocument, GeneratedCode
 
-# Meander factor: generated total_length = this × Euclidean pin-to-pin distance
+# ── Fabrication constants — single source of truth ────────────────────────────
+# These MUST match what render_service/worker sends to RouteMeander.
+# Changing a value here changes both the live preview AND the exported code.
+from app.services.metal_codegen.config import get_settings as _get_settings
+_FAB = _get_settings().fabrication
+FILLET_UM: str = f"{int(_FAB.fillet_radius_um)}um"   # e.g. "50um"
+DEFAULT_LEAD_UM: str = "100um"                         # start_straight / end_straight
+
+# Fallback total_length when resolved options are unavailable.
+# Only used on connections that have never been rendered by the worker.
 _MEANDER_FACTOR = 1.5
 
 # ── connection_pads defaults per component type ───────────────────────────────
@@ -123,8 +132,10 @@ def _compute_total_length(
     placement_pos: dict[str, tuple[float, float]],
 ) -> str:
     """
-    Compute a sensible total_length for RouteMeander: 1.5× Euclidean distance.
-    Clamped to [3mm, 30mm]. Falls back to '7mm' if positions unknown.
+    Fallback total_length for RouteMeander when resolved options are absent.
+    Used only on connections that have never been rendered by the Qiskit Metal
+    worker (i.e. routeOverrides lacks 'total_length').
+    Clamped to [3mm, 30mm].
     """
     p1 = placement_pos.get(from_id)
     p2 = placement_pos.get(to_id)
@@ -268,14 +279,22 @@ class CodegenService:
             seen_pins[tgt_pin_key] = var_name
 
             # ── Route options ─────────────────────────────────────────────────
+            # Priority order:
+            #   1. routeOverrides that came from the Qiskit Metal worker
+            #      (resolvedRouteOptions stored back by the frontend after render)
+            #   2. Any user-set override already on the connection
+            #   3. Canonical fabrication constants (fillet, leads)
+            #   4. Heuristic fallback for total_length (never-rendered connections)
             route_options: dict[str, str] = {}
             for k, v in connection.routeOverrides.items():
                 route_options[k] = str(v)
 
-            # Always emit fillet for meanders (99um is the canonical safe value)
             if route_id == "RouteMeander":
+                # fillet — use canonical constant unless already resolved
                 if "fillet" not in route_options:
-                    route_options["fillet"] = "99um"
+                    route_options["fillet"] = FILLET_UM
+
+                # total_length — use resolved value if present, else heuristic
                 if "total_length" not in route_options:
                     route_options["total_length"] = _compute_total_length(
                         connection.from_.placementId,
@@ -283,10 +302,51 @@ class CodegenService:
                         placement_pos,
                     )
 
+                # lead — always emit both start_straight and end_straight
+                # so Qiskit Metal's redistribution is fully deterministic.
+                # If a resolved 'lead' dict came back from the worker, use it;
+                # otherwise default both sides to DEFAULT_LEAD_UM.
+                if "lead" not in route_options:
+                    route_options["lead"] = (
+                        f"dict(start_straight='{DEFAULT_LEAD_UM}', "
+                        f"end_straight='{DEFAULT_LEAD_UM}')"
+                    )
+
             # ── Emit route line ───────────────────────────────────────────────
-            # Build the route options part: each value is already a string like
-            # '3mm', '99um', so emit them as quoted string literals.
-            extra = ", ".join(f"{k}={v!r}" for k, v in route_options.items())
+            # Build the route options part.
+            # 'lead' and 'meander' are special — they must be emitted as nested
+            # dict() calls, not quoted strings.
+            # All other values are quoted string literals (e.g. '3.456mm').
+            extra_parts = []
+            for k, v in route_options.items():
+                if k in ("lead", "meander"):
+                    # v may be:
+                    #   - a dict (from resolved options stored natively)
+                    #   - a JSON string like '{"start_straight": "100um", ...}'
+                    #   - already a dict()-literal string
+                    if isinstance(v, dict):
+                        inner = ", ".join(f"{dk}={dv!r}" for dk, dv in v.items())
+                        extra_parts.append(f"{k}=dict({inner})")
+                    else:
+                        sv = str(v)
+                        # Try to parse as JSON first (frontend stores as JSON string)
+                        try:
+                            import json as _json
+                            parsed = _json.loads(sv)
+                            if isinstance(parsed, dict):
+                                inner = ", ".join(f"{dk}={dv!r}" for dk, dv in parsed.items())
+                                extra_parts.append(f"{k}=dict({inner})")
+                            else:
+                                extra_parts.append(f"{k}={sv!r}")
+                        except Exception:
+                            # Already a dict()-literal string or similar
+                            if sv.startswith("dict(") or sv.startswith("{"):
+                                extra_parts.append(f"{k}={sv}")
+                            else:
+                                extra_parts.append(f"{k}={sv!r}")
+                else:
+                    extra_parts.append(f"{k}={v!r}")
+            extra = ", ".join(extra_parts)
 
             route_lines.extend([
                 f"{var_name} = {route_id}(design, {var_name!r}, options=dict(",
