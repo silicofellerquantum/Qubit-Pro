@@ -289,6 +289,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         });
       const next = {
         ...state,
+        // Clear any stale validation error — moving a component is a geometry
+        // operation only and must never replay a previous connection block.
+        lastBlockReason: null,
         placements: state.placements.map((p) =>
           p.id === action.id ? { ...p, x: action.x, y: action.y } : p,
         ),
