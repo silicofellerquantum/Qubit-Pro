@@ -1,7 +1,7 @@
 import { type RefObject, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Undo2, Redo2, MousePointer2, Hand, Code2, Maximize,
+  Undo2, Redo2, MousePointer2, Hand, Pencil, Code2, Maximize,
   Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -129,8 +129,9 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
   return (
     <TooltipProvider delayDuration={250}>
       <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-card px-3">
-        <TB icon={MousePointer2} label="Select" active={state.tool === "select"} onClick={() => setTool("select")} />
-        <TB icon={Hand}          label="Pan"    active={state.tool === "pan"}    onClick={() => setTool("pan")} />
+        <TB icon={MousePointer2} label="Select"     active={state.tool === "select"} onClick={() => setTool("select")} />
+        <TB icon={Hand}          label="Pan"        active={state.tool === "pan"}    onClick={() => setTool("pan")} />
+        <TB icon={Pencil}        label="Pencil (P)" active={state.tool === "pencil"} onClick={() => setTool("pencil")} />
         <Separator orientation="vertical" className="h-6" />
         <TB icon={Undo2} label="Undo (Ctrl+Z)"       onClick={() => dispatch({ type: "UNDO" })} disabled={!canUndo} />
         <TB icon={Redo2} label="Redo (Ctrl+Shift+Z)" onClick={() => dispatch({ type: "REDO" })} disabled={!canRedo} />

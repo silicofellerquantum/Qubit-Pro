@@ -12,6 +12,7 @@ import type {
   Connection,
   DesignDocument,
   Placement,
+  PinSpec,
 } from "@/lib/bridge/types";
 import { loadDesign, saveDesign, clearDesign } from "./persistence";
 
@@ -25,7 +26,7 @@ const CHIP_HALF_H = CHIP_H_MM / 2;
 
 // ---------- State ----------
 
-export type Tool = "select" | "pan" | "route";
+export type Tool = "select" | "pan" | "route" | "pencil";
 
 export interface SelectionItem {
   kind: "placement" | "connection";
@@ -47,6 +48,32 @@ export function getSingleSelection(sel: Selection): SelectionItem | null {
 export interface PendingPin {
   placementId: string;
   pinName: string;
+}
+
+/**
+ * Transient state maintained while the user is drawing a connection
+ * with the pencil tool. Reset to null when the drag ends (committed,
+ * cancelled, or rejected).
+ */
+export interface PencilDragState {
+  /** Placement ID of the pin the drag originated from. */
+  sourcePlacementId: string;
+  /** Pin name on the source placement. */
+  sourcePinName: string;
+  /** Current cursor position in world-space mm, updated on every pointermove. */
+  cursorWorld: { x: number; y: number };
+  /**
+   * The nearest valid snap target within PENCIL_SNAP_RADIUS_PX, or null
+   * if the cursor is not near any qualifying pin.
+   * Updated on every pointermove alongside cursorWorld.
+   */
+  snapTarget: { placementId: string; pinName: string } | null;
+  /**
+   * Freehand path points collected during the drag gesture, in world-space mm.
+   * Used to render the live preview curve and stored as the connection's
+   * cachedSvg geometry on commit.
+   */
+  pathPoints: { x: number; y: number }[];
 }
 
 export interface EditorState {
@@ -74,7 +101,12 @@ export interface EditorState {
    * action or on CANCEL_PIN.
    */
   lastBlockReason: string | null;
+  /** Transient drag state for the pencil tool. null when no drag is in progress. */
+  pencilDrag: PencilDragState | null;
 }
+
+/** Screen-space snap radius in pixels for the pencil tool. */
+export const PENCIL_SNAP_RADIUS_PX = 24;
 
 // ---------- Pin capacity helpers ----------
 
@@ -116,6 +148,98 @@ export function maxConnectionsForPin(
   return DEFAULT_MAX_CONNECTIONS_PER_PIN;
 }
 
+/**
+ * Given a list of all placements (with their pin specs resolved via pinMap),
+ * a current cursor position in screen-space pixels, and a source pin to
+ * exclude, return the nearest pin endpoint within snapRadiusPx.
+ *
+ * @param placements     All placements on the canvas
+ * @param pinMap         Map from placementId to the resolved PinSpec array for that placement
+ * @param cursorScreen   Current cursor position in screen-space pixels { px, py }
+ * @param w2s            World-to-screen transform: (x, y) → { px, py }
+ * @param sourcePlacementId  The placement the drag started from (excluded from candidates)
+ * @param sourcePinName      The pin the drag started from (excluded from candidates)
+ * @param snapRadiusPx   Maximum screen-space distance to consider (defaults to PENCIL_SNAP_RADIUS_PX)
+ * @returns { placementId, pinName } of the nearest qualifying pin, or null
+ */
+export function findNearestPin(
+  placements: Placement[],
+  pinMap: Map<string, PinSpec[]>,
+  cursorScreen: { px: number; py: number },
+  w2s: (x: number, y: number) => { px: number; py: number },
+  sourcePlacementId: string,
+  sourcePinName: string,
+  snapRadiusPx: number = PENCIL_SNAP_RADIUS_PX,
+): { placementId: string; pinName: string } | null {
+  let bestDist = Infinity;
+  let bestPin: { placementId: string; pinName: string } | null = null;
+
+  for (const placement of placements) {
+    const pins = pinMap.get(placement.id);
+    if (!pins) continue;
+
+    for (const pin of pins) {
+      // Skip the source pin itself
+      if (placement.id === sourcePlacementId && pin.name === sourcePinName) continue;
+
+      // Convert pin hint position (µm) to world-space mm, applying placement transform
+      const angleRad = (placement.rotation * Math.PI) / 180;
+      const cosA = Math.cos(angleRad);
+      const sinA = Math.sin(angleRad);
+      // Pin hint is in µm — convert to mm
+      const hintXMm = pin.hint.x / 1000;
+      const hintYMm = pin.hint.y / 1000;
+      // Apply mirrorX if set
+      const mx = placement.mirrorX ? -hintXMm : hintXMm;
+      // Rotate and translate to world space
+      const worldX = placement.x + mx * cosA - hintYMm * sinA;
+      const worldY = placement.y + mx * sinA + hintYMm * cosA;
+
+      const screenPos = w2s(worldX, worldY);
+      const dx = cursorScreen.px - screenPos.px;
+      const dy = cursorScreen.py - screenPos.py;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < snapRadiusPx && dist < bestDist) {
+        bestDist = dist;
+        bestPin = { placementId: placement.id, pinName: pin.name };
+      }
+    }
+  }
+
+  return bestPin;
+}
+
+/**
+ * Convert an array of {x,y} points (in µm) into a smooth SVG path string
+ * using Catmull-Rom to cubic Bézier conversion. This makes freehand strokes
+ * look smooth rather than jagged polylines.
+ *
+ * The resulting <path> uses the quantum CPW wire style (stroke "#0284c7",
+ * stroke-width 30µm, no fill, round caps) to match the existing route style.
+ */
+export function pointsToSmoothSvgPath(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return "";
+  if (pts.length === 2) {
+    return `<path d="M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}" stroke="#0284c7" stroke-width="30" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+  // Catmull-Rom → cubic Bézier (tension = 0.5)
+  const tension = 0.5;
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const cp1x = p1.x + (p2.x - p0.x) * tension / 3;
+    const cp1y = p1.y + (p2.y - p0.y) * tension / 3;
+    const cp2x = p2.x - (p3.x - p1.x) * tension / 3;
+    const cp2y = p2.y - (p3.y - p1.y) * tension / 3;
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x} ${p2.y}`;
+  }
+  return `<path d="${d}" stroke="#0284c7" stroke-width="30" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
 interface Snapshot {
   placements: Placement[];
   connections: Connection[];
@@ -155,7 +279,11 @@ export type EditorAction =
   | { type: "TOGGLE_MINIMAP" }
   | { type: "UNDO" }
   | { type: "REDO" }
-  | { type: "LOAD"; doc: DesignDocument };
+  | { type: "LOAD"; doc: DesignDocument }
+  | { type: "PENCIL_DRAG_START"; sourcePlacementId: string; sourcePinName: string; cursorWorld: { x: number; y: number } }
+  | { type: "PENCIL_DRAG_MOVE"; cursorWorld: { x: number; y: number }; snapTarget: { placementId: string; pinName: string } | null }
+  | { type: "PENCIL_DRAG_END"; targetPlacementId: string; targetPinName: string }
+  | { type: "PENCIL_DRAG_CANCEL" };
 
 function snapshot(s: EditorState): Snapshot {
   return {
@@ -199,6 +327,7 @@ export const initialEditorState: EditorState = {
   future: [],
   rev: 0,
   lastBlockReason: null,
+  pencilDrag: null,
 };
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -551,6 +680,149 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         rev: state.rev + 1,
       };
     }
+    case "PENCIL_DRAG_START": {
+      // Reject if source pin is already at capacity
+      const srcMax = maxConnectionsForPin(action.sourcePlacementId, action.sourcePinName);
+      const srcCount = pinOccupancy(state.connections, action.sourcePlacementId, action.sourcePinName);
+      if (srcCount >= srcMax) {
+        return {
+          ...state,
+          lastBlockReason: `Pin "${action.sourcePinName}" already has a connection. Maximum allowed: ${srcMax}.`,
+        };
+      }
+      return {
+        ...state,
+        pencilDrag: {
+          sourcePlacementId: action.sourcePlacementId,
+          sourcePinName: action.sourcePinName,
+          cursorWorld: action.cursorWorld,
+          snapTarget: null,
+          pathPoints: [action.cursorWorld],
+        },
+      };
+    }
+    case "PENCIL_DRAG_MOVE": {
+      if (!state.pencilDrag) return state;
+      // Append new point only if it moved at least 0.02mm from the last point
+      // (prevents accumulating hundreds of near-identical points on slow moves)
+      const prev = state.pencilDrag.pathPoints;
+      const last = prev[prev.length - 1];
+      const dx = action.cursorWorld.x - last.x;
+      const dy = action.cursorWorld.y - last.y;
+      const moved = Math.sqrt(dx * dx + dy * dy) > 0.02;
+      const pathPoints = moved ? [...prev, action.cursorWorld] : prev;
+      return {
+        ...state,
+        pencilDrag: {
+          ...state.pencilDrag,
+          cursorWorld: action.cursorWorld,
+          snapTarget: action.snapTarget,
+          pathPoints,
+        },
+      };
+    }
+    case "PENCIL_DRAG_END": {
+      if (!state.pencilDrag) return state;
+      const { sourcePlacementId, sourcePinName } = state.pencilDrag;
+      const { targetPlacementId, targetPinName } = action;
+
+      // Self-pin check — same placement and same pin (silent cancel)
+      if (sourcePlacementId === targetPlacementId && sourcePinName === targetPinName) {
+        return { ...state, pencilDrag: null, lastBlockReason: null };
+      }
+      // Self-loop check — same placement, different pin (silent cancel)
+      if (sourcePlacementId === targetPlacementId) {
+        return { ...state, pencilDrag: null, lastBlockReason: null };
+      }
+      // Duplicate-edge check (both directions)
+      const alreadyExists = state.connections.some((c) => {
+        const fwd =
+          c.from.placementId === sourcePlacementId &&
+          c.from.pinName === sourcePinName &&
+          c.to.placementId === targetPlacementId &&
+          c.to.pinName === targetPinName;
+        const rev =
+          c.from.placementId === targetPlacementId &&
+          c.from.pinName === targetPinName &&
+          c.to.placementId === sourcePlacementId &&
+          c.to.pinName === sourcePinName;
+        return fwd || rev;
+      });
+      if (alreadyExists) {
+        return {
+          ...state,
+          pencilDrag: null,
+          lastBlockReason: `Pin "${sourcePinName}" is already connected to pin "${targetPinName}". Duplicate connections are not allowed.`,
+        };
+      }
+      // Source pin capacity check
+      const fromMax = maxConnectionsForPin(sourcePlacementId, sourcePinName);
+      const fromCount = pinOccupancy(state.connections, sourcePlacementId, sourcePinName);
+      if (fromCount >= fromMax) {
+        return {
+          ...state,
+          pencilDrag: null,
+          lastBlockReason: `Pin "${sourcePinName}" already has a connection. Maximum allowed: ${fromMax}.`,
+        };
+      }
+      // Target pin capacity check
+      const toMax = maxConnectionsForPin(targetPlacementId, targetPinName);
+      const toCount = pinOccupancy(state.connections, targetPlacementId, targetPinName);
+      if (toCount >= toMax) {
+        return {
+          ...state,
+          pencilDrag: null,
+          lastBlockReason: `Pin "${targetPinName}" already has a connection. Maximum allowed: ${toMax}.`,
+        };
+      }
+      // All checks passed — commit the connection
+      const id = `conn_${sourcePlacementId}_${sourcePinName}__${targetPlacementId}_${targetPinName}_${Date.now()}`;
+
+      // Build a freehand SVG path from the collected world-space points.
+      // The cachedSvg is embedded in a group with transform:
+      //   translate(worldOriginPx, worldOriginPx) scale(sc, -sc)
+      // where sc = scale * MM_TO_PX * UM_TO_MM, so our coordinates must be in µm.
+      // Append the target pin world position as the final point so the path
+      // ends exactly at the target pin.
+      const rawPoints = state.pencilDrag.pathPoints;
+      // Convert mm → µm (×1000) for the SVG coordinate space
+      const toUm = (v: number) => v * 1000;
+      let svgPath = "";
+      if (rawPoints.length >= 2) {
+        // Smooth the path using a Catmull-Rom to cubic Bézier approximation
+        // so the freehand stroke looks natural rather than jagged.
+        const pts = rawPoints.map(p => ({ x: toUm(p.x), y: toUm(p.y) }));
+        svgPath = pointsToSmoothSvgPath(pts);
+      } else if (rawPoints.length === 1) {
+        const sx = toUm(rawPoints[0].x);
+        const sy = toUm(rawPoints[0].y);
+        const ex = toUm(state.pencilDrag.cursorWorld.x);
+        const ey = toUm(state.pencilDrag.cursorWorld.y);
+        svgPath = `<path d="M ${sx} ${sy} L ${ex} ${ey}" stroke="#0284c7" stroke-width="30" fill="none" stroke-linecap="round"/>`;
+      }
+
+      const conn: Connection = {
+        id,
+        from: { placementId: sourcePlacementId, pinName: sourcePinName },
+        to: { placementId: targetPlacementId, pinName: targetPinName },
+        routeComponentId: "RouteMeander",
+        // Store the freehand drawing as locked cached geometry so it renders
+        // exactly as drawn without a backend round-trip.
+        locked: true,
+        cachedSvg: svgPath,
+        cachedGeometryHash: `freehand_${id}`,
+      };
+      return {
+        ...state,
+        ...bump(state),
+        pencilDrag: null,
+        lastBlockReason: null,
+        connections: [...state.connections, conn],
+        selection: [{ kind: "connection", id }],
+      };
+    }
+    case "PENCIL_DRAG_CANCEL":
+      return { ...state, pencilDrag: null, lastBlockReason: null };
     default:
       return state;
   }

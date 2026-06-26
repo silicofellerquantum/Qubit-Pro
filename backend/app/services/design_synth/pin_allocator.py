@@ -32,7 +32,7 @@ _FAMILY_PINS: Dict[str, List[str]] = {
     "TransmonCrossFL":             ["readout", "bus_01", "bus_02"],
     # Resonators — ResonatorCoilRect exposes a single 'spiralPin'
     "ResonatorCoilRect":           ["spiralPin"],
-    "ReadoutResFC":                ["readout"],
+    "ReadoutResFC":                ["readout", "open_end"],
     "ResonatorLumped":             ["pin_east", "pin_ne", "pin_se", "pin_nw",
                                     "pin_west", "pin_sw", "pin_s", "pin_n"],
     # Tee couplers — actual Qiskit Metal pin names

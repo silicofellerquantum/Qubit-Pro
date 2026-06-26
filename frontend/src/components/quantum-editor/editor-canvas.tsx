@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Minus, Hand, MousePointer2, X } from "lucide-react";
-import { prefixForCategory, type EditorState, type Selection, isSelected, getSingleSelection } from "@/lib/editor/design-store";
+import { prefixForCategory, type EditorState, type Selection, type PencilDragState, isSelected, getSingleSelection, findNearestPin, pinOccupancy, maxConnectionsForPin } from "@/lib/editor/design-store";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import {
   componentPinsQueryOptions,
@@ -241,6 +241,36 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   // Canvas-specific keyboard handling removed to schematic-editor to prevent duplicates
 
   const onPDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    // ── Pencil tool branch — runs before pan / bg checks ────────────────────
+    if (state.tool === "pencil") {
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const cursorScreen = { px: e.clientX - rect.left, py: e.clientY - rect.top };
+      const nearest = findNearestPin(
+        state.placements,
+        pinMap,
+        cursorScreen,
+        w2s,
+        "", // no source yet — we exclude nothing at start detection
+        "", // empty pin name so nothing is excluded
+      );
+      if (!nearest) {
+        // No pin nearby — clear selection and bail (same as bg click)
+        dispatch({ type: "SELECT", selection: [] });
+        return;
+      }
+      // Convert screen position to world coords for cursorWorld
+      const cursorWorld = s2w(cursorScreen.px, cursorScreen.py);
+      dispatch({
+        type: "PENCIL_DRAG_START",
+        sourcePlacementId: nearest.placementId,
+        sourcePinName: nearest.pinName,
+        cursorWorld,
+      });
+      (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId);
+      e.stopPropagation();
+      return;
+    }
     // Middle mouse or Pan tool starts viewport pan
     if (e.button === 1 || state.tool === "pan") {
       e.preventDefault();
@@ -264,6 +294,23 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
       const w = s2w(e.clientX - rect.left, e.clientY - rect.top);
       setCursorPos({ x: w.x, y: w.y });
     }
+    // ── Pencil tool move branch — when a pencil drag is in progress ──────────
+    if (state.pencilDrag !== null) {
+      if (!rect) return;
+      const cursorWorld = s2w(e.clientX - rect.left, e.clientY - rect.top);
+      const cursorScreen = { px: e.clientX - rect.left, py: e.clientY - rect.top };
+      const snapTarget = findNearestPin(
+        state.placements,
+        pinMap,
+        cursorScreen,
+        w2s,
+        state.pencilDrag.sourcePlacementId,
+        state.pencilDrag.sourcePinName,
+      );
+      dispatch({ type: "PENCIL_DRAG_MOVE", cursorWorld, snapTarget });
+      // Early-return to skip component-drag move logic
+      return;
+    }
     if (panDrag) {
       const dx = e.clientX - panDrag.startX;
       const dy = e.clientY - panDrag.startY;
@@ -284,6 +331,22 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   };
 
   const onPUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    // ── Pencil tool up branch — when a pencil drag is in progress ───────────
+    if (state.pencilDrag !== null) {
+      if ((e.currentTarget as Element).hasPointerCapture(e.pointerId))
+        (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+      if (state.pencilDrag.snapTarget !== null) {
+        dispatch({
+          type: "PENCIL_DRAG_END",
+          targetPlacementId: state.pencilDrag.snapTarget.placementId,
+          targetPinName: state.pencilDrag.snapTarget.pinName,
+        });
+      } else {
+        dispatch({ type: "PENCIL_DRAG_CANCEL" });
+      }
+      // Early-return to skip component-drag up logic
+      return;
+    }
     if (panDrag) {
       setPanDrag(null);
       if ((e.currentTarget as Element).hasPointerCapture(e.pointerId))
@@ -368,6 +431,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     (p: Placement) => ({
       onPointerDown: (e: React.PointerEvent) => {
         if (state.tool === "pan") return; // let SVG pan handler take over
+        if (state.tool === "pencil") return; // let SVG-level onPDown handle pin detection; do not start a component drag
         e.stopPropagation();
         if (e.shiftKey) {
           dispatch({ type: "TOGGLE_SELECT", item: { kind: "placement", id: p.id } });
@@ -394,6 +458,22 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           pinName: pin,
           defaultRouteComponentId: "RouteMeander",
         }),
+      onPencilPinDown: (e: React.PointerEvent, pinName: string) => {
+        // Pencil drag start — called when user presses down on a pin in pencil mode.
+        // We have the exact placement + pin so no findNearestPin needed.
+        const rect = svgRef.current?.getBoundingClientRect();
+        const cursorWorld = rect
+          ? s2w(e.clientX - rect.left, e.clientY - rect.top)
+          : { x: p.x, y: p.y };
+        dispatch({
+          type: "PENCIL_DRAG_START",
+          sourcePlacementId: p.id,
+          sourcePinName: pinName,
+          cursorWorld,
+        });
+        // Capture pointer on the SVG so move/up events keep arriving.
+        svgRef.current?.setPointerCapture(e.pointerId);
+      },
       onRename: (name: string) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { name } }),
       onContextMenu: (e: React.MouseEvent) => {
         e.preventDefault();
@@ -515,7 +595,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         height={size.h}
         className="block touch-none"
         style={{
-          cursor: panDrag ? "grabbing" : state.tool === "pan" ? "grab" : drag?.mode === "move" ? "grabbing" : "default",
+          cursor: panDrag ? "grabbing" : state.tool === "pan" ? "grab" : drag?.mode === "move" ? "grabbing" : state.tool === "pencil" ? "crosshair" : "default",
         }}
         role="application"
         aria-label="Quantum chip schematic editor canvas"
@@ -839,8 +919,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                 scale={scale}
                 uiScale={getUiScale(p)}
                 selected={isSelected(state.selection, "placement", p.id)}
+                tool={state.tool}
                 onPointerDown={handlers.onPointerDown}
                 onPinClick={handlers.onPinClick}
+                onPencilPinDown={handlers.onPencilPinDown}
                 onRename={handlers.onRename}
                 onHoverStart={() => setHovered(p.id)}
                 onHoverEnd={() => setHovered(null)}
@@ -848,6 +930,18 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               />
             );
           })}
+
+          {/* 4. PencilPreviewOverlay — rendered on top of all hit-area layers
+                 so the live drag line is never occluded by component hit rects. */}
+          {state.pencilDrag && (
+            <PencilPreviewOverlay
+              pencilDrag={state.pencilDrag}
+              placements={state.placements}
+              pinMap={pinMap}
+              connections={state.connections}
+              w2s={w2s}
+            />
+          )}
         </g>
 
         {/* Multi-selection bounding box */}
@@ -1304,6 +1398,184 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   );
 });
 
+// ── PencilPreviewOverlay ──────────────────────────────────────────────────────
+// Renders the live drag preview while the pencil tool is active:
+//   • A dashed line from the source pin to the cursor (or snapped target pin)
+//   • A filled circle at the source pin (always visible during drag)
+//   • A translucent halo at the target pin (only when snapping to a candidate)
+// All elements use pointerEvents="none" so they never intercept hit-testing.
+
+/**
+ * Check whether a snap target is invalid for the current pencil drag.
+ * Returns true for: self-loop, duplicate edge (either direction), or
+ * target pin already at capacity.
+ */
+function isTargetInvalid(
+  pencilDrag: PencilDragState,
+  connections: Connection[],
+  placements: Placement[],
+  pinMap: Map<string, PinSpec[]>,
+): boolean {
+  const { sourcePlacementId, sourcePinName, snapTarget } = pencilDrag;
+  if (!snapTarget) return false;
+  const { placementId: targetPlacementId, pinName: targetPinName } = snapTarget;
+
+  // Self-loop: same placement, any pin
+  if (sourcePlacementId === targetPlacementId) return true;
+
+  // Duplicate edge (both directions)
+  const duplicate = connections.some((c) => {
+    const fwd =
+      c.from.placementId === sourcePlacementId &&
+      c.from.pinName === sourcePinName &&
+      c.to.placementId === targetPlacementId &&
+      c.to.pinName === targetPinName;
+    const rev =
+      c.from.placementId === targetPlacementId &&
+      c.from.pinName === targetPinName &&
+      c.to.placementId === sourcePlacementId &&
+      c.to.pinName === sourcePinName;
+    return fwd || rev;
+  });
+  if (duplicate) return true;
+
+  // Target pin over capacity
+  const toMax = maxConnectionsForPin(targetPlacementId, targetPinName);
+  const toCount = pinOccupancy(connections, targetPlacementId, targetPinName);
+  if (toCount >= toMax) return true;
+
+  return false;
+}
+
+interface PencilPreviewOverlayProps {
+  pencilDrag: PencilDragState;
+  placements: Placement[];
+  pinMap: Map<string, PinSpec[]>;
+  connections: Connection[];
+  w2s: (x: number, y: number) => { px: number; py: number };
+}
+
+function PencilPreviewOverlay({
+  pencilDrag,
+  placements,
+  pinMap,
+  connections,
+  w2s,
+}: PencilPreviewOverlayProps) {
+  const { sourcePlacementId, sourcePinName, cursorWorld, snapTarget, pathPoints } = pencilDrag;
+
+  // Resolve source pin screen position
+  const sourcePlacement = placements.find((p) => p.id === sourcePlacementId);
+  if (!sourcePlacement) return null;
+
+  const sourcePins = pinMap.get(sourcePlacementId) ?? [];
+  const sourcePin = sourcePins.find((pin) => pin.name === sourcePinName);
+  if (!sourcePin) return null;
+
+  const sMx = sourcePlacement.mirrorX ? -1 : 1;
+  const sDx = sourcePin.hint.x * UM_TO_MM * sMx;
+  const sDy = sourcePin.hint.y * UM_TO_MM;
+  const sRad = (sourcePlacement.rotation * Math.PI) / 180;
+  const sourceWorldX = sourcePlacement.x + (sDx * Math.cos(sRad) - sDy * Math.sin(sRad));
+  const sourceWorldY = sourcePlacement.y + (sDx * Math.sin(sRad) + sDy * Math.cos(sRad));
+  const sourceScreen = w2s(sourceWorldX, sourceWorldY);
+
+  // Resolve target snap screen position
+  let targetScreen: { px: number; py: number } | null = null;
+  let isInvalid = false;
+  if (snapTarget) {
+    const tp = placements.find((p) => p.id === snapTarget.placementId);
+    if (tp) {
+      const tPins = pinMap.get(snapTarget.placementId) ?? [];
+      const tPin = tPins.find((pin) => pin.name === snapTarget.pinName);
+      if (tPin) {
+        const tMx = tp.mirrorX ? -1 : 1;
+        const tDx = tPin.hint.x * UM_TO_MM * tMx;
+        const tDy = tPin.hint.y * UM_TO_MM;
+        const tRad = (tp.rotation * Math.PI) / 180;
+        const targetWorldX = tp.x + (tDx * Math.cos(tRad) - tDy * Math.sin(tRad));
+        const targetWorldY = tp.y + (tDx * Math.sin(tRad) + tDy * Math.cos(tRad));
+        targetScreen = w2s(targetWorldX, targetWorldY);
+        isInvalid = isTargetInvalid(pencilDrag, connections, placements, pinMap);
+      }
+    }
+  }
+
+  // Build the freehand path in screen-space from collected world points + live cursor
+  // Include the live cursor position as the last point so the path follows the finger
+  const allWorldPts = [...pathPoints, cursorWorld];
+  // If snapping, end exactly at target pin
+  const finalScreen = targetScreen ?? w2s(cursorWorld.x, cursorWorld.y);
+  const screenPts = allWorldPts.map((p) => w2s(p.x, p.y));
+  // Replace last point with snapped target when available
+  if (targetScreen) screenPts[screenPts.length - 1] = targetScreen;
+
+  const strokeColor = isInvalid ? "#ef4444" : "#0284c7";
+
+  // Build smooth SVG path using Catmull-Rom in screen space
+  let pathD = "";
+  if (screenPts.length >= 2) {
+    const tension = 0.4;
+    pathD = `M ${screenPts[0].px} ${screenPts[0].py}`;
+    for (let i = 0; i < screenPts.length - 1; i++) {
+      const p0 = screenPts[Math.max(0, i - 1)];
+      const p1 = screenPts[i];
+      const p2 = screenPts[i + 1];
+      const p3 = screenPts[Math.min(screenPts.length - 1, i + 2)];
+      const cp1x = p1.px + (p2.px - p0.px) * tension / 3;
+      const cp1y = p1.py + (p2.py - p0.py) * tension / 3;
+      const cp2x = p2.px - (p3.px - p1.px) * tension / 3;
+      const cp2y = p2.py - (p3.py - p1.py) * tension / 3;
+      pathD += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.px} ${p2.py}`;
+    }
+  } else if (screenPts.length === 1) {
+    pathD = `M ${screenPts[0].px} ${screenPts[0].py} L ${finalScreen.px} ${finalScreen.py}`;
+  }
+
+  return (
+    <>
+      {/* Freehand preview path — follows the drawn curve */}
+      {pathD && (
+        <path
+          d={pathD}
+          stroke={strokeColor}
+          strokeWidth={3}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={0.9}
+          pointerEvents="none"
+        />
+      )}
+
+      {/* Source pin indicator — always visible during drag */}
+      <circle
+        cx={sourceScreen.px}
+        cy={sourceScreen.py}
+        r={6}
+        fill="var(--primary)"
+        stroke="var(--background)"
+        strokeWidth={1.5}
+        pointerEvents="none"
+      />
+
+      {/* Target pin halo — only when snapping to a candidate */}
+      {targetScreen && (
+        <circle
+          cx={targetScreen.px}
+          cy={targetScreen.py}
+          r={12}
+          fill={isInvalid ? "#ef4444" : "var(--primary)"}
+          fillOpacity={0.2}
+          stroke={isInvalid ? "#ef4444" : "var(--primary)"}
+          strokeWidth={2.5}
+          pointerEvents="none"
+        />
+      )}
+    </>
+  );
+}
+
 // ── CanvasScrollbars ──────────────────────────────────────────────────────────
 // Thin overlay scrollbars that reflect pan state and dispatch PAN on drag.
 // The "world" is defined as ±WORLD_MM mm around center; thumb position and
@@ -1581,16 +1853,20 @@ function PlacementGlyph({
   const q = useQuery(componentPreviewQueryOptions(componentId, placement.params));
   const vb = q.data?.viewBox;
   const units = (q.data?.units ?? "um") as "um" | "mm";
-  // sz = largest physical dimension in screen pixels, capped at MAX_COMP_MM.
+  // sc = screen pixels per viewBox unit, capped at MAX_COMP_MM
   const sc = vb
     ? svgScale(Math.max(vb.w, vb.h), units, scale, uiScale)
     : svgScale(800, "um", scale, uiScale);  // fallback ~0.8mm
-  const sz = vb
-    ? Math.max(vb.w, vb.h) * sc
-    : 0.8 * MM_TO_PX * scale * uiScale;
+  // Actual visual width and height in screen pixels
+  const visW = vb ? vb.w * sc : 0.8 * MM_TO_PX * scale * uiScale;
+  const visH = vb ? vb.h * sc : 0.8 * MM_TO_PX * scale * uiScale;
+  // Center offset of the viewBox in local coords
+  const vbOffX = vb ? (vb.x + vb.w / 2) * sc : 0;
+  const vbOffY = vb ? -(vb.y + vb.h / 2) * sc : 0;
+  // For labels/pins that need a single "half" reference use the larger dimension
+  const half = Math.max(visW, visH) / 2;
 
-  const { px, py } = w2s(placement.x, placement.y),
-    half = sz / 2;
+  const { px, py } = w2s(placement.x, placement.y);
 
   return (
     <g
@@ -1599,11 +1875,11 @@ function PlacementGlyph({
     >
       {overlapping && (
         <rect
-          x={-half - 8}
-          y={-half - 8}
-          width={sz + 16}
-          height={sz + 16}
-          rx={6}
+          x={vbOffX - visW / 2 - 8}
+          y={vbOffY - visH / 2 - 8}
+          width={visW + 16}
+          height={visH + 16}
+          rx={4}
           fill="none"
           stroke="#ef4444"
           strokeOpacity={0.6}
@@ -1612,14 +1888,14 @@ function PlacementGlyph({
         />
       )}
       {placement.locked && (
-        <g transform={`translate(${half - 8} ${-half + 2})`}>
+        <g transform={`translate(${vbOffX + visW / 2 - 8} ${vbOffY - visH / 2 + 2})`}>
           <rect x={-4} y={-2} width={10} height={8} rx={1} fill="#64748b" />
           <rect x={-2} y={-5} width={6} height={4} rx={1} fill="none" stroke="#64748b" strokeWidth={1.2} />
         </g>
       )}
       <text
         x={0}
-        y={half + 14}
+        y={vbOffY + visH / 2 + 14}
         textAnchor="middle"
         fontSize={10}
         fontWeight={700}
@@ -1631,7 +1907,7 @@ function PlacementGlyph({
       {showComponentIds && (
         <text
           x={0}
-          y={half + 26}
+          y={vbOffY + visH / 2 + 26}
           textAnchor="middle"
           fontSize={8}
           fill="var(--muted-foreground)"
@@ -1641,13 +1917,13 @@ function PlacementGlyph({
         </text>
       )}
       {placement.locked && (
-        <g transform={`translate(${-half + 4} ${-half + 4})`}>
+        <g transform={`translate(${vbOffX - visW / 2 + 4} ${vbOffY - visH / 2 + 4})`}>
           <circle r={6} fill="var(--amber-500)" stroke="var(--foreground)" strokeWidth={1} />
           <text y={3} textAnchor="middle" fontSize={7} fontWeight={700} fill="var(--foreground)">L</text>
         </g>
       )}
       {hovered && (
-        <g transform={`translate(${half + 8} ${-half})`}>
+        <g transform={`translate(${vbOffX + visW / 2 + 8} ${vbOffY - visH / 2})`}>
           <rect x={0} y={0} width={140} height={42} rx={4} fill="var(--card)" stroke="var(--border)" strokeWidth={1} opacity={0.95} />
           <text x={6} y={14} fontSize={9} fontWeight={700} fill="var(--foreground)">{placement.componentId}</text>
           <text x={6} y={28} fontSize={8} fill="var(--muted-foreground)">
@@ -1694,8 +1970,10 @@ function PlacementHitArea({
   scale,
   uiScale,
   selected,
+  tool,
   onPointerDown,
   onPinClick,
+  onPencilPinDown,
   onRename,
   onHoverStart,
   onHoverEnd,
@@ -1708,8 +1986,10 @@ function PlacementHitArea({
   scale: number;
   uiScale: number;
   selected: boolean;
+  tool: string;
   onPointerDown: (e: React.PointerEvent) => void;
   onPinClick: (p: string) => void;
+  onPencilPinDown: (e: React.PointerEvent, pinName: string) => void;
   onRename: (name: string) => void;
   onHoverStart?: () => void;
   onHoverEnd?: () => void;
@@ -1732,6 +2012,11 @@ function PlacementHitArea({
   const vbOffY = vb ? -(vb.y + vb.h / 2) * sc : 0;
   const hitW = Math.max(MIN_HIT, sz + HIT_PAD * 2);
   const hitH = hitW;
+  // Visual bounding box — matches the actual rendered component size exactly
+  // Used for the selection/hover outline so it hugs the component shape.
+  const visW = vb ? vb.w * sc : sz;
+  const visH = vb ? vb.h * sc : sz;
+  const VISUAL_PAD = 4; // small breathing room around the actual shape
   // ─────────────────────────────────────────────────────────────────────────
 
   const { px, py } = w2s(placement.x, placement.y),
@@ -1766,11 +2051,11 @@ function PlacementHitArea({
       />
       {selected && (
         <rect
-          x={vbOffX - hitW / 2 + 4}
-          y={vbOffY - hitH / 2 + 4}
-          width={hitW - 8}
-          height={hitH - 8}
-          rx={6}
+          x={vbOffX - visW / 2 - VISUAL_PAD}
+          y={vbOffY - visH / 2 - VISUAL_PAD}
+          width={visW + VISUAL_PAD * 2}
+          height={visH + VISUAL_PAD * 2}
+          rx={4}
           fill="none"
           stroke="var(--primary)"
           strokeOpacity={0.5}
@@ -1781,11 +2066,11 @@ function PlacementHitArea({
       )}
       {!selected && (
         <rect
-          x={vbOffX - hitW / 2 + 4}
-          y={vbOffY - hitH / 2 + 4}
-          width={hitW - 8}
-          height={hitH - 8}
-          rx={6}
+          x={vbOffX - visW / 2 - VISUAL_PAD}
+          y={vbOffY - visH / 2 - VISUAL_PAD}
+          width={visW + VISUAL_PAD * 2}
+          height={visH + VISUAL_PAD * 2}
+          rx={4}
           fill="none"
           stroke="var(--primary)"
           strokeOpacity={0}
@@ -1833,7 +2118,13 @@ function PlacementHitArea({
               className="cursor-crosshair"
               onPointerDown={(e) => {
                 e.stopPropagation();
-                onPinClick(pin.name);
+                if (tool === "pencil") {
+                  // In pencil mode: start a pencil drag directly from this pin.
+                  // We have the exact pin name here so no findNearestPin needed.
+                  onPencilPinDown(e, pin.name);
+                } else {
+                  onPinClick(pin.name);
+                }
               }}
             />
             <circle

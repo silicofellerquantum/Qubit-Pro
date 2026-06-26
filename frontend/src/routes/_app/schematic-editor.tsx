@@ -643,6 +643,13 @@ function SchematicEditorShell() {
           id: activeTab.id,
           action: { type: "SET_TOOL", tool: activeTab.state.tool === "pan" ? "select" : "pan" },
         });
+      } else if (!inInput && e.key.toLowerCase() === "p" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        dispatch({
+          type: "CANVAS_ACTION",
+          id: activeTab.id,
+          action: { type: "SET_TOOL", tool: "pencil" },
+        });
       } else if (!inInput && e.key.toLowerCase() === "g" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         dispatch({
@@ -767,7 +774,13 @@ function SchematicEditorShell() {
         e.preventDefault();
         setShowHelp((v) => !v);
       } else if (e.key === "Escape") {
-        if (activeTab.state.pendingPin) {
+        if (activeTab.state.pencilDrag) {
+          dispatch({
+            type: "CANVAS_ACTION",
+            id: activeTab.id,
+            action: { type: "PENCIL_DRAG_CANCEL" },
+          });
+        } else if (activeTab.state.pendingPin) {
           dispatch({
             type: "CANVAS_ACTION",
             id: activeTab.id,
@@ -778,6 +791,11 @@ function SchematicEditorShell() {
           dispatch({
             type: "CANVAS_ACTION",
             id: activeTab.id,
+            action: { type: "SET_TOOL", tool: "select" },
+          });
+          dispatch({
+            type: "CANVAS_ACTION",
+            id: activeTab.id,
             action: { type: "SELECT", selection: [] },
           });
         }
@@ -785,7 +803,7 @@ function SchematicEditorShell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveAll, activeTab.id, activeTab.state.selection, activeTab.state.zoom, activeTab.state.pan, dispatch]);
+  }, [saveAll, activeTab.id, activeTab.state.selection, activeTab.state.zoom, activeTab.state.pan, activeTab.state.pencilDrag, dispatch]);
 
   if (!conversation) {
     return (

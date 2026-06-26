@@ -170,3 +170,20 @@ class ReadoutResFC(QComponent):
             width=w,
             input_as_norm=True,
         )
+
+        # ── Open end pin — at the far end of the meander ──────────────────────
+        # The last point of the meander is the open (unterminated) end.
+        # It faces outward in the direction the last arm was travelling (+x in local).
+        open_inner = np.array(list(cur))          # end of last arm (local)
+        open_dx, open_dy = float(dx), float(dy)   # direction at end of last arm
+        open_outer = np.array([cur[0] + open_dx * w, cur[1] + open_dy * w])  # one width outward
+
+        open_inner_w = _rot_pt(open_inner)
+        open_outer_w = _rot_pt(open_outer)
+
+        self.add_pin(
+            "open_end",
+            points=np.array([open_outer_w, open_inner_w]),
+            width=w,
+            input_as_norm=True,
+        )
