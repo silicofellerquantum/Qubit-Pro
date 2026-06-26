@@ -2588,37 +2588,37 @@
           "name": "readout_cpw_turnradius",
           "type": "length",
           "unit": "um",
-          "default": "100"
+          "default": "30"
         },
         {
           "name": "readout_l1",
           "type": "length",
           "unit": "um",
-          "default": "400"
+          "default": "90"
         },
         {
           "name": "readout_l2",
           "type": "length",
           "unit": "um",
-          "default": "600"
+          "default": "120"
         },
         {
           "name": "readout_l3",
           "type": "length",
           "unit": "um",
-          "default": "600"
+          "default": "120"
         },
         {
           "name": "readout_l4",
           "type": "length",
           "unit": "um",
-          "default": "600"
+          "default": "120"
         },
         {
           "name": "readout_l5",
           "type": "length",
           "unit": "um",
-          "default": "400"
+          "default": "90"
         },
         {
           "name": "orientation",
@@ -2652,12 +2652,12 @@
         "pos_y": "0um",
         "readout_cpw_width": "10um",
         "readout_cpw_gap": "6um",
-        "readout_cpw_turnradius": "100um",
-        "readout_l1": "400um",
-        "readout_l2": "600um",
-        "readout_l3": "600um",
-        "readout_l4": "600um",
-        "readout_l5": "400um",
+        "readout_cpw_turnradius": "30um",
+        "readout_l1": "90um",
+        "readout_l2": "120um",
+        "readout_l3": "120um",
+        "readout_l4": "120um",
+        "readout_l5": "90um",
         "orientation": "0",
         "layer": "1",
         "chip": "main",

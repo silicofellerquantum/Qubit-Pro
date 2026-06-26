@@ -96,7 +96,7 @@ function computeResonatorDiagnostics(
 
   // ResonatorCoilRect uses "length"; ReadoutResFC may use "total_length"
   const lengthVal =
-    params.total_length ?? params.length ?? (isCoil ? "2mm" : "6mm");
+    params.total_length ?? params.length ?? (isCoil ? "2mm" : "1.5mm");
   const lengthMm = parseLengthMm(lengthVal);
 
   const traceWidthMm = parseLengthMm(params.trace_width ?? params.line_width ?? params.readout_cpw_width ?? (isCoil ? "1um" : "5um"));
@@ -117,7 +117,7 @@ function computeResonatorDiagnostics(
   const leadMm = isCoil ? 0 : parseLengthMm(params.lead_length ?? params.readout_l1 ?? "150um");
 
   const colWidthMm = parseLengthMm(
-    params.resonator_width ?? params.height ?? params.readout_l2 ?? (isCoil ? "40um" : "300um")
+    params.resonator_width ?? params.height ?? params.readout_l2 ?? (isCoil ? "40um" : "200um")
   );
 
   // Turn count
