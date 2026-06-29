@@ -522,7 +522,7 @@ function SiteNav({
       >
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 lg:px-10">
           {/* Logo */}
-          <Link to="/" aria-label="SilicoFeller home" className="flex items-center min-h-[44px]">
+          <Link to="/" aria-label="Silicofeller home" className="flex items-center min-h-[44px]">
             <SilicofellerLogo />
           </Link>
 

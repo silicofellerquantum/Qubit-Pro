@@ -9,13 +9,13 @@ import { useAuth } from "@/lib/auth/auth-context";
 export const Route = createFileRoute("/our-team")({
   head: () => ({
     meta: [
-      { title: "Team — SilicoFeller" },
+      { title: "Team — Silicofeller" },
       {
         name: "description",
         content:
-          "Meet the team behind SilicoFeller — quantum physicists, chip designers and AI researchers.",
+          "Meet the team behind Silicofeller — quantum physicists, chip designers and AI researchers.",
       },
-      { property: "og:title", content: "Team — SilicoFeller" },
+      { property: "og:title", content: "Team — Silicofeller" },
       {
         property: "og:description",
         content: "Meet the minds building the design layer of the quantum stack.",
@@ -113,7 +113,7 @@ function OurTeamPage() {
       >
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 lg:px-10">
           {/* Logo */}
-          <Link to="/" aria-label="SilicoFeller home" className="flex items-center min-h-[44px]">
+          <Link to="/" aria-label="Silicofeller home" className="flex items-center min-h-[44px]">
             <SilicofellerLogo />
           </Link>
 

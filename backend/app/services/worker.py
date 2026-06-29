@@ -543,14 +543,12 @@ def handle_component_preview(job: dict) -> dict:
     ymin = min(b[1] for b in bounds) * MM
     xmax = max(b[2] for b in bounds) * MM
     ymax = max(b[3] for b in bounds) * MM
-    pad = max((xmax - xmin) * 0.12, (ymax - ymin) * 0.12, 20)
-    # Use the true geometry bounding box (+ padding) as the viewBox so all
-    # geometry is visible and pin hints at the physical endpoints are inside it.
-    vb_x = xmin - pad
-    vb_y = ymin - pad
-    vb_w = (xmax - xmin) + 2 * pad
-    vb_h = (ymax - ymin) + 2 * pad
-    return {"fragment": "\n".join(paths), "vb": [vb_x, vb_y, vb_w, vb_h]}
+    pad = max((xmax - xmin) * 0.1, (ymax - ymin) * 0.1, 20)
+    # Clamp viewBox: some components (ReadoutResFC) have geometry that extends
+    # far off-centre. Centre the vb on (0,0) so the glyph renders sensibly.
+    half_w = max((xmax - xmin) / 2 + pad, 100)
+    half_h = max((ymax - ymin) / 2 + pad, 100)
+    return {"fragment": "\n".join(paths), "vb": [-half_w, -half_h, half_w * 2, half_h * 2]}
 
 
 def handle_full_design(job: dict) -> dict:

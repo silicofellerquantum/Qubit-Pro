@@ -61,10 +61,14 @@ export function PlacementPreview({
   }
   const sc = scale * MM_TO_PX * (p.units === "um" ? UM_TO_MM : 1) * uiScale;
   const vb = p.viewBox;
+  // Correct: sc = target_px / max_svg_dim. SVG coords are raw (um or mm),
+  // not pixels — no MM_TO_PX factor needed in the denominator.
+  const maxDim = Math.max(vb.w, vb.h);
+  const normSc = maxDim > 0 ? (40 * scale * uiScale) / maxDim : sc;
   return (
     <g transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}>
       <g
-        transform={`scale(${sc} ${-sc})`}
+        transform={`scale(${normSc} ${-normSc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
         dangerouslySetInnerHTML={{ __html: p.svg }}
         style={{ transition: "transform 0.12s ease" }}
       />
@@ -129,7 +133,6 @@ export function DropGhost({
 export function PlacementGlyph({
   placement,
   componentId,
-  category,
   selected,
   hovered,
   overlapping,
@@ -149,7 +152,6 @@ export function PlacementGlyph({
 }: {
   placement: Placement;
   componentId: string;
-  category?: string;
   selected: boolean;
   hovered: boolean;
   overlapping: boolean;
@@ -173,10 +175,8 @@ export function PlacementGlyph({
   // sz = normalized screen size in px (same BASE_SCREEN_PX as PlacementPreview).
   // Raw SVG coords are in backend units — divide target_px by max_svg_dim directly.
   const maxSvgDim = vb ? Math.max(vb.w, vb.h) : 0;
-  const isResonator = category === "resonators";
-  const baseSizePx = isResonator ? 56 : 40;
   const sz = maxSvgDim > 0
-    ? (baseSizePx * scale * uiScale)   // normalised to baseSizePx like PlacementPreview
+    ? (40 * scale * uiScale)   // normalised to 40px like PlacementPreview
     : Math.max(28, 0.5 * MM_TO_PX * scale);
   const { px, py } = w2s(placement.x, placement.y), half = sz / 2;
   const isPO = pendingOwner === placement.id;
@@ -196,20 +196,11 @@ export function PlacementGlyph({
       <rect x={-half} y={-half} width={sz} height={sz} fill="transparent" stroke="none" />
       {selected && (
         <rect x={-half - 6} y={-half - 6} width={sz + 12} height={sz + 12} rx={6}
-          fill="none"
-          stroke={isResonator ? "#0d9488" : "var(--primary)"}
-          strokeOpacity={0.6} strokeWidth={2} strokeDasharray="3 2" />
+          fill="none" stroke="var(--primary)" strokeOpacity={0.5} strokeWidth={2} strokeDasharray="3 2" />
       )}
       {!selected && hovered && (
         <rect x={-half - 6} y={-half - 6} width={sz + 12} height={sz + 12} rx={6}
-          fill="none"
-          stroke={isResonator ? "#0d9488" : "var(--primary)"}
-          strokeOpacity={0.25} strokeWidth={1.5} />
-      )}
-      {/* Resonator category indicator dot */}
-      {isResonator && !selected && (
-        <circle cx={half - 5} cy={-half + 5} r={3.5}
-          fill="#0d9488" fillOpacity={0.7} />
+          fill="none" stroke="var(--primary)" strokeOpacity={0.2} strokeWidth={1.5} />
       )}
       {overlapping && (
         <rect x={-half - 8} y={-half - 8} width={sz + 16} height={sz + 16} rx={6}
@@ -237,25 +228,15 @@ export function PlacementGlyph({
           />
         </foreignObject>
       ) : (
-        scale > 0.25 && (
-          <>
-            <rect
-              x={-36} y={half + 3} width={72} height={13}
-              fill="var(--background)" fillOpacity={0.75}
-              rx={2}
-              style={{ pointerEvents: "none" }}
-            />
-            <text
-              x={0} y={half + 14} textAnchor="middle" fontSize={10} fontWeight={700}
-              fill="var(--foreground)" className="select-none cursor-text"
-              onDoubleClick={(e) => { e.stopPropagation(); setEditingName(true); }}
-            >
-              {placement.name}
-            </text>
-          </>
-        )
+        <text
+          x={0} y={half + 14} textAnchor="middle" fontSize={10} fontWeight={700}
+          fill="var(--foreground)" className="select-none cursor-text"
+          onDoubleClick={(e) => { e.stopPropagation(); setEditingName(true); }}
+        >
+          {placement.name}
+        </text>
       )}
-      {showComponentIds && !editingName && scale > 0.35 && (
+      {showComponentIds && !editingName && (
         <text x={0} y={half + 26} textAnchor="middle" fontSize={8}
           fill="var(--muted-foreground)" className="select-none">
           {componentId}
@@ -278,10 +259,8 @@ export function PlacementGlyph({
         </g>
       )}
       {pins.map((pin) => {
-        // Physical scale — no vbCentre offset. Matches route SVG transform exactly.
-        const physSc = scale * MM_TO_PX * UM_TO_MM * uiScale;
-        const cx = pin.hint.x * physSc;
-        const cy = -pin.hint.y * physSc;
+        const cx = pin.hint.x * UM_TO_MM * MM_TO_PX * scale;
+        const cy = -pin.hint.y * UM_TO_MM * MM_TO_PX * scale;
         const iP = isPO && pendingPin === pin.name;
         return (
           <g key={pin.name}>

@@ -106,10 +106,26 @@ class _WorkerManager:
         self._reader_thread: Optional[threading.Thread] = None
 
     def _start(self) -> bool:
-        # Determine Python executable to run the worker (default to system python fallback)
+        # Determine Python executable to run the worker.
+        # Priority order:
+        #   1. METAL_WORKER_PYTHON env var (explicit override)
+        #   2. The venv Python co-located with this package (most reliable)
+        #   3. sys.executable fallback
         py_exe = os.getenv("METAL_WORKER_PYTHON")
         if not py_exe:
-            py_exe = sys.executable
+            # Resolve the venv Python relative to this file:
+            # .../backend/app/services/render_service.py
+            #   → .../backend/.venv/Scripts/python.exe  (Windows)
+            #   → .../backend/.venv/bin/python           (Linux/Mac)
+            backend_root = Path(__file__).parent.parent.parent  # .../backend
+            venv_win  = backend_root / ".venv" / "Scripts" / "python.exe"
+            venv_unix = backend_root / ".venv" / "bin" / "python"
+            if venv_win.exists():
+                py_exe = str(venv_win)
+            elif venv_unix.exists():
+                py_exe = str(venv_unix)
+            else:
+                py_exe = sys.executable
         
         worker_script = Path(__file__).parent / "worker.py"
         log.info("Starting background Qiskit Metal worker subprocess with %s ...", py_exe)

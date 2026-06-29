@@ -54,12 +54,17 @@ export function useDropHandling(dispatch: Dispatch, chipHalfW = 20, chipHalfH = 
     const cachedMetadata = qc.getQueryData<ComponentMetadata>(queryKey);
     let params: Record<string, string | number> = {};
 
+    const catalogEntry = QISKIT_CATALOG.find((c) => c.className === cid);
+    const getMergedParams = (base: Record<string, any>) => {
+      if (!catalogEntry?.defaultParams) return base;
+      return { ...base, ...catalogEntry.defaultParams };
+    };
+
     if (cachedMetadata) {
-      params = defaultParamsFromMetadata(cachedMetadata);
+      params = getMergedParams(defaultParamsFromMetadata(cachedMetadata));
     } else {
-      const catalogEntry = QISKIT_CATALOG.find((c) => c.className === cid);
       if (catalogEntry) {
-        params = Object.fromEntries(Object.entries(catalogEntry.defaultParams).map(([k, v]) => [k, String(v)]));
+        params = getMergedParams({});
       }
     }
 
@@ -81,7 +86,9 @@ export function useDropHandling(dispatch: Dispatch, chipHalfW = 20, chipHalfH = 
         .getMetadata(cid)
         .then((metaRes) => {
           if (metaRes.data) {
-            dispatch({ type: "UPDATE_PLACEMENT", id: placementId, patch: { params: defaultParamsFromMetadata(metaRes.data) } });
+            const baseParams = defaultParamsFromMetadata(metaRes.data);
+            const mergedParams = getMergedParams(baseParams);
+            dispatch({ type: "UPDATE_PLACEMENT", id: placementId, patch: { params: mergedParams } });
           }
         })
         .catch(console.error);

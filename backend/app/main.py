@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
-from app.routers import auth, billing, claude, generate, materials, projects, qclang, simulations, tapeout, verification, bridge
+from app.routers import auth, claude, generate, materials, projects, qclang, simulations, tapeout, verification, bridge, billing, team
 from app.routers import design  # V2 design pipeline
 
 log = logging.getLogger(__name__)
@@ -72,10 +72,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 # Warm up worker subprocess
                 warmup_worker()
                 
-                # Pre-warm metadata only (pins are fast enough to read on-demand)
+                # Pre-warm metadata and pins
                 for c in components:
                     metadata_service.get_metadata(c.id)
-                log.info("Metadata cache populated.")
+                    pin_service.get_pins(c.id)
+                log.info("Metadata and pin caches populated.")
                 
                 # Asynchronously pre-warm component previews to not block startup thread
                 def _warm_previews():
@@ -186,7 +187,8 @@ app.include_router(materials.router)         # /api/materials/...
 app.include_router(claude.router)            # /api/claude/...
 app.include_router(design.router)            # /api/design/... (V2 pipeline)
 app.include_router(bridge.router)            # /components and /design (bridge router)
-app.include_router(billing.router)           # /api/billing/... (Razorpay payments)
+app.include_router(billing.router)           # /api/billing/...
+app.include_router(team.router)              # /api/team/...
 
 
 # ── Frequency plan (legacy frontend compat) ───────────────────────────────────
