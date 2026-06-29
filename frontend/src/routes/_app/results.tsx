@@ -230,7 +230,7 @@ function ResultsPage() {
   const [activeTab, setActiveTab] = useState<ResultTab>("frequencies");
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const { checkAndRun, isChecking } = useFeatureGate();
+  const { checkAndRun, isChecking, GateDialog } = useFeatureGate();
 
   const displayConv = selectedConvId
     ? conversations.find((c) => c.id === selectedConvId)

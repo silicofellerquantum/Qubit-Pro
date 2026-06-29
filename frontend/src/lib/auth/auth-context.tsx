@@ -55,7 +55,7 @@ export function canAccess(role: UserRole, resource: string): boolean {
   if (resource === "admin") return false;
   // Team management: admin + org_manager only
   if (resource === "team") {
-    return role === "admin" || role === "org_manager";
+    return role === "org_manager";
   }
   // Billing is accessible to ALL authenticated users — everyone has a plan
   if (resource === "billing") return true;
@@ -79,6 +79,7 @@ interface AuthContextType {
   confirmVerification: (email: string, otp: string) => Promise<{ ok: boolean; error?: string }>;
   signInWithGoogle: (idToken: string) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
+  completeGithubLogin: (token: string, user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -357,6 +358,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [],
   );
 
+  const completeGithubLogin = useCallback((token: string, user: User) => {
+    setStorageItem(TOKEN_KEY, token);
+    setStorageItem(USER_KEY, JSON.stringify(user));
+    setUser(user);
+    console.log("[Auth] GitHub completeGithubLogin success, token stored");
+  }, []);
+
   // Idle timeout of 10 minutes
   useEffect(() => {
     if (!user) return;
@@ -401,6 +409,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         confirmVerification,
         signOut,
         signInWithGoogle,
+        completeGithubLogin,
       }}
     >
       {children}

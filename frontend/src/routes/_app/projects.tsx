@@ -817,6 +817,7 @@ function ProjectsPage() {
 
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { checkAndRun, GateDialog } = useFeatureGate();
 
   useEffect(() => {
     fetchSimulations()
@@ -1227,6 +1228,7 @@ function ProjectsPage() {
           </div>
         )}
       </div>
+      <GateDialog />
     </div>
   );
 }

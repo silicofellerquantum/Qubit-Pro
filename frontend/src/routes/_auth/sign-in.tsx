@@ -33,7 +33,7 @@ export const Route = createFileRoute("/_auth/sign-in")({
 
 function SignInPage() {
   const navigate = useNavigate();
-  const { signIn, signInWithGoogle, signInWithGitHub } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -170,13 +170,7 @@ function SignInPage() {
               <SocialButton
                 provider="github"
                 label="Continue with GitHub"
-                onClick={() => {
-                  const url = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(
-                    /\/$/,
-                    "",
-                  );
-                  window.location.href = `${url}/api/auth/github/authorize`;
-                }}
+                onClick={() => toast.info("GitHub sign in is coming soon!")}
               />
             </div>
           </AuthCard>
