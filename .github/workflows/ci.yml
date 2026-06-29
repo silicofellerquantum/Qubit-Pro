@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, editor-project]
+    branches: [main, develop]
   pull_request:
-    branches: [main, develop, editor-project]
+    branches: [main, develop]
 
 jobs:
   backend:
@@ -48,14 +48,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: |
-          # Prefer reproducible installs with npm ci.
-          # Fall back to npm install if lockfile is still out of sync.
-          if [ -f package-lock.json ]; then
-            npm ci || (echo "npm ci failed — falling back to npm install" && npm install)
-          else
-            npm install
-          fi
+        run: npm ci
 
       - name: TypeScript type check
         run: npx tsc --noEmit

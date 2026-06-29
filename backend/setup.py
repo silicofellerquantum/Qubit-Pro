@@ -6,6 +6,7 @@ Run: python setup.py   (Windows)
 import subprocess
 import sys
 import os
+import shutil
 
 
 def run(cmd, check=True):
@@ -43,6 +44,14 @@ else:
 
 # Install requirements (skip pip self-upgrade to avoid Windows lock issue)
 run(f'"{venv_pip}" install -r requirements.txt')
+
+# Create .env file if it doesn't exist
+if not os.path.exists(".env") and os.path.exists(".env.example"):
+    print("\n>>> Creating .env from .env.example")
+    shutil.copy(".env.example", ".env")
+    print(">>> IMPORTANT: Please edit .env to add your Razorpay keys and other secrets.")
+elif os.path.exists(".env"):
+    print("\n>>> .env file already exists, skipping creation")
 
 print("\n[OK] Setup complete!")
 print("\nTo start the backend:")

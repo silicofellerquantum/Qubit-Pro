@@ -21,6 +21,7 @@ python-multipart==0.0.20
 httpx==0.28.1
 aiofiles==24.1.0
 python-dotenv==1.0.1
+razorpay==1.4.1
 
 # ── Physics / ML ──────────────────────────────────────────────────────────────
 networkx==3.2.1

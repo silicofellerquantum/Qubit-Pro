@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     # Claude / Anthropic (optional — falls back to rule-based assistant if empty)
     anthropic_api_key: str = ""
 
+    # Razorpay payments — set in .env before going live
+    # Test keys start with rzp_test_; live keys with rzp_live_
+    razorpay_key_id: str = ""           # RAZORPAY_KEY_ID
+    razorpay_key_secret: str = ""       # RAZORPAY_KEY_SECRET
+    razorpay_webhook_secret: str = ""   # RAZORPAY_WEBHOOK_SECRET (set in Razorpay dashboard)
+
     # Physics grounding (SQuADDS). Always-on by design — no per-request toggle.
     # squadds_dataset_dir: path to the locally mirrored SQuADDS dataset.
     # Defaults to <repo-root>/backend/squadds_mirror (created by ensure_mirror()).
