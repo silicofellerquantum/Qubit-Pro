@@ -27,6 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --no-build-isolation pyaedt==0.6.46
           pip install -r requirements.txt
 
       - name: Run tests
