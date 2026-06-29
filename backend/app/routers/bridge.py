@@ -48,15 +48,6 @@ router = APIRouter(tags=["bridge"])
 
 # ── Components Endpoints ──────────────────────────────────────────────────────
 
-@router.post("/catalog/reload")
-async def reload_catalog() -> dict:
-    """Force-reload the component catalog and flush all caches."""
-    from app.core.registry_cache import registry_cache
-    registry_cache.invalidate()
-    component_registry_service.invalidate()
-    return {"status": "ok", "message": "Catalog reloaded and caches flushed"}
-
-
 @router.get("/components", response_model=List[ComponentSummary])
 async def list_components() -> List[ComponentSummary]:
     loop = asyncio.get_running_loop()

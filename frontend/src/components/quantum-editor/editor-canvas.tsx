@@ -1479,7 +1479,7 @@ function PlacementPreview({
       style={{ pointerEvents: "none" }}
     >
       <g
-        transform={`scale(${sc} ${-sc})`}
+        transform={`scale(${sc} ${-sc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
         dangerouslySetInnerHTML={{ __html: p.svg }}
         style={{ transition: "transform 0.12s ease", pointerEvents: "none" }}
       />
@@ -1660,9 +1660,8 @@ function PlacementGlyph({
       )}
       {/* Pin name labels (dots themselves are interactive, drawn in PlacementHitArea) */}
       {selected && pins.map((pin) => {
-        // No vbCentre offset — physical scale matches route SVG transform
-        const cx = pin.hint.x * sc;
-        const cy = -pin.hint.y * sc;
+        const cx = pin.hint.x * sc,
+          cy = -pin.hint.y * sc;
         return (
           <text
             key={pin.name}
@@ -1823,9 +1822,8 @@ function PlacementHitArea({
         </foreignObject>
       )}
       {pins.map((pin) => {
-        // No vbCentre — physical scale matches route SVG so gap = 0
-        const cx = pin.hint.x * sc;
-        const cy = -pin.hint.y * sc;
+        const cx = pin.hint.x * sc,
+          cy = -pin.hint.y * sc;
         return (
           <g key={pin.name}>
             {/* Larger invisible pin hit target so pins are easy to click too */}
