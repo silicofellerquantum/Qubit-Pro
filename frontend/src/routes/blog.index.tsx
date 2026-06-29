@@ -5,10 +5,10 @@ import { BLOG_POSTS } from "@/data/blog-posts";
 export const Route = createFileRoute("/blog/")({
   head: () => ({
     meta: [
-      { title: "Blog — SilicoFeller" },
+      { title: "Blog — Silicofeller" },
       {
         name: "description",
-        content: "Research, insights, and updates from the SilicoFeller team.",
+        content: "Research, insights, and updates from the Silicofeller team.",
       },
     ],
   }),
@@ -23,13 +23,14 @@ const TAG_COLORS: Record<string, string> = {
   "Industry & Milestones": "#A855F7", // Purple
 };
 
+const basePath = import.meta.env.BASE_URL;
+
 // Map post slug to specific preview image paths
 const POST_IMAGES: Record<string, string> = {
-  "shadow-hamiltonian-simulation": "/images/shadow_hamiltonian_complexity.png",
-  "surface-codes-qec-architecture": "/images/surface_codes_threshold.png",
-  "squadds-qubit-design": "/images/squadds_validation.png",
-  "cudaq-qec-decoders": "/images/cudaq_relaybp_throughput.png",
-  "quantum-supremacy": "/images/quantum_supremacy_scaling.png",
+  "hfss-complete-guide": `${basePath}images/hfss_main_ui.png`,
+  "hfss-quantum-parameters": `${basePath}images/hfss_params_new.png`,
+  "q3d-analysis-parameters": `${basePath}images/q3d_params_real.png`,
+  "epr-analysis-parameters": `${basePath}images/hfss_guide_real.png`,
 };
 
 function BlogIndexPage() {
@@ -44,7 +45,7 @@ function BlogIndexPage() {
       </Link>
 
       <h1 className="mt-8 text-4xl font-semibold tracking-tight text-[#0F172A]">
-        From the SilicoFeller blog.
+        From the Silicofeller blog.
       </h1>
       <p className="mt-3 text-[#0F172A]/60 text-lg">
         Research, engineering, and industry insights from our team.
@@ -62,7 +63,7 @@ function BlogIndexPage() {
           >
             <div className="aspect-[16/9] w-full overflow-hidden rounded-2xl bg-[#0A0A0F] border border-black/5 flex items-center justify-center">
               <img
-                src={POST_IMAGES[p.slug] ?? "/images/shadow_hamiltonian_complexity.png"}
+                src={POST_IMAGES[p.slug] ?? "https://via.placeholder.com/600x340/161b26/ffffff?text=Blog+Post"}
                 alt={p.title}
                 className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                 onError={(e) => {

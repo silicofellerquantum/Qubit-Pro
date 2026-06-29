@@ -8,14 +8,14 @@ export const Route = createFileRoute("/blog/$slug")({
     if (!post) {
       throw new Response("Not Found", { status: 404 });
     }
-    return { post };
+    return { slug: post.slug, title: post.title, excerpt: post.excerpt };
   },
   head: ({ loaderData }) => ({
     meta: [
-      { title: `${loaderData?.post?.title ?? "Blog"} — SilicoFeller` },
+      { title: `${loaderData?.title ?? "Blog"} — Silicofeller` },
       {
         name: "description",
-        content: loaderData?.post?.excerpt ?? "Read the latest from the SilicoFeller blog.",
+        content: loaderData?.excerpt ?? "Read the latest from the Silicofeller blog.",
       },
     ],
   }),
@@ -31,7 +31,8 @@ const TAG_COLORS: Record<string, string> = {
 };
 
 function BlogPostPage() {
-  const { post } = Route.useLoaderData();
+  const { slug } = Route.useLoaderData();
+  const post = BLOG_POSTS.find((p) => p.slug === slug)!;
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-16">
@@ -298,25 +299,22 @@ function BlogPostPage() {
       </header>
 
       {/* Article Content */}
-      <article
-        className="blog-content-body mt-10"
-        dangerouslySetInnerHTML={{ __html: post.contentHtml }}
-      />
+      <article className="blog-content-body mt-10">
+        {post.content}
+      </article>
 
       {/* Author Profiles */}
-      {post.authorHtml && (
-        <section
-          className="author-card-section"
-          dangerouslySetInnerHTML={{ __html: post.authorHtml }}
-        />
+      {post.authorProfile && (
+        <section className="author-card-section">
+          {post.authorProfile}
+        </section>
       )}
 
       {/* Comments / Discussion Thread */}
-      {post.commentsHtml && (
-        <section
-          className="discussion-section"
-          dangerouslySetInnerHTML={{ __html: post.commentsHtml }}
-        />
+      {post.comments && (
+        <section className="discussion-section">
+          {post.comments}
+        </section>
       )}
     </main>
   );

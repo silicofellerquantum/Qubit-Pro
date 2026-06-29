@@ -4,7 +4,7 @@ import { DocumentationPage } from "@/components/documentation/DocumentationPage"
 export const Route = createFileRoute("/documentation")({
   head: () => ({
     meta: [
-      { title: "Documentation — QClang | SilicoFeller" },
+      { title: "Documentation — QClang | Silicofeller" },
       {
         name: "description",
         content:

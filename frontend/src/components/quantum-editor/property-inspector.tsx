@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Trash2, Plug, Lock, Unlock, RotateCcw, Box, Zap } from "lucide-react";
+import { Trash2, Plug, Lock, Unlock, RotateCcw, Box } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,8 @@ import { defaultParamsFromMetadata } from "@/lib/bridge/adapters";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import { getSingleSelection } from "@/lib/editor/design-store";
 import { metadataToFields } from "@/lib/bridge/adapters";
-import type { Placement, Connection, ValidationResult } from "@/lib/bridge/types";
+import { QISKIT_CATALOG } from "./qiskit-metal-catalog";
+import type { Placement, Connection, ValidationResult, ComponentPreview, ComponentPins } from "@/lib/bridge/types";
 
 // ─── Resonator detection & physics ───────────────────────────────────────────
 
@@ -396,16 +397,6 @@ function PlacementInspector({ placement }: { placement: Placement }) {
         />
       </Section>
 
-      {/* ── Resonator-specific quick controls + diagnostics ─────────────── */}
-      {RESONATOR_CLASS_IDS.has(placement.componentId) && (
-        <>
-          <ResonatorQuickControls placement={placement} updateParam={updateParam} />
-          <Section title="Resonator diagnostics">
-            <ResonatorDiagnosticsPanel placement={placement} />
-          </Section>
-        </>
-      )}
-
       <Section title="Pins">
         {pinsQ.isLoading && <p className="text-muted-foreground">Loading pins…</p>}
         {pinsQ.error && (
@@ -448,204 +439,6 @@ function PlacementInspector({ placement }: { placement: Placement }) {
   );
 }
 
-// ─── Resonator quick controls ─────────────────────────────────────────────────
-
-/**
- * A dedicated section for CPW resonators that surfaces the most physically
- * meaningful parameters with proper labels and instant re-render on commit.
- * Geometry updates automatically: changing a param invalidates the
- * componentPreviewQueryOptions key (staleTime=0), triggering a new SVG fetch.
- */
-function ResonatorQuickControls({
-  placement,
-  updateParam,
-}: {
-  placement: Placement;
-  updateParam: (k: string, v: string) => void;
-}) {
-  const p = placement.params;
-  // Detect which key the component uses for resonator length
-  const lengthKey =
-    p.total_length !== undefined ? "total_length"
-    : p.length      !== undefined ? "length"
-    : "length";
-
-  const isCoil = placement.componentId === "ResonatorCoilRect";
-
-  const fields: { key: string; label: string; placeholder: string; hint: string; defaultUnit: "mm" | "um" }[] = [
-    {
-      key: lengthKey,
-      label: "Resonator length",
-      placeholder: "e.g. 7mm",
-      hint: "Electrical length of the CPW coil. Sets resonant frequency.",
-      defaultUnit: "mm",
-    },
-    ...(!isCoil ? [
-      {
-        key: "fillet",
-        label: "Corner fillet",
-        placeholder: "e.g. 99um",
-        hint: "Radius of rounded bends. 0 = sharp 90° corners.",
-        defaultUnit: "um" as const,
-      }
-    ] : []),
-    {
-      key: "trace_width",
-      label: "Trace width",
-      placeholder: "e.g. 10um",
-      hint: isCoil ? "Spiral line width." : "CPW centre conductor width. Affects impedance & footprint.",
-      defaultUnit: "um",
-    },
-    {
-      key: "trace_gap",
-      label: "Trace gap",
-      placeholder: "e.g. 6um",
-      hint: isCoil ? "Spiral gap between lines." : "Gap between centre conductor and ground plane.",
-      defaultUnit: "um",
-    },
-    ...(!isCoil ? [
-      {
-        key: "lead_length",
-        label: "Lead length",
-        placeholder: "e.g. 30um",
-        hint: "Straight lead-in section at each port. Only terminals change.",
-        defaultUnit: "um" as const,
-      }
-    ] : []),
-    {
-      key: "meander_pitch",
-      label: "Meander pitch",
-      placeholder: isCoil ? "e.g. 8um" : "e.g. 100um",
-      hint: isCoil ? "Spiral gap spacing between lines (pitch)." : "Center-to-center spacing between adjacent legs.",
-      defaultUnit: "um",
-    },
-    {
-      key: "resonator_width",
-      label: "Resonator width",
-      placeholder: isCoil ? "e.g. 40um" : "e.g. 0.3mm",
-      hint: isCoil ? "Transverse height of the rectangular spiral." : "Transverse width of the meander column.",
-      defaultUnit: isCoil ? "um" : "mm",
-    },
-  ];
-
-  return (
-    <Section title="Resonator properties">
-      <p className="text-[9px] text-muted-foreground/70 -mt-1 mb-1">
-        Changes trigger immediate geometry regeneration via Qiskit Metal.
-      </p>
-      {fields.map(({ key, label, placeholder, hint, defaultUnit }) => {
-        const currentVal = String(p[key] ?? "");
-        return (
-          <ResonatorParamField
-            key={key}
-            paramKey={key}
-            label={label}
-            placeholder={placeholder}
-            hint={hint}
-            value={currentVal}
-            onCommit={(v) => updateParam(key, v)}
-            defaultUnit={defaultUnit}
-          />
-        );
-      })}
-    </Section>
-  );
-}
-
-function ResonatorParamField({
-  paramKey, label, placeholder, hint, value, onCommit, defaultUnit = "um",
-}: {
-  paramKey: string;
-  label: string;
-  placeholder: string;
-  hint: string;
-  value: string;
-  onCommit: (v: string) => void;
-  defaultUnit?: "mm" | "um";
-}) {
-  const commitWithNormalization = (v: string) => {
-    onCommit(normalizeLengthInput(v, defaultUnit));
-  };
-  const field = useLocalValue(value, commitWithNormalization);
-  return (
-    <Field label={label}>
-      <Input
-        value={field.local}
-        onChange={(e) => field.setLocal(e.target.value)}
-        onBlur={field.commit}
-        onKeyDown={field.onKeyDown}
-        placeholder={placeholder}
-        className="h-7 font-mono text-[11px]"
-      />
-      <span className="text-[9px] text-muted-foreground/70">{hint}</span>
-    </Field>
-  );
-}
-
-// ─── Resonator diagnostics panel ─────────────────────────────────────────────
-
-function ResonatorDiagnosticsPanel({ placement }: { placement: Placement }) {
-  const d = computeResonatorDiagnostics(placement.params, placement.componentId);
-
-  const fmtMm = (mm: number) =>
-    mm === 0 ? "—"
-    : mm < 0.01 ? `${(mm * 1000).toFixed(1)} um`
-    : `${mm.toFixed(3)} mm`;
-
-  const fmtUm = (um: number) =>
-    um === 0 ? "—" : `${Math.round(um)} um`;
-
-  return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-      {/* Frequency — most important → shown first, highlighted */}
-      <span className="text-muted-foreground flex items-center gap-1">
-        <Zap className="h-3 w-3 text-teal-500" /> Est. frequency
-      </span>
-      <span className={`font-mono text-right font-semibold ${
-        d.freqGHz > 0 ? "text-teal-600" : "text-muted-foreground"
-      }`}>
-        {d.freqGHz > 0 ? `${d.freqGHz.toFixed(3)} GHz` : "—"}
-      </span>
-
-      <span className="text-muted-foreground">Target length</span>
-      <span className="font-mono text-right">{fmtMm(d.lengthMm)}</span>
-
-      <span className="text-muted-foreground">Est. turns</span>
-      <span className="font-mono text-right">{d.turnCount}</span>
-
-      <span className="text-muted-foreground">Footprint W</span>
-      <span className="font-mono text-right">{fmtUm(d.footprintWum)}</span>
-
-      <span className="text-muted-foreground">Footprint H</span>
-      <span className="font-mono text-right">{fmtUm(d.footprintHum)}</span>
-
-      <span className="text-muted-foreground">Trace width</span>
-      <span className="font-mono text-right">{fmtMm(d.traceWidthMm)}</span>
-
-      <span className="text-muted-foreground">Trace gap</span>
-      <span className="font-mono text-right">{fmtMm(d.traceGapMm)}</span>
-
-      <span className="text-muted-foreground">Fillet</span>
-      <span className="font-mono text-right">
-        {d.filletMm > 0 ? fmtMm(d.filletMm) : "none"}
-      </span>
-
-      <span className="text-muted-foreground">Lead length</span>
-      <span className="font-mono text-right">{fmtMm(d.leadMm)}</span>
-
-      <span className="text-muted-foreground">Meander pitch</span>
-      <span className="font-mono text-right">{fmtMm(d.pitchMm)}</span>
-
-      <span className="text-muted-foreground">Resonator width</span>
-      <span className="font-mono text-right">{fmtMm(d.colWidthMm)}</span>
-
-      <span className="col-span-2 mt-1 rounded bg-teal-50 dark:bg-teal-950/30 px-2 py-1 text-[9px] text-teal-700 dark:text-teal-400">
-        λ/2 CPW on silicon · ε_eff = 6.2 · estimates only
-      </span>
-    </div>
-  );
-}
-
 function ParamFields({ fields, placement, updateParam }: {
   fields: ReturnType<typeof metadataToFields>;
   placement: Placement;
@@ -668,13 +461,7 @@ function ParamFields({ fields, placement, updateParam }: {
   }, [fields, placement.params]);
 
   const commit = (name: string) => {
-    const fieldObj = fields.find((f) => f.name === name);
-    let val = localVals[name] ?? "";
-    if (fieldObj?.unit === "um" || fieldObj?.unit === "mm") {
-      val = normalizeLengthInput(val, fieldObj.unit);
-      setLocalVals((prev) => ({ ...prev, [name]: val }));
-    }
-    updateParam(name, val);
+    updateParam(name, localVals[name] ?? "");
   };
 
   const setVal = (name: string, val: string) => {
@@ -747,124 +534,6 @@ function ParamFields({ fields, placement, updateParam }: {
   );
 }
 
-// Qiskit Metal RouteMeander built-in defaults (used when no override is set)
-const ROUTE_MEANDER_DEFAULTS: Record<string, string> = {
-  total_length: "7mm",
-  fillet: "99um",
-  lead_length: "30um",
-  trace_width: "10um",
-  trace_gap: "6um",
-};
-
-function RouteMetricsPanel({ connection }: { connection: Connection }) {
-  const svg = connection.cachedSvg ?? "";
-  const overrides = connection.routeOverrides ?? {};
-  const routeId = connection.routeComponentId ?? "RouteMeander";
-  const isRouteMeander = routeId.toLowerCase().includes("meander") || routeId.toLowerCase().includes("straight");
-
-  // Show override value, or the known default with a (dflt) tag
-  const showVal = (key: string, fallback: string) => {
-    const v = overrides[key];
-    if (v !== undefined && v !== "") return String(v);
-    if (isRouteMeander && ROUTE_MEANDER_DEFAULTS[key]) return `${ROUTE_MEANDER_DEFAULTS[key]} \u00b7 dflt`;
-    return fallback;
-  };
-
-  const targetLength = showVal("total_length", "—");
-  const filletRadius = showVal("fillet", "dflt");
-  const leadLength   = showVal("lead_length", "dflt");
-  const traceWidth   = showVal("trace_width", "dflt");
-  const traceGap     = showVal("trace_gap", "dflt");
-
-  // Parse actual rendered path length from SVG data-attributes if the backend embeds them
-  const actualLength = (() => {
-    if (!svg) return "—";
-    const match = svg.match(/data-actual-length="([^"]+)"/);
-    return match ? match[1] : "rendered ✓";
-  })();
-
-  const hasGeometry = !!connection.cachedSvg;
-
-  return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-      <span className="text-muted-foreground">Target length</span>
-      <span className="font-mono text-right">{targetLength}</span>
-      <span className="text-muted-foreground">Actual length</span>
-      <span className="font-mono text-right">{actualLength}</span>
-      <span className="text-muted-foreground">Fillet radius</span>
-      <span className={`font-mono text-right ${overrides.fillet ? "" : "text-muted-foreground/70"}`}>{filletRadius}</span>
-      <span className="text-muted-foreground">Lead length</span>
-      <span className={`font-mono text-right ${overrides.lead_length ? "" : "text-muted-foreground/70"}`}>{leadLength}</span>
-      <span className="text-muted-foreground">Trace width</span>
-      <span className={`font-mono text-right ${overrides.trace_width ? "" : "text-muted-foreground/70"}`}>{traceWidth}</span>
-      <span className="text-muted-foreground">Trace gap</span>
-      <span className={`font-mono text-right ${overrides.trace_gap ? "" : "text-muted-foreground/70"}`}>{traceGap}</span>
-      <span className="text-muted-foreground">Geometry</span>
-      <span className={`font-mono text-right ${hasGeometry ? "text-green-600" : "text-amber-500"}`}>
-        {hasGeometry ? "cached" : "pending…"}
-      </span>
-      {connection.locked && (
-        <>
-          <span className="text-muted-foreground">Lock</span>
-          <span className="font-mono text-right text-primary">locked</span>
-        </>
-      )}
-      <span className="col-span-2 mt-0.5 text-[9px] text-muted-foreground/60 italic">
-        · dflt = Qiskit Metal default (field is blank)
-      </span>
-    </div>
-  );
-}
-
-function FilletField({
-  connection,
-  dispatch,
-}: {
-  connection: Connection;
-  dispatch: (a: any) => void;
-}) {
-  const rawValue = String(connection.routeOverrides?.fillet ?? "");
-  const [local, setLocal] = useState(rawValue);
-  useEffect(() => setLocal(rawValue), [rawValue]);
-
-  // Check if value is a negative number (bare or with unit)
-  const isNegative = (() => {
-    const num = parseFloat(local.replace(/[^0-9.\-]/g, ""));
-    return !isNaN(num) && num < 0;
-  })();
-
-  const commit = () => {
-    let val = local.trim();
-    if (isNegative) {
-      // Replace negative with absolute value + original unit suffix
-      const unitMatch = local.match(/[a-zA-Z]+/);
-      const absVal = Math.abs(parseFloat(local));
-      val = unitMatch ? `${absVal}${unitMatch[0]}` : String(absVal);
-    }
-    const normalized = normalizeLengthInput(val, "um");
-    setLocal(normalized);
-    updateRouteOverride(connection.id, "fillet", normalized, dispatch, connection.routeOverrides);
-  };
-
-  return (
-    <Field label="Fillet">
-      <Input
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
-        placeholder="e.g. 99um"
-        className={`h-7 font-mono text-[11px] ${isNegative ? "border-destructive ring-1 ring-destructive" : ""}`}
-      />
-      {isNegative && (
-        <span className="text-[10px] text-destructive">
-          Fillet radius must be ≥ 0. Will be corrected on commit.
-        </span>
-      )}
-    </Field>
-  );
-}
-
 function ConnectionInspector({ connection }: { connection: Connection }) {
   const { activeTab, dispatchActive: dispatch } = useWorkspace(); const state = activeTab.state;
   const fromP = state.placements.find((p) => p.id === connection.from.placementId);
@@ -895,22 +564,6 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
           >
             {connection.locked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
             {connection.locked ? "Unlock" : "Lock"}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              dispatch({
-                type: "UPDATE_CONNECTION",
-                id: connection.id,
-                patch: { cachedGeometryHash: undefined, cachedSvg: undefined } as any,
-              })
-            }
-            className="h-7 gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            title="Force re-render this route"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Re-render
           </Button>
           <Button
             variant="ghost"
@@ -970,42 +623,36 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
       </Section>
 
       <Section title="Route overrides">
-        <p className="text-[9px] text-muted-foreground/70 -mt-1 mb-0.5">
-          Blank = Qiskit Metal default. Defaults: length 7mm · fillet 99um · lead 30um · width 10um · gap 6um
-        </p>
         <RouteOverrideField
           label="Total length"
           placeholder="e.g. 7mm"
           value={String(connection.routeOverrides?.total_length ?? "")}
           onCommit={(v) => updateRouteOverride(connection.id, "total_length", v, dispatch, connection.routeOverrides)}
-          defaultUnit="mm"
         />
-        <FilletField connection={connection} dispatch={dispatch} />
+        <RouteOverrideField
+          label="Fillet"
+          placeholder="e.g. 99um"
+          value={String(connection.routeOverrides?.fillet ?? "")}
+          onCommit={(v) => updateRouteOverride(connection.id, "fillet", v, dispatch, connection.routeOverrides)}
+        />
         <RouteOverrideField
           label="Lead length"
           placeholder="e.g. 50um"
-          value={String(connection.routeOverrides?.lead_length ?? "")}
-          onCommit={(v) => updateRouteOverride(connection.id, "lead_length", v, dispatch, connection.routeOverrides)}
-          defaultUnit="um"
+          value={String(connection.routeOverrides?.lead ?? "")}
+          onCommit={(v) => updateRouteOverride(connection.id, "lead", v, dispatch, connection.routeOverrides)}
         />
         <RouteOverrideField
           label="Trace width"
           placeholder="e.g. 10um"
           value={String(connection.routeOverrides?.trace_width ?? "")}
           onCommit={(v) => updateRouteOverride(connection.id, "trace_width", v, dispatch, connection.routeOverrides)}
-          defaultUnit="um"
         />
         <RouteOverrideField
           label="Trace gap"
           placeholder="e.g. 6um"
           value={String(connection.routeOverrides?.trace_gap ?? "")}
           onCommit={(v) => updateRouteOverride(connection.id, "trace_gap", v, dispatch, connection.routeOverrides)}
-          defaultUnit="um"
         />
-      </Section>
-
-      <Section title="Route diagnostics">
-        <RouteMetricsPanel connection={connection} />
       </Section>
     </div>
   );
@@ -1114,7 +761,11 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
             variant="ghost"
             size="sm"
             onClick={() => {
-              const defaults = defaultParamsFromMetadata(metaQ.data!);
+              const baseDefaults = defaultParamsFromMetadata(metaQ.data!);
+              const catalogEntry = QISKIT_CATALOG.find(c => c.className === activeTab.state.placements.find(p => p.id === ids[0])?.componentId);
+              const defaults = catalogEntry?.defaultParams 
+                ? { ...baseDefaults, ...catalogEntry.defaultParams }
+                : baseDefaults;
               ids.forEach((id) => dispatch({ type: "UPDATE_PLACEMENT", id, patch: { params: defaults } }));
             }}
             className="h-7 gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1258,18 +909,13 @@ function RouteOverrideField({
   placeholder,
   value,
   onCommit,
-  defaultUnit = "um",
 }: {
   label: string;
   placeholder: string;
   value: string;
   onCommit: (v: string) => void;
-  defaultUnit?: "mm" | "um";
 }) {
-  const commitWithNormalization = (v: string) => {
-    onCommit(normalizeLengthInput(v, defaultUnit));
-  };
-  const field = useLocalValue(value, commitWithNormalization);
+  const field = useLocalValue(value, onCommit);
   return (
     <Field label={label}>
       <Input
@@ -1331,39 +977,76 @@ function ValidationPanel() {
           Design is valid
         </div>
         {counts.length > 0 && (
-          <div className="rounded-md border border-border bg-card p-2">
-            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Design stats</p>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
-              <span className="text-muted-foreground">Placements</span>
-              <span className="font-mono text-right">{state.placements.length}</span>
-              <span className="text-muted-foreground">Connections</span>
-              <span className="font-mono text-right">{state.connections.length}</span>
-              <span className="text-muted-foreground">Locked</span>
-              <span className="font-mono text-right">{stats.locked}</span>
-              <span className="text-muted-foreground">Avg conn/placement</span>
-              <span className="font-mono text-right">{stats.avgConnections}</span>
+          <>
+            {/* ── Design Stats card ── */}
+            <div className="overflow-hidden rounded-lg border border-blue-200/60 bg-blue-50/40 shadow-sm">
+              <div className="flex items-center gap-1.5 border-b border-blue-200/60 bg-blue-100/60 px-3 py-1.5">
+                <svg className="h-3 w-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Design Stats</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-2.5">
+                {[
+                  { label: "Placements",    value: state.placements.length },
+                  { label: "Connections",   value: state.connections.length },
+                  { label: "Locked",        value: stats.locked },
+                  { label: "Avg conn/place",value: stats.avgConnections },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex items-center justify-between rounded-md border border-blue-200/50 bg-white/70 px-2 py-1">
+                    <span className="text-[10px] text-muted-foreground">{label}</span>
+                    <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-blue-700">{value}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <p className="mt-2 mb-1 text-[10px] font-bold uppercase text-muted-foreground">Component counts</p>
-            <ul className="flex flex-col gap-0.5">
-              {counts.map(([cid, count]) => (
-                <li key={cid} className="flex justify-between text-[11px] text-foreground">
-                  <span className="truncate">{cid}</span>
-                  <span className="font-mono font-bold text-muted-foreground">{count}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+
+            {/* ── Component Counts card ── */}
+            <div className="overflow-hidden rounded-lg border border-violet-200/60 bg-violet-50/40 shadow-sm">
+              <div className="flex items-center gap-1.5 border-b border-violet-200/60 bg-violet-100/60 px-3 py-1.5">
+                <svg className="h-3 w-3 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                  <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                </svg>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-700">Component Counts</span>
+              </div>
+              <ul className="flex flex-col divide-y divide-violet-100/60 px-2.5 py-1">
+                {counts.map(([cid, count]) => (
+                  <li key={cid} className="flex items-center justify-between py-1.5">
+                    <span className="truncate text-[11px] font-medium text-foreground">{cid}</span>
+                    <span className="ml-2 shrink-0 rounded-full bg-violet-100 px-2 py-0.5 font-mono text-[11px] font-bold text-violet-700">{count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
         )}
         {state.connections.length > 0 && (
-          <div className="rounded-md border border-border bg-card p-2">
-            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Connections ({state.connections.length})</p>
-            <ul className="flex flex-col gap-0.5 max-h-40 overflow-y-auto">
+          /* ── Connections card ── */
+          <div className="overflow-hidden rounded-lg border border-emerald-200/60 bg-emerald-50/40 shadow-sm">
+            <div className="flex items-center gap-1.5 border-b border-emerald-200/60 bg-emerald-100/60 px-3 py-1.5">
+              <svg className="h-3 w-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">Connections ({state.connections.length})</span>
+            </div>
+            <ul className="flex max-h-40 flex-col divide-y divide-emerald-100/60 overflow-y-auto px-2.5 py-1">
               {state.connections.map((c) => {
                 const fromP = state.placements.find((p) => p.id === c.from.placementId);
-                const toP = state.placements.find((p) => p.id === c.to.placementId);
+                const toP   = state.placements.find((p) => p.id === c.to.placementId);
                 return (
-                  <li key={c.id} className="text-[11px] text-foreground truncate">
-                    {fromP?.name ?? c.from.placementId}.{c.from.pinName} → {toP?.name ?? c.to.placementId}.{c.to.pinName}
+                  <li key={c.id} className="flex items-center gap-1 py-1.5 text-[11px]">
+                    <span className="truncate font-medium text-foreground">
+                      {fromP?.name ?? c.from.placementId}
+                      <span className="mx-0.5 font-mono text-[10px] text-muted-foreground">.{c.from.pinName}</span>
+                    </span>
+                    <svg className="h-3 w-3 shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                    <span className="truncate font-medium text-foreground">
+                      {toP?.name ?? c.to.placementId}
+                      <span className="mx-0.5 font-mono text-[10px] text-muted-foreground">.{c.to.pinName}</span>
+                    </span>
                   </li>
                 );
               })}

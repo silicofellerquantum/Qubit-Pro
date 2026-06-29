@@ -290,8 +290,11 @@ class CodegenService:
                 route_options[k] = str(v)
 
             if route_id == "RouteMeander":
-                # fillet — use canonical constant unless already resolved
-                if "fillet" not in route_options:
+                # fillet — use canonical constant unless already resolved to a
+                # non-zero value.  The Qiskit Metal default is '0' (sharp corners)
+                # which would produce wrong geometry; we always need the real value.
+                existing_fillet = route_options.get("fillet", "")
+                if not existing_fillet or existing_fillet in ("0", "0um", "0mm"):
                     route_options["fillet"] = FILLET_UM
 
                 # total_length — use resolved value if present, else heuristic
@@ -304,13 +307,29 @@ class CodegenService:
 
                 # lead — always emit both start_straight and end_straight
                 # so Qiskit Metal's redistribution is fully deterministic.
-                # If a resolved 'lead' dict came back from the worker, use it;
+                # If a resolved 'lead' dict came back from the worker (stored as
+                # JSON string by use-route-rendering.ts), parse and re-emit it;
                 # otherwise default both sides to DEFAULT_LEAD_UM.
                 if "lead" not in route_options:
                     route_options["lead"] = (
                         f"dict(start_straight='{DEFAULT_LEAD_UM}', "
                         f"end_straight='{DEFAULT_LEAD_UM}')"
                     )
+                # If lead came back as a string that only contains start_straight
+                # (e.g. from old metal_codegen.py which only set start_straight),
+                # ensure end_straight is also present so the exit lead is controlled.
+                else:
+                    lead_v = route_options["lead"]
+                    if isinstance(lead_v, str):
+                        import json as _json2
+                        try:
+                            parsed_lead = _json2.loads(lead_v)
+                            if isinstance(parsed_lead, dict):
+                                parsed_lead.setdefault("start_straight", DEFAULT_LEAD_UM)
+                                parsed_lead.setdefault("end_straight",   DEFAULT_LEAD_UM)
+                                route_options["lead"] = parsed_lead
+                        except Exception:
+                            pass  # leave as-is; the emit code will handle it
 
             # ── Emit route line ───────────────────────────────────────────────
             # Build the route options part.

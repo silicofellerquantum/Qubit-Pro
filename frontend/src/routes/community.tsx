@@ -119,7 +119,7 @@ function CommunityNav() {
         <CSection className="flex h-16 items-center justify-between">
           {/* Logo + badge */}
           <div className="flex items-center gap-3">
-            <Link to="/" aria-label="SilicoFeller home" className="flex items-center min-h-[44px]">
+            <Link to="/" aria-label="Silicofeller home" className="flex items-center min-h-[44px]">
               <SilicofellerLogo />
             </Link>
             <Badge variant="secondary" className="rounded-full bg-accent-soft px-2 py-0 text-[10px] font-medium text-accent">
