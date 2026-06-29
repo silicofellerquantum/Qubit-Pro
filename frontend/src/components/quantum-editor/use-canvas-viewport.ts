@@ -14,14 +14,15 @@ import type { Placement, Connection } from "@/lib/bridge/types";
 import type { EditorState, Selection } from "@/lib/editor/design-store";
 
 // ── Chip dimensions ──────────────────────────────────────────────────────────
-// 40×40 mm gives ample room for 100-qubit designs while keeping qubit
-// physical sizes identical (qubits are ~0.5–1 mm, unchanged).
-export const CHIP_W_MM   = 40.0;
-export const CHIP_H_MM   = 40.0;
+// Default chip is 40×40 mm; the user can change this via SET_CHIP_SIZE.
+// These constants are the compile-time defaults / fallbacks used by
+// components that don't have access to EditorState (e.g. drop-handling).
+export const CHIP_W_MM = 40.0;
+export const CHIP_H_MM = 40.0;
 export const CHIP_HALF_W = CHIP_W_MM / 2;   // ±20 mm
 export const CHIP_HALF_H = CHIP_H_MM / 2;   // ±20 mm
 
-export const MM_TO_PX  = 80;   // pixels per mm at scale=1
+export const MM_TO_PX = 80;   // pixels per mm at scale=1
 export const SCALE_MIN = 0.1;  // zoom out to see full chip
 export const SCALE_MAX = 10.0; // zoom in for fine detail
 
@@ -63,10 +64,14 @@ export function useCanvasViewport(
   state: EditorState,
   dispatch: Dispatch,
 ): CanvasViewport {
-  const svgRef       = useRef<SVGSVGElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize]       = useState({ w: 800, h: 600 });
+  const [size, setSize] = useState({ w: 800, h: 600 });
   const [panDrag, setPanDrag] = useState<CanvasViewport["panDrag"]>(null);
+
+  // Dynamic chip dimensions from state (fall back to compile-time defaults)
+  const chipW = state.chipW ?? CHIP_W_MM;
+  const chipH = state.chipH ?? CHIP_H_MM;
 
   // ── Resize observer ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -91,16 +96,16 @@ export function useCanvasViewport(
     const usableW = size.w - RULER_L;
     const usableH = size.h - RULER_B;
     return Math.max(0.01, Math.min(
-      usableW / (CHIP_W_MM * MM_TO_PX),
-      usableH / (CHIP_H_MM * MM_TO_PX),
+      usableW / (chipW * MM_TO_PX),
+      usableH / (chipH * MM_TO_PX),
     ));
-  }, [size.w, size.h]);
+  }, [size.w, size.h, chipW, chipH]);
 
   const scale = baseScale * state.zoom;
 
   // ── Board pixel dimensions ───────────────────────────────────────────────
-  const bw = CHIP_W_MM * MM_TO_PX * scale;
-  const bh = CHIP_H_MM * MM_TO_PX * scale;
+  const bw = chipW * MM_TO_PX * scale;
+  const bh = chipH * MM_TO_PX * scale;
 
   // ── Pan clamping — infinite canvas with a soft ±MAX_VIRTUAL_PAN px stop ──
   const usableW = size.w - RULER_L;
@@ -114,11 +119,11 @@ export function useCanvasViewport(
   // The board fills [RULER_L .. RULER_L+usableW] × [0 .. usableH].
   // When pan=0, board center = (RULER_L + usableW/2, usableH/2).
   const cx = RULER_L + usableW / 2 + clampedPanX;
-  const cy =           usableH / 2 + clampedPanY;
+  const cy = usableH / 2 + clampedPanY;
 
-  const left   = cx - bw / 2;
-  const right  = cx + bw / 2;
-  const top    = cy - bh / 2;
+  const left = cx - bw / 2;
+  const right = cx + bw / 2;
+  const top = cy - bh / 2;
   const bottom = cy + bh / 2;
 
   // ── Coordinate transforms ────────────────────────────────────────────────
@@ -132,7 +137,7 @@ export function useCanvasViewport(
 
   const s2w = useCallback(
     (px: number, py: number) => ({
-      x:  (px - cx) / (MM_TO_PX * scale),
+      x: (px - cx) / (MM_TO_PX * scale),
       y: -(py - cy) / (MM_TO_PX * scale),
     }),
     [cx, cy, scale],
@@ -142,7 +147,7 @@ export function useCanvasViewport(
   const fitToContent = useCallback(() => {
     if (state.placements.length === 0) {
       dispatch({ type: "ZOOM", zoom: 1 });
-      dispatch({ type: "PAN",  x: 0, y: 0 });
+      dispatch({ type: "PAN", x: 0, y: 0 });
       return;
     }
     const xs = state.placements.map((p: Placement) => p.x);
@@ -159,7 +164,7 @@ export function useCanvasViewport(
     const clampedZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, newZoom));
     const k = MM_TO_PX * baseScale * clampedZoom;
     dispatch({ type: "ZOOM", zoom: clampedZoom });
-    dispatch({ type: "PAN",  x: -((minX + maxX) / 2) * k, y: ((minY + maxY) / 2) * k });
+    dispatch({ type: "PAN", x: -((minX + maxX) / 2) * k, y: ((minY + maxY) / 2) * k });
   }, [state.placements, size.w, size.h, baseScale, dispatch]);
 
   // ── zoomToSelection ──────────────────────────────────────────────────────
@@ -196,7 +201,7 @@ export function useCanvasViewport(
     const clampedZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, newZoom));
     const k = MM_TO_PX * baseScale * clampedZoom;
     dispatch({ type: "ZOOM", zoom: clampedZoom });
-    dispatch({ type: "PAN",  x: -((minX + maxX) / 2) * k, y: ((minY + maxY) / 2) * k });
+    dispatch({ type: "PAN", x: -((minX + maxX) / 2) * k, y: ((minY + maxY) / 2) * k });
   }, [state.selection, state.placements, state.connections, size.w, size.h, baseScale, dispatch, fitToContent]);
 
   // ── Adaptive ruler tick generation ───────────────────────────────────────
@@ -205,19 +210,19 @@ export function useCanvasViewport(
   const hTicks = useMemo(() => {
     const ticks: { value: number; px: number; type: "major" | "half" | "minor" }[] = [];
     const pxPerMm = MM_TO_PX * scale;
-    const step      = pxPerMm >= 60 ? 0.5  : pxPerMm >= 20 ? 1  : pxPerMm >= 8 ? 2  : pxPerMm >= 3 ? 5  : 10;
-    const majorStep = pxPerMm >= 60 ? 1    : pxPerMm >= 20 ? 5  : pxPerMm >= 8 ? 10 : pxPerMm >= 3 ? 10 : 20;
+    const step = pxPerMm >= 60 ? 0.5 : pxPerMm >= 20 ? 1 : pxPerMm >= 8 ? 2 : pxPerMm >= 3 ? 5 : 10;
+    const majorStep = pxPerMm >= 60 ? 1 : pxPerMm >= 20 ? 5 : pxPerMm >= 8 ? 10 : pxPerMm >= 3 ? 10 : 20;
 
     // World x range visible between the left ruler and the right edge
-    const visLeft  = (RULER_L - cx) / (MM_TO_PX * scale);
-    const visRight = (size.w  - cx) / (MM_TO_PX * scale);
-    const startV = Math.ceil(visLeft  / step) * step;
-    const endV   = Math.floor(visRight / step) * step;
+    const visLeft = (RULER_L - cx) / (MM_TO_PX * scale);
+    const visRight = (size.w - cx) / (MM_TO_PX * scale);
+    const startV = Math.ceil(visLeft / step) * step;
+    const endV = Math.floor(visRight / step) * step;
 
     for (let v = startV; v <= endV + step * 0.001; v = parseFloat((v + step).toFixed(6))) {
       const r = parseFloat(v.toFixed(4));
       const isMajor = Math.abs(r % majorStep) < step * 0.01;
-      const isHalf  = !isMajor && Math.abs(r % (majorStep / 2)) < step * 0.01;
+      const isHalf = !isMajor && Math.abs(r % (majorStep / 2)) < step * 0.01;
       const px = cx + r * MM_TO_PX * scale;
       if (px < RULER_L || px > size.w) continue;
       ticks.push({ value: r, px, type: isMajor ? "major" : isHalf ? "half" : "minor" });
@@ -228,19 +233,19 @@ export function useCanvasViewport(
   const vTicks = useMemo(() => {
     const ticks: { value: number; py: number; type: "major" | "half" | "minor" }[] = [];
     const pxPerMm = MM_TO_PX * scale;
-    const step      = pxPerMm >= 60 ? 0.5  : pxPerMm >= 20 ? 1  : pxPerMm >= 8 ? 2  : pxPerMm >= 3 ? 5  : 10;
-    const majorStep = pxPerMm >= 60 ? 1    : pxPerMm >= 20 ? 5  : pxPerMm >= 8 ? 10 : pxPerMm >= 3 ? 10 : 20;
+    const step = pxPerMm >= 60 ? 0.5 : pxPerMm >= 20 ? 1 : pxPerMm >= 8 ? 2 : pxPerMm >= 3 ? 5 : 10;
+    const majorStep = pxPerMm >= 60 ? 1 : pxPerMm >= 20 ? 5 : pxPerMm >= 8 ? 10 : pxPerMm >= 3 ? 10 : 20;
 
     // World y range visible between top and the bottom ruler
-    const visTop    = -(0         - cy) / (MM_TO_PX * scale);
-    const visBottom = -(usableH   - cy) / (MM_TO_PX * scale);
+    const visTop = -(0 - cy) / (MM_TO_PX * scale);
+    const visBottom = -(usableH - cy) / (MM_TO_PX * scale);
     const startV = Math.ceil(Math.min(visTop, visBottom) / step) * step;
-    const endV   = Math.floor(Math.max(visTop, visBottom) / step) * step;
+    const endV = Math.floor(Math.max(visTop, visBottom) / step) * step;
 
     for (let v = startV; v <= endV + step * 0.001; v = parseFloat((v + step).toFixed(6))) {
-      const r  = parseFloat(v.toFixed(4));
+      const r = parseFloat(v.toFixed(4));
       const isMajor = Math.abs(r % majorStep) < step * 0.01;
-      const isHalf  = !isMajor && Math.abs(r % (majorStep / 2)) < step * 0.01;
+      const isHalf = !isMajor && Math.abs(r % (majorStep / 2)) < step * 0.01;
       const py = cy - r * MM_TO_PX * scale;
       if (py < 0 || py > usableH) continue;
       ticks.push({ value: r, py, type: isMajor ? "major" : isHalf ? "half" : "minor" });

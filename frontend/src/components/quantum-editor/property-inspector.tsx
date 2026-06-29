@@ -21,6 +21,10 @@ import { defaultParamsFromMetadata } from "@/lib/bridge/adapters";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import { getSingleSelection } from "@/lib/editor/design-store";
 import { metadataToFields } from "@/lib/bridge/adapters";
+import {
+  getRouteDefaults,
+  buildInitialRouteOverrides,
+} from "@/lib/editor/route-defaults";
 import type { Placement, Connection, ValidationResult } from "@/lib/bridge/types";
 
 // ─── Resonator detection & physics ───────────────────────────────────────────
@@ -100,15 +104,15 @@ function computeResonatorDiagnostics(
   const lengthMm = parseLengthMm(lengthVal);
 
   const traceWidthMm = parseLengthMm(params.trace_width ?? params.line_width ?? params.readout_cpw_width ?? (isCoil ? "1um" : "5um"));
-  const traceGapMm   = parseLengthMm(params.trace_gap  ?? params.gap ?? params.readout_cpw_gap   ?? (isCoil ? "4um" : "5um"));
-  
+  const traceGapMm = parseLengthMm(params.trace_gap ?? params.gap ?? params.readout_cpw_gap ?? (isCoil ? "4um" : "5um"));
+
   // Meander pitch (controls turn spacing)
   // For ReadoutResFC: pitch = 2 * turnradius
   // For ResonatorCoilRect: pitch = gap
   const pitchMm = parseLengthMm(
     params.meander_pitch ?? params.meander_spacing ?? params.gap ?? (params.fillet ? String(parseLengthMm(params.fillet) * 2) + "mm" : (isCoil ? "4um" : "100um"))
   );
-  
+
   // Fillet
   const filletMm = isCoil ? 0 : parseLengthMm(
     params.fillet ?? params.readout_cpw_turnradius ?? (params.meander_pitch ? String(parseLengthMm(params.meander_pitch) / 2) + "mm" : "50um")
@@ -146,15 +150,17 @@ function computeResonatorDiagnostics(
   }
 
   // λ/2 resonant frequency on silicon substrate
-  const C0    = 299_792_458; // m/s
+  const C0 = 299_792_458; // m/s
   const EPS_EFF = 6.2;        // CPW on silicon, typical value
-  const vPh   = C0 / Math.sqrt(EPS_EFF);
+  const vPh = C0 / Math.sqrt(EPS_EFF);
   const freqGHz = lengthMm > 0
     ? (vPh / (2 * lengthMm * 1e-3)) / 1e9
     : 0;
 
-  return { lengthMm, freqGHz, turnCount, footprintWum, footprintHum,
-           traceWidthMm, traceGapMm, filletMm, leadMm, pitchMm, colWidthMm };
+  return {
+    lengthMm, freqGHz, turnCount, footprintWum, footprintHum,
+    traceWidthMm, traceGapMm, filletMm, leadMm, pitchMm, colWidthMm
+  };
 }
 
 export function PropertyInspector() {
@@ -467,8 +473,8 @@ function ResonatorQuickControls({
   // Detect which key the component uses for resonator length
   const lengthKey =
     p.total_length !== undefined ? "total_length"
-    : p.length      !== undefined ? "length"
-    : "length";
+      : p.length !== undefined ? "length"
+        : "length";
 
   const isCoil = placement.componentId === "ResonatorCoilRect";
 
@@ -589,8 +595,8 @@ function ResonatorDiagnosticsPanel({ placement }: { placement: Placement }) {
 
   const fmtMm = (mm: number) =>
     mm === 0 ? "—"
-    : mm < 0.01 ? `${(mm * 1000).toFixed(1)} um`
-    : `${mm.toFixed(3)} mm`;
+      : mm < 0.01 ? `${(mm * 1000).toFixed(1)} um`
+        : `${mm.toFixed(3)} mm`;
 
   const fmtUm = (um: number) =>
     um === 0 ? "—" : `${Math.round(um)} um`;
@@ -601,9 +607,8 @@ function ResonatorDiagnosticsPanel({ placement }: { placement: Placement }) {
       <span className="text-muted-foreground flex items-center gap-1">
         <Zap className="h-3 w-3 text-teal-500" /> Est. frequency
       </span>
-      <span className={`font-mono text-right font-semibold ${
-        d.freqGHz > 0 ? "text-teal-600" : "text-muted-foreground"
-      }`}>
+      <span className={`font-mono text-right font-semibold ${d.freqGHz > 0 ? "text-teal-600" : "text-muted-foreground"
+        }`}>
         {d.freqGHz > 0 ? `${d.freqGHz.toFixed(3)} GHz` : "—"}
       </span>
 
@@ -747,34 +752,31 @@ function ParamFields({ fields, placement, updateParam }: {
   );
 }
 
-// Qiskit Metal RouteMeander built-in defaults (used when no override is set)
-const ROUTE_MEANDER_DEFAULTS: Record<string, string> = {
-  total_length: "7mm",
-  fillet: "99um",
-  lead_length: "30um",
-  trace_width: "10um",
-  trace_gap: "6um",
-};
+// ─── Route defaults — imported from @/lib/editor/route-defaults ──────────────
+// ROUTE_COMPONENT_DEFAULTS, getRouteDefaults, buildInitialRouteOverrides
+// are imported at the top of this file.
 
 function RouteMetricsPanel({ connection }: { connection: Connection }) {
   const svg = connection.cachedSvg ?? "";
   const overrides = connection.routeOverrides ?? {};
   const routeId = connection.routeComponentId ?? "RouteMeander";
-  const isRouteMeander = routeId.toLowerCase().includes("meander") || routeId.toLowerCase().includes("straight");
+  // Use live defaults for whatever route component is selected
+  const defaults = getRouteDefaults(routeId);
 
-  // Show override value, or the known default with a (dflt) tag
+  // Show the stored override value; if absent (user cleared it), show the
+  // component default tagged with "· dflt".
   const showVal = (key: string, fallback: string) => {
     const v = overrides[key];
     if (v !== undefined && v !== "") return String(v);
-    if (isRouteMeander && ROUTE_MEANDER_DEFAULTS[key]) return `${ROUTE_MEANDER_DEFAULTS[key]} \u00b7 dflt`;
+    if (defaults[key]) return `${defaults[key]} \u00b7 dflt`;
     return fallback;
   };
 
   const targetLength = showVal("total_length", "—");
   const filletRadius = showVal("fillet", "dflt");
-  const leadLength   = showVal("lead_length", "dflt");
-  const traceWidth   = showVal("trace_width", "dflt");
-  const traceGap     = showVal("trace_gap", "dflt");
+  const leadLength = showVal("lead_length", "dflt");
+  const traceWidth = showVal("trace_width", "dflt");
+  const traceGap = showVal("trace_gap", "dflt");
 
   // Parse actual rendered path length from SVG data-attributes if the backend embeds them
   const actualLength = (() => {
@@ -819,11 +821,17 @@ function RouteMetricsPanel({ connection }: { connection: Connection }) {
 function FilletField({
   connection,
   dispatch,
+  defaultValue = "99um",
 }: {
   connection: Connection;
   dispatch: (a: any) => void;
+  defaultValue?: string;
 }) {
-  const rawValue = String(connection.routeOverrides?.fillet ?? "");
+  // Show the stored override if present, else fall back to the component default
+  const storedVal = connection.routeOverrides?.fillet;
+  const rawValue = storedVal !== undefined ? String(storedVal) : defaultValue;
+  const isDefault = storedVal === undefined;
+
   const [local, setLocal] = useState(rawValue);
   useEffect(() => setLocal(rawValue), [rawValue]);
 
@@ -835,6 +843,12 @@ function FilletField({
 
   const commit = () => {
     let val = local.trim();
+    // If the user cleared the field entirely → remove the override (revert to default)
+    if (!val) {
+      updateRouteOverride(connection.id, "fillet", "", dispatch, connection.routeOverrides);
+      setLocal(defaultValue);
+      return;
+    }
     if (isNegative) {
       // Replace negative with absolute value + original unit suffix
       const unitMatch = local.match(/[a-zA-Z]+/);
@@ -848,17 +862,38 @@ function FilletField({
 
   return (
     <Field label="Fillet">
-      <Input
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
-        placeholder="e.g. 99um"
-        className={`h-7 font-mono text-[11px] ${isNegative ? "border-destructive ring-1 ring-destructive" : ""}`}
-      />
+      <div className="flex items-center gap-1">
+        <Input
+          value={local}
+          onChange={(e) => setLocal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+          placeholder={`e.g. ${defaultValue}`}
+          className={`h-7 flex-1 font-mono text-[11px] ${isNegative ? "border-destructive ring-1 ring-destructive" : isDefault ? "text-muted-foreground" : ""}`}
+          title={isDefault ? `Qiskit Metal default: ${defaultValue}` : undefined}
+        />
+        {!isDefault && (
+          <button
+            onClick={() => {
+              setLocal(defaultValue);
+              updateRouteOverride(connection.id, "fillet", "", dispatch, connection.routeOverrides);
+            }}
+            title={`Reset to default (${defaultValue})`}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Reset fillet to default"
+          >
+            <RotateCcw className="h-3 w-3" />
+          </button>
+        )}
+      </div>
       {isNegative && (
         <span className="text-[10px] text-destructive">
           Fillet radius must be ≥ 0. Will be corrected on commit.
+        </span>
+      )}
+      {isDefault && (
+        <span className="text-[9px] text-muted-foreground/60 italic">
+          Qiskit Metal default — edit to override
         </span>
       )}
     </Field>
@@ -872,6 +907,23 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
   // Pull supported route components from the originating placement's metadata.
   const metaQ = useQuery(componentMetadataQueryOptions(fromP?.componentId ?? ""));
   const routeOptions = metaQ.data?.supportedRouteComponents ?? [];
+
+  // Resolved defaults for the currently selected route component
+  const activeRouteId = connection.routeComponentId ?? "RouteMeander";
+  const currentDefaults = getRouteDefaults(activeRouteId);
+
+  // Descriptive hint built from the live defaults object
+  const defaultsHint = [
+    `length ${currentDefaults.total_length}`,
+    `fillet ${currentDefaults.fillet}`,
+    `lead ${currentDefaults.lead_length}`,
+    `width ${currentDefaults.trace_width}`,
+    `gap ${currentDefaults.trace_gap}`,
+  ].join(" · ");
+
+  // Helper: read override value, falling back to the component's default
+  const overrideVal = (key: string): string =>
+    String(connection.routeOverrides?.[key] ?? currentDefaults[key] ?? "");
 
   return (
     <div className="flex flex-col gap-3 text-xs min-w-[190px]">
@@ -931,26 +983,47 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
         {routeOptions.length === 0 ? (
           <Input
             value={connection.routeComponentId ?? ""}
-            onChange={(e) =>
+            onChange={(e) => {
+              const newId = e.target.value || undefined;
+              // Pre-populate defaults for the newly typed component ID on blur
               dispatch({
                 type: "UPDATE_CONNECTION",
                 id: connection.id,
-                patch: { routeComponentId: e.target.value || undefined },
-              })
-            }
+                patch: { routeComponentId: newId },
+              });
+            }}
+            onBlur={(e) => {
+              const newId = e.target.value.trim() || undefined;
+              const newDefaults = buildInitialRouteOverrides(newId, connection.routeOverrides);
+              dispatch({
+                type: "UPDATE_CONNECTION",
+                id: connection.id,
+                patch: {
+                  routeComponentId: newId,
+                  routeOverrides: newDefaults,
+                },
+              });
+            }}
             placeholder="e.g. RouteMeander"
             className="h-7 font-mono text-[11px]"
           />
         ) : (
           <Select
             value={connection.routeComponentId ?? ""}
-            onValueChange={(v) =>
+            onValueChange={(v) => {
+              // When route component changes: keep user-edited overrides but
+              // fill in any keys that are still at the old defaults (or blank)
+              // with the new component's defaults.
+              const newDefaults = buildInitialRouteOverrides(v, connection.routeOverrides);
               dispatch({
                 type: "UPDATE_CONNECTION",
                 id: connection.id,
-                patch: { routeComponentId: v },
-              })
-            }
+                patch: {
+                  routeComponentId: v,
+                  routeOverrides: newDefaults,
+                },
+              });
+            }}
           >
             <SelectTrigger className="h-7 text-[11px]">
               <SelectValue placeholder="Choose route component" />
@@ -971,36 +1044,44 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
 
       <Section title="Route overrides">
         <p className="text-[9px] text-muted-foreground/70 -mt-1 mb-0.5">
-          Blank = Qiskit Metal default. Defaults: length 7mm · fillet 99um · lead 30um · width 10um · gap 6um
+          Pre-filled with {activeRouteId} defaults. Clear a field to reset to Qiskit Metal default. Defaults: {defaultsHint}
         </p>
         <RouteOverrideField
           label="Total length"
-          placeholder="e.g. 7mm"
-          value={String(connection.routeOverrides?.total_length ?? "")}
+          placeholder={`e.g. ${currentDefaults.total_length}`}
+          value={overrideVal("total_length")}
           onCommit={(v) => updateRouteOverride(connection.id, "total_length", v, dispatch, connection.routeOverrides)}
           defaultUnit="mm"
+          isDefault={!connection.routeOverrides?.total_length}
+          defaultValue={currentDefaults.total_length}
         />
-        <FilletField connection={connection} dispatch={dispatch} />
+        <FilletField connection={connection} dispatch={dispatch} defaultValue={currentDefaults.fillet} />
         <RouteOverrideField
           label="Lead length"
-          placeholder="e.g. 50um"
-          value={String(connection.routeOverrides?.lead_length ?? "")}
+          placeholder={`e.g. ${currentDefaults.lead_length}`}
+          value={overrideVal("lead_length")}
           onCommit={(v) => updateRouteOverride(connection.id, "lead_length", v, dispatch, connection.routeOverrides)}
           defaultUnit="um"
+          isDefault={!connection.routeOverrides?.lead_length}
+          defaultValue={currentDefaults.lead_length}
         />
         <RouteOverrideField
           label="Trace width"
-          placeholder="e.g. 10um"
-          value={String(connection.routeOverrides?.trace_width ?? "")}
+          placeholder={`e.g. ${currentDefaults.trace_width}`}
+          value={overrideVal("trace_width")}
           onCommit={(v) => updateRouteOverride(connection.id, "trace_width", v, dispatch, connection.routeOverrides)}
           defaultUnit="um"
+          isDefault={!connection.routeOverrides?.trace_width}
+          defaultValue={currentDefaults.trace_width}
         />
         <RouteOverrideField
           label="Trace gap"
-          placeholder="e.g. 6um"
-          value={String(connection.routeOverrides?.trace_gap ?? "")}
+          placeholder={`e.g. ${currentDefaults.trace_gap}`}
+          value={overrideVal("trace_gap")}
           onCommit={(v) => updateRouteOverride(connection.id, "trace_gap", v, dispatch, connection.routeOverrides)}
           defaultUnit="um"
+          isDefault={!connection.routeOverrides?.trace_gap}
+          defaultValue={currentDefaults.trace_gap}
         />
       </Section>
 
@@ -1259,12 +1340,18 @@ function RouteOverrideField({
   value,
   onCommit,
   defaultUnit = "um",
+  isDefault = false,
+  defaultValue,
 }: {
   label: string;
   placeholder: string;
   value: string;
   onCommit: (v: string) => void;
   defaultUnit?: "mm" | "um";
+  /** True when the value currently shown is the component default (not a user override) */
+  isDefault?: boolean;
+  /** The component's default value, shown in the reset button tooltip */
+  defaultValue?: string;
 }) {
   const commitWithNormalization = (v: string) => {
     onCommit(normalizeLengthInput(v, defaultUnit));
@@ -1272,14 +1359,35 @@ function RouteOverrideField({
   const field = useLocalValue(value, commitWithNormalization);
   return (
     <Field label={label}>
-      <Input
-        value={field.local}
-        onChange={(e) => field.setLocal(e.target.value)}
-        onBlur={field.commit}
-        onKeyDown={field.onKeyDown}
-        placeholder={placeholder}
-        className="h-7 font-mono text-[11px]"
-      />
+      <div className="flex items-center gap-1">
+        <Input
+          value={field.local}
+          onChange={(e) => field.setLocal(e.target.value)}
+          onBlur={field.commit}
+          onKeyDown={field.onKeyDown}
+          placeholder={placeholder}
+          className={`h-7 flex-1 font-mono text-[11px] ${isDefault ? "text-muted-foreground" : ""}`}
+          title={isDefault ? `Qiskit Metal default: ${defaultValue}` : undefined}
+        />
+        {!isDefault && defaultValue && (
+          <button
+            onClick={() => {
+              field.setLocal(defaultValue);
+              onCommit(defaultValue);
+            }}
+            title={`Reset to default (${defaultValue})`}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={`Reset ${label} to default`}
+          >
+            <RotateCcw className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+      {isDefault && defaultValue && (
+        <span className="text-[9px] text-muted-foreground/60 italic">
+          Qiskit Metal default — edit to override
+        </span>
+      )}
     </Field>
   );
 }

@@ -10,7 +10,7 @@ import { WorkspaceProvider, useWorkspace } from "@/lib/editor/workspace-store";
 import { getSingleSelection, isSelected, type Selection } from "@/lib/editor/design-store";
 import { ComponentLibrary } from "@/components/quantum-editor/component-library";
 import { PropertyInspector } from "@/components/quantum-editor/property-inspector";
-import { EditorCanvas, type EditorCanvasHandle, CHIP_HALF_W, CHIP_HALF_H } from "@/components/quantum-editor/editor-canvas";
+import { EditorCanvas, type EditorCanvasHandle } from "@/components/quantum-editor/editor-canvas";
 import { EditorToolbar } from "@/components/quantum-editor/editor-toolbar";
 import { CodeIdePanel, type CodePanelMode } from "@/components/quantum-editor/code-ide-panel";
 import { useDesign } from "@/lib/design-context";
@@ -588,8 +588,8 @@ function SchematicEditorShell() {
             action: {
               type: "MOVE_PLACEMENT",
               id: p.id,
-              x: Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, nx)),
-              y: Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, ny)),
+              x: Math.max(-activeTab.state.chipW / 2, Math.min(activeTab.state.chipW / 2, nx)),
+              y: Math.max(-activeTab.state.chipH / 2, Math.min(activeTab.state.chipH / 2, ny)),
             },
           });
         }
@@ -852,7 +852,7 @@ function SchematicEditorShell() {
                 aria-label="Close inspector panel"
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
@@ -870,7 +870,7 @@ function SchematicEditorShell() {
               aria-label="Open inspector panel"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M8 2L4 6L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M8 2L4 6L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
           </div>
