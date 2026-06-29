@@ -54,14 +54,14 @@ export function CodeIdePanel({ mode, onClose }: Props) {
   const { activeTab, workspace, newCanvas, loadIntoCanvas } = useWorkspace();
   const queryClient = useQueryClient();
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
-  const doc   = { placements: activeTab.state.placements, connections: activeTab.state.connections };
+  const doc = { placements: activeTab.state.placements, connections: activeTab.state.connections };
   const state = activeTab.state;
 
-  const [genCode,    setGenCode]    = useState("");
-  const [genFile,    setGenFile]    = useState("design.py");
-  const [writeCode,  setWriteCode]  = useState(STARTER);
-  const [runResult,  setRunResult]  = useState<{ ok: boolean; error?: string } | null>(null);
-  const [runTarget,  setRunTarget]  = useState<"current" | "new">("current");
+  const [genCode, setGenCode] = useState("");
+  const [genFile, setGenFile] = useState("design.py");
+  const [writeCode, setWriteCode] = useState(STARTER);
+  const [runResult, setRunResult] = useState<{ ok: boolean; error?: string } | null>(null);
+  const [runTarget, setRunTarget] = useState<"current" | "new">("current");
 
   const genMu = useMutation({
     mutationFn: () => bridgeClient.generateCode(doc).then((r) => { if (r.error) throw new Error(r.error); return r.data!; }),
@@ -103,7 +103,7 @@ export function CodeIdePanel({ mode, onClose }: Props) {
   const activeFile = mode === "generate" ? genFile : "qiskit_metal_chip.py";
 
   const copy = useCallback(() => { if (!activeCode) return; navigator.clipboard.writeText(activeCode); toast.success("Copied"); }, [activeCode]);
-  const dl   = useCallback(() => {
+  const dl = useCallback(() => {
     if (!activeCode) return;
     const url = URL.createObjectURL(new Blob([activeCode], { type: "text/x-python" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: activeFile });
@@ -113,7 +113,32 @@ export function CodeIdePanel({ mode, onClose }: Props) {
 
   const onMount = (editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
     editorRef.current = editor;
-    if (mode === "write") editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => { if (!runMu.isPending) { setRunResult(null); runMu.mutate(); } });
+    if (mode === "write") {
+      // Ctrl+Enter → Run
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+        if (!runMu.isPending) { setRunResult(null); runMu.mutate(); }
+      });
+
+      // Explicitly wire Ctrl+V / Cmd+V → paste so it works in all browsers
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, () => {
+        navigator.clipboard.readText().then((text) => {
+          if (!text) return;
+          const selection = editor.getSelection();
+          const id = { major: 1, minor: 1 };
+          const op = {
+            identifier: id,
+            range: selection ?? new monaco.Range(1, 1, 1, 1),
+            text,
+            forceMoveMarkers: true,
+          };
+          editor.executeEdits("clipboard-paste", [op]);
+          editor.focus();
+        }).catch(() => {
+          // Fallback: trigger Monaco's built-in paste action
+          editor.trigger("keyboard", "editor.action.clipboardPasteAction", null);
+        });
+      });
+    }
   };
 
   const isPending = mode === "generate" ? genMu.isPending : runMu.isPending;
@@ -195,6 +220,7 @@ export function CodeIdePanel({ mode, onClose }: Props) {
             readOnly: mode === "generate", fontSize: 12, lineNumbers: "on",
             minimap: { enabled: false }, scrollBeyondLastLine: false, automaticLayout: true,
             wordWrap: "on", tabSize: 4, autoIndent: "full", fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+            contextmenu: true,
           }}
           onMount={onMount}
           loading={<div className="flex h-full items-center justify-center text-[11px] text-white/40">Loading editor…</div>}
