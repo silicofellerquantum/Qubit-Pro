@@ -1447,11 +1447,11 @@ function BillingPage() {
                     <TableRow key={inv.id}>
                       <TableCell className="font-medium text-foreground">{inv.id}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {inv.date ? new Date(inv.date).toLocaleDateString() : "—"}
+                        {inv.date ? new Date(typeof inv.date === 'number' ? inv.date * 1000 : inv.date).toLocaleDateString() : "—"}
                       </TableCell>
                       <TableCell className="text-foreground">
                         {inv.amount != null
-                          ? `$${(inv.amount / 100).toFixed(2)}`
+                          ? `${inv.currency === "INR" ? "₹" : "$"}${(inv.amount / 100).toFixed(2)}`
                           : "—"}
                       </TableCell>
                       <TableCell>
