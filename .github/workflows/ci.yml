@@ -18,17 +18,16 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Set up Python 3.9
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v4
         with:
           python-version: "3.9"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
         run: |
+          python -m ensurepip --upgrade
           python -m pip install --upgrade pip setuptools wheel
-          python -m pip install --no-build-isolation pyaedt==0.6.46
-          pip install -r requirements.txt
+          python -m pip install -r requirements.txt
 
       - name: Run tests
         run: python -m pytest tests/ -q --tb=short
