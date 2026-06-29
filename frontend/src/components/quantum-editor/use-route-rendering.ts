@@ -47,9 +47,12 @@ export function useRouteRendering(
     state.connections.forEach((c) => {
       const fromP = state.placements.find((p) => p.id === c.from.placementId);
       const toP = state.placements.find((p) => p.id === c.to.placementId);
-      if (!fromP || !toP) { m.set(c.id, "none"); return; }
+      if (!fromP || !toP) {
+        m.set(c.id, "none");
+        return;
+      }
       const overridesKey = JSON.stringify(
-        Object.fromEntries(Object.entries(c.routeOverrides ?? {}).sort())
+        Object.fromEntries(Object.entries(c.routeOverrides ?? {}).sort()),
       );
       m.set(
         c.id,
@@ -63,7 +66,10 @@ export function useRouteRendering(
     const m = new Map<string, boolean>();
     state.connections.forEach((c) => {
       const hash = routeHashes.get(c.id) ?? "none";
-      if (c.locked && c.cachedSvg) { m.set(c.id, false); return; }
+      if (c.locked && c.cachedSvg) {
+        m.set(c.id, false);
+        return;
+      }
       m.set(c.id, c.cachedGeometryHash !== hash);
     });
     return m;
@@ -93,7 +99,9 @@ export function useRouteRendering(
 
   const routeQueriesById = useMemo(() => {
     const m = new Map<string, (typeof routeQueries)[number]>();
-    state.connections.forEach((c, i) => { m.set(c.id, routeQueries[i]); });
+    state.connections.forEach((c, i) => {
+      m.set(c.id, routeQueries[i]);
+    });
     return m;
   }, [state.connections, routeQueries]);
 
@@ -104,7 +112,12 @@ export function useRouteRendering(
         const expectedHash = routeHashes.get(c.id) ?? "none";
         if (c.cachedGeometryHash !== expectedHash) {
           // Cache the SVG geometry
-          dispatch({ type: "SET_CONNECTION_GEOMETRY", id: c.id, svg: q.data.svg, hash: expectedHash });
+          dispatch({
+            type: "SET_CONNECTION_GEOMETRY",
+            id: c.id,
+            svg: q.data.svg,
+            hash: expectedHash,
+          });
 
           // ── Geometry parity: store resolved Qiskit Metal options as overrides ──
           // This ensures the code-export pipeline emits the exact same
@@ -113,8 +126,14 @@ export function useRouteRendering(
           if (q.data.resolvedRouteOptions && Object.keys(q.data.resolvedRouteOptions).length > 0) {
             // Only write keys that are meaningful route params; skip internal ones
             const ROUTE_PARAM_KEYS = new Set([
-              "total_length", "fillet", "lead", "meander",
-              "trace_width", "trace_gap", "asymmetry", "snap",
+              "total_length",
+              "fillet",
+              "lead",
+              "meander",
+              "trace_width",
+              "trace_gap",
+              "asymmetry",
+              "snap",
             ]);
             const resolvedOverrides: Record<string, string | number> = {};
             for (const [k, v] of Object.entries(q.data.resolvedRouteOptions)) {
@@ -135,7 +154,8 @@ export function useRouteRendering(
               const merged = { ...resolvedOverrides, ...existing };
               // Always sync total_length and fillet from resolved — these are
               // the values that produced the visible geometry.
-              if (resolvedOverrides["total_length"]) merged["total_length"] = resolvedOverrides["total_length"];
+              if (resolvedOverrides["total_length"])
+                merged["total_length"] = resolvedOverrides["total_length"];
               if (resolvedOverrides["fillet"]) merged["fillet"] = resolvedOverrides["fillet"];
               if (resolvedOverrides["lead"]) merged["lead"] = resolvedOverrides["lead"];
               dispatch({

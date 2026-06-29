@@ -4,7 +4,12 @@ import { z } from "zod";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import {
-  CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem,
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
 } from "@/components/ui/command";
 import { WorkspaceProvider, useWorkspace } from "@/lib/editor/workspace-store";
 import { getSingleSelection, isSelected, type Selection } from "@/lib/editor/design-store";
@@ -14,6 +19,7 @@ import { EditorCanvas, type EditorCanvasHandle } from "@/components/quantum-edit
 import { EditorToolbar } from "@/components/quantum-editor/editor-toolbar";
 import { CodeIdePanel, type CodePanelMode } from "@/components/quantum-editor/code-ide-panel";
 import { useDesign } from "@/lib/design-context";
+import { useProject } from "@/lib/project-context";
 import type { GenerateResponse } from "@/lib/api/backend";
 import type { DesignDocument, Placement, Connection } from "@/lib/bridge/types";
 
@@ -39,7 +45,6 @@ export const Route = createFileRoute("/_app/schematic-editor")({
   component: SchematicEditorRoute,
   errorComponent: ErrorBoundary,
 });
-
 
 function ErrorBoundary({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
@@ -173,8 +178,9 @@ export function toGenerateResponse(
 // ---------- Shell Component ----------
 
 function SchematicEditorRoute() {
+  const { activeProject } = useProject();
   return (
-    <WorkspaceProvider>
+    <WorkspaceProvider activeProjectId={activeProject?.id ?? null}>
       <SchematicEditorShell />
     </WorkspaceProvider>
   );
@@ -184,6 +190,8 @@ function SchematicEditorShell() {
   const { conversationId, highlight } = Route.useSearch();
   const navigate = useNavigate();
   const { conversations, activeId, setActiveId, updateConversationResult } = useDesign();
+  // Get project context to save design to Supabase when active project exists
+  const { activeProject, saveDesign: saveDesignToProject } = useProject();
 
   const targetId = conversationId ?? activeId;
   const conversation = useMemo(
@@ -198,6 +206,11 @@ function SchematicEditorShell() {
   const [showPalette, setShowPalette] = useState(false);
   const canvasRef = useRef<EditorCanvasHandle>(null);
   const { workspace, activeTab, newCanvas, loadIntoCanvas, saveAll, dispatch } = useWorkspace();
+  // Ref so closures always see latest project
+  const activeProjectRef = useRef(activeProject);
+  activeProjectRef.current = activeProject;
+  const saveDesignToProjectRef = useRef(saveDesignToProject);
+  saveDesignToProjectRef.current = saveDesignToProject;
 
   const handleFitView = useCallback(() => {
     canvasRef.current?.fitToContent();
@@ -292,13 +305,19 @@ function SchematicEditorShell() {
     }
   }, [activeTab.id, activeId, setActiveId]);
 
-  // Push changes back to parent conversation context
+  // Push changes back to parent conversation context AND save to active project
   const lastDocRef = useRef("");
   useEffect(() => {
     if (!conversation || activeTab.id !== `conv_${conversation.id}`) return;
     const docKey = JSON.stringify({
       p: activeTab.state.placements.map((p) => [p.id, p.x, p.y, p.rotation]),
-      c: activeTab.state.connections.map((c) => [c.id, c.from.placementId, c.from.pinName, c.to.placementId, c.to.pinName]),
+      c: activeTab.state.connections.map((c) => [
+        c.id,
+        c.from.placementId,
+        c.from.pinName,
+        c.to.placementId,
+        c.to.pinName,
+      ]),
     });
     if (docKey === lastDocRef.current) return;
 
@@ -312,10 +331,56 @@ function SchematicEditorShell() {
       prevResultRef.current = next;
       lastSyncedResultRef.current = { id: conversation.id, result: next };
       lastDocRef.current = docKey;
-    }, 200);
+      // Persist to active project in Supabase (fire-and-forget)
+      if (activeProjectRef.current) {
+        saveDesignToProjectRef.current(next).catch(() => {});
+      }
+    }, 800);
 
     return () => clearTimeout(t);
-  }, [activeTab.state.placements, activeTab.state.connections, activeTab.id, conversation?.id, updateConversationResult]);
+  }, [
+    activeTab.state.placements,
+    activeTab.state.connections,
+    activeTab.id,
+    conversation?.id,
+    updateConversationResult,
+  ]);
+  // Save standalone canvas (non-conversation tabs) to active project when canvas changes
+  const lastStandaloneDocRef = useRef("");
+  useEffect(() => {
+    // Only run for non-conversation tabs (standalone canvases like "Untitled1")
+    if (activeTab.id.startsWith("conv_")) return;
+    if (!activeProjectRef.current) return;
+    if (!activeTab.dirty) return;
+
+    const docKey = JSON.stringify({
+      p: activeTab.state.placements.map((p) => [p.id, p.x, p.y, p.rotation]),
+      c: activeTab.state.connections.map((c) => [
+        c.id,
+        c.from.placementId,
+        c.from.pinName,
+        c.to.placementId,
+        c.to.pinName,
+      ]),
+    });
+    if (docKey === lastStandaloneDocRef.current) return;
+
+    const t = setTimeout(() => {
+      const doc: DesignDocument = {
+        placements: activeTab.state.placements,
+        connections: activeTab.state.connections,
+      };
+      const next = toGenerateResponse(doc, prevResultRef.current);
+      prevResultRef.current = next;
+      lastStandaloneDocRef.current = docKey;
+      // Persist to active project in Supabase
+      if (activeProjectRef.current) {
+        saveDesignToProjectRef.current(next).catch(() => {});
+      }
+    }, 800);
+
+    return () => clearTimeout(t);
+  }, [activeTab.state.placements, activeTab.state.connections, activeTab.id, activeTab.dirty]);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -326,6 +391,16 @@ function SchematicEditorShell() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         saveAll();
+        // Also persist design payload to active project
+        if (activeProjectRef.current) {
+          const doc: DesignDocument = {
+            placements: activeTab.state.placements,
+            connections: activeTab.state.connections,
+          };
+          const next = toGenerateResponse(doc, prevResultRef.current);
+          prevResultRef.current = next;
+          saveDesignToProjectRef.current(next).catch(() => {});
+        }
       }
 
       if ((e.ctrlKey || e.metaKey) && /^[1-9]$/.test(e.key)) {
@@ -358,16 +433,23 @@ function SchematicEditorShell() {
         e.preventDefault();
         const placements = activeTab.state.placements;
         if (placements.length === 0) return;
-        const selIds = activeTab.state.selection.filter((s) => s.kind === "placement").map((s) => s.id);
+        const selIds = activeTab.state.selection
+          .filter((s) => s.kind === "placement")
+          .map((s) => s.id);
         let idx = 0;
         if (selIds.length === 1) {
           const currentIdx = placements.findIndex((p) => p.id === selIds[0]);
-          idx = e.shiftKey ? (currentIdx - 1 + placements.length) % placements.length : (currentIdx + 1) % placements.length;
+          idx = e.shiftKey
+            ? (currentIdx - 1 + placements.length) % placements.length
+            : (currentIdx + 1) % placements.length;
         }
         dispatch({
           type: "CANVAS_ACTION",
           id: activeTab.id,
-          action: { type: "SELECT", selection: [{ kind: "placement" as const, id: placements[idx].id }] },
+          action: {
+            type: "SELECT",
+            selection: [{ kind: "placement" as const, id: placements[idx].id }],
+          },
         });
       } else if (!inInput && e.key === "+") {
         e.preventDefault();
@@ -417,8 +499,9 @@ function SchematicEditorShell() {
         });
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
         if (!inInput) {
-          const selPlacements = activeTab.state.selection
-            .filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
+          const selPlacements = activeTab.state.selection.filter(
+            (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+          );
           if (selPlacements.length > 0) {
             e.preventDefault();
             selPlacements.forEach((s) =>
@@ -446,7 +529,11 @@ function SchematicEditorShell() {
               dispatch({
                 type: "CANVAS_ACTION",
                 id: activeTab.id,
-                action: { type: "UPDATE_PLACEMENT", id: p.id, patch: { rotation: (p.rotation + 90) % 360 } },
+                action: {
+                  type: "UPDATE_PLACEMENT",
+                  id: p.id,
+                  patch: { rotation: (p.rotation + 90) % 360 },
+                },
               });
             }
           });
@@ -505,10 +592,18 @@ function SchematicEditorShell() {
             .filter((s) => s.kind === "connection")
             .map((s) => s.id);
           selPlacements.forEach((id) =>
-            dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "DELETE_PLACEMENT", id } }),
+            dispatch({
+              type: "CANVAS_ACTION",
+              id: activeTab.id,
+              action: { type: "DELETE_PLACEMENT", id },
+            }),
           );
           selConnections.forEach((id) =>
-            dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "DELETE_CONNECTION", id } }),
+            dispatch({
+              type: "CANVAS_ACTION",
+              id: activeTab.id,
+              action: { type: "DELETE_CONNECTION", id },
+            }),
           );
         }
       } else if (!inInput && e.key === "0" && !e.ctrlKey && !e.metaKey) {
@@ -581,7 +676,9 @@ function SchematicEditorShell() {
         });
       } else if (!inInput && e.key.toLowerCase() === "n" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        const seedIds = new Set(activeTab.state.selection.filter((s) => s.kind === "placement").map((s) => s.id));
+        const seedIds = new Set(
+          activeTab.state.selection.filter((s) => s.kind === "placement").map((s) => s.id),
+        );
         if (seedIds.size === 0) return;
         const netIds = new Set<string>(seedIds);
         let changed = true;
@@ -601,7 +698,10 @@ function SchematicEditorShell() {
         dispatch({
           type: "CANVAS_ACTION",
           id: activeTab.id,
-          action: { type: "SELECT", selection: Array.from(netIds).map((id) => ({ kind: "placement" as const, id })) },
+          action: {
+            type: "SELECT",
+            selection: Array.from(netIds).map((id) => ({ kind: "placement" as const, id })),
+          },
         });
       } else if (!inInput && e.key.toLowerCase() === "l" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
@@ -610,21 +710,47 @@ function SchematicEditorShell() {
           .forEach((s) => {
             const p = activeTab.state.placements.find((pl) => pl.id === s.id);
             if (p?.locked) {
-              dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "UNLOCK_PLACEMENT", id: s.id } });
+              dispatch({
+                type: "CANVAS_ACTION",
+                id: activeTab.id,
+                action: { type: "UNLOCK_PLACEMENT", id: s.id },
+              });
             } else {
-              dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "LOCK_PLACEMENT", id: s.id } });
+              dispatch({
+                type: "CANVAS_ACTION",
+                id: activeTab.id,
+                action: { type: "LOCK_PLACEMENT", id: s.id },
+              });
             }
           });
-      } else if (!inInput && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && !e.shiftKey) {
+      } else if (
+        !inInput &&
+        (e.metaKey || e.ctrlKey) &&
+        e.key.toLowerCase() === "a" &&
+        !e.shiftKey
+      ) {
         e.preventDefault();
         dispatch({
           type: "CANVAS_ACTION",
           id: activeTab.id,
-          action: { type: "SELECT", selection: activeTab.state.placements.map((p) => ({ kind: "placement" as const, id: p.id })) },
+          action: {
+            type: "SELECT",
+            selection: activeTab.state.placements.map((p) => ({
+              kind: "placement" as const,
+              id: p.id,
+            })),
+          },
         });
-      } else if (!inInput && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "a") {
+      } else if (
+        !inInput &&
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "a"
+      ) {
         e.preventDefault();
-        const currentIds = new Set(activeTab.state.selection.filter((s) => s.kind === "placement").map((s) => s.id));
+        const currentIds = new Set(
+          activeTab.state.selection.filter((s) => s.kind === "placement").map((s) => s.id),
+        );
         const inverted = activeTab.state.placements
           .filter((p) => !currentIds.has(p.id))
           .map((p) => ({ kind: "placement" as const, id: p.id }));
@@ -643,7 +769,9 @@ function SchematicEditorShell() {
           const payload = JSON.stringify({ version: 1, placements: selPlacements });
           localClipboard = payload;
           navigator.clipboard.writeText(payload).catch(() => {});
-          toast.success(`${selPlacements.length} component${selPlacements.length > 1 ? "s" : ""} copied`);
+          toast.success(
+            `${selPlacements.length} component${selPlacements.length > 1 ? "s" : ""} copied`,
+          );
         }
       } else if (!inInput && (e.metaKey || e.ctrlKey) && e.key === "v") {
         e.preventDefault();
@@ -651,15 +779,24 @@ function SchematicEditorShell() {
           try {
             const parsed = JSON.parse(payload);
             if (parsed.placements && Array.isArray(parsed.placements)) {
-              dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "PASTE_PLACEMENTS", placements: parsed.placements } });
+              dispatch({
+                type: "CANVAS_ACTION",
+                id: activeTab.id,
+                action: { type: "PASTE_PLACEMENTS", placements: parsed.placements },
+              });
               toast.success(`${parsed.placements.length} pasted`);
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
         };
         if (localClipboard) {
           tryPaste(localClipboard);
         } else {
-          navigator.clipboard.readText().then(tryPaste).catch(() => {});
+          navigator.clipboard
+            .readText()
+            .then(tryPaste)
+            .catch(() => {});
         }
       } else if (!inInput && (e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
@@ -686,18 +823,27 @@ function SchematicEditorShell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [saveAll, activeTab.id, activeTab.state.selection, activeTab.state.zoom, activeTab.state.pan, dispatch]);
+  }, [
+    saveAll,
+    activeTab.id,
+    activeTab.state.selection,
+    activeTab.state.zoom,
+    activeTab.state.pan,
+    dispatch,
+  ]);
 
-  if (!conversation) {
+  if (!conversation && !activeProject) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-white">
         <div className="rounded-2xl border border-slate-200 p-6 text-center shadow-sm">
-          <p className="text-sm font-bold text-slate-700">No design session selected.</p>
+          <p className="text-sm font-bold text-slate-700">
+            No active project or design session selected.
+          </p>
           <button
-            onClick={() => navigate({ to: "/designer" })}
+            onClick={() => navigate({ to: "/projects" })}
             className="mt-3 text-xs font-bold text-indigo-600 hover:underline"
           >
-            Open Designer →
+            Go to Projects →
           </button>
         </div>
       </div>
@@ -744,7 +890,9 @@ function SchematicEditorShell() {
           >
             {/* Panel header with close button */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inspector</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Inspector
+              </span>
               <button
                 onClick={() => setInspectorOpen(false)}
                 className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
@@ -752,7 +900,12 @@ function SchematicEditorShell() {
                 aria-label="Close inspector panel"
               >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <path
+                    d="M1 1L9 9M9 1L1 9"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
                 </svg>
               </button>
             </div>
@@ -762,7 +915,10 @@ function SchematicEditorShell() {
           </div>
         ) : (
           /* Thin collapsed tab — click to re-open */
-          <div className="shrink-0 border-l border-border bg-card flex flex-col items-center py-3" style={{ width: 28 }}>
+          <div
+            className="shrink-0 border-l border-border bg-card flex flex-col items-center py-3"
+            style={{ width: 28 }}
+          >
             <button
               onClick={() => setInspectorOpen(true)}
               className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
@@ -770,7 +926,13 @@ function SchematicEditorShell() {
               aria-label="Open inspector panel"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M8 2L4 6L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M8 2L4 6L8 10"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </button>
           </div>
@@ -789,7 +951,10 @@ function SchematicEditorShell() {
         open={showPalette}
         onOpenChange={setShowPalette}
         onFitView={handleFitView}
-        onSave={() => { saveAll(); toast.success("Design saved"); }}
+        onSave={() => {
+          saveAll();
+          toast.success("Design saved");
+        }}
         state={activeTab.state}
         dispatch={(a) => dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: a })}
       />
@@ -798,7 +963,12 @@ function SchematicEditorShell() {
 }
 
 function CommandPalette({
-  open, onOpenChange, onFitView, onSave, state, dispatch,
+  open,
+  onOpenChange,
+  onFitView,
+  onSave,
+  state,
+  dispatch,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -828,17 +998,43 @@ function CommandPalette({
         </CommandGroup>
         <CommandGroup heading="View">
           <CommandItem onSelect={() => run(onFitView)}>Fit to content</CommandItem>
-          <CommandItem onSelect={() => run(() => dispatch({ type: "ZOOM", zoom: 1 }))}>Reset zoom</CommandItem>
-          <CommandItem onSelect={() => run(() => dispatch({ type: "ZOOM", zoom: Math.min(5, state.zoom * 1.2) }))}>Zoom in</CommandItem>
-          <CommandItem onSelect={() => run(() => dispatch({ type: "ZOOM", zoom: Math.max(0.25, state.zoom / 1.2) }))}>Zoom out</CommandItem>
-          <CommandItem onSelect={() => run(() => dispatch({ type: "TOGGLE_HUD" }))}>Toggle HUD</CommandItem>
-          <CommandItem onSelect={() => run(() => dispatch({ type: "TOGGLE_RULERS" }))}>Toggle rulers</CommandItem>
+          <CommandItem onSelect={() => run(() => dispatch({ type: "ZOOM", zoom: 1 }))}>
+            Reset zoom
+          </CommandItem>
+          <CommandItem
+            onSelect={() =>
+              run(() => dispatch({ type: "ZOOM", zoom: Math.min(5, state.zoom * 1.2) }))
+            }
+          >
+            Zoom in
+          </CommandItem>
+          <CommandItem
+            onSelect={() =>
+              run(() => dispatch({ type: "ZOOM", zoom: Math.max(0.25, state.zoom / 1.2) }))
+            }
+          >
+            Zoom out
+          </CommandItem>
+          <CommandItem onSelect={() => run(() => dispatch({ type: "TOGGLE_HUD" }))}>
+            Toggle HUD
+          </CommandItem>
+          <CommandItem onSelect={() => run(() => dispatch({ type: "TOGGLE_RULERS" }))}>
+            Toggle rulers
+          </CommandItem>
         </CommandGroup>
         <CommandGroup heading="Find">
           {state.placements.map((p) => (
-            <CommandItem key={p.id} onSelect={() => run(() => {
-              dispatch({ type: "SELECT", selection: [{ kind: "placement" as const, id: p.id }] });
-            })}>
+            <CommandItem
+              key={p.id}
+              onSelect={() =>
+                run(() => {
+                  dispatch({
+                    type: "SELECT",
+                    selection: [{ kind: "placement" as const, id: p.id }],
+                  });
+                })
+              }
+            >
               {p.name} <span className="text-muted-foreground">({p.componentId})</span>
             </CommandItem>
           ))}
@@ -847,227 +1043,508 @@ function CommandPalette({
           {Array.from(new Set(state.placements.map((p) => p.componentId))).map((cid) => (
             <CommandItem
               key={cid}
-              onSelect={() => run(() => dispatch({
-                type: "SELECT",
-                selection: state.placements.filter((p) => p.componentId === cid).map((p) => ({ kind: "placement" as const, id: p.id })),
-              }))}
+              onSelect={() =>
+                run(() =>
+                  dispatch({
+                    type: "SELECT",
+                    selection: state.placements
+                      .filter((p) => p.componentId === cid)
+                      .map((p) => ({ kind: "placement" as const, id: p.id })),
+                  }),
+                )
+              }
             >
               {cid}
             </CommandItem>
           ))}
         </CommandGroup>
         <CommandGroup heading="Selection">
-          <CommandItem onSelect={() => run(() => dispatch({ type: "SELECT", selection: state.placements.map((p) => ({ kind: "placement" as const, id: p.id })) }))}>Select all placements</CommandItem>
-          <CommandItem onSelect={() => run(() => dispatch({ type: "SELECT", selection: state.connections.map((c) => ({ kind: "connection" as const, id: c.id })) }))}>Select all connections</CommandItem>
-          <CommandItem onSelect={() => run(() => dispatch({ type: "SELECT", selection: [] }))}>Deselect all</CommandItem>
-          <CommandItem onSelect={() => run(() => {
-            const selectedIds = new Set(sel.filter((s) => s.kind === "placement").map((s) => s.id));
-            dispatch({
-              type: "SELECT",
-              selection: state.placements.filter((p) => !selectedIds.has(p.id)).map((p) => ({ kind: "placement" as const, id: p.id })),
-            });
-          })}>Invert selection</CommandItem>
-          {hasPlacementSel && (
-            <CommandItem onSelect={() => run(() => {
-              const connectedIds = new Set<string>();
-              sel.filter((s) => s.kind === "placement").forEach((s) => {
-                state.connections.forEach((c) => {
-                  if (c.from.placementId === s.id) connectedIds.add(c.to.placementId);
-                  if (c.to.placementId === s.id) connectedIds.add(c.from.placementId);
+          <CommandItem
+            onSelect={() =>
+              run(() =>
+                dispatch({
+                  type: "SELECT",
+                  selection: state.placements.map((p) => ({
+                    kind: "placement" as const,
+                    id: p.id,
+                  })),
+                }),
+              )
+            }
+          >
+            Select all placements
+          </CommandItem>
+          <CommandItem
+            onSelect={() =>
+              run(() =>
+                dispatch({
+                  type: "SELECT",
+                  selection: state.connections.map((c) => ({
+                    kind: "connection" as const,
+                    id: c.id,
+                  })),
+                }),
+              )
+            }
+          >
+            Select all connections
+          </CommandItem>
+          <CommandItem onSelect={() => run(() => dispatch({ type: "SELECT", selection: [] }))}>
+            Deselect all
+          </CommandItem>
+          <CommandItem
+            onSelect={() =>
+              run(() => {
+                const selectedIds = new Set(
+                  sel.filter((s) => s.kind === "placement").map((s) => s.id),
+                );
+                dispatch({
+                  type: "SELECT",
+                  selection: state.placements
+                    .filter((p) => !selectedIds.has(p.id))
+                    .map((p) => ({ kind: "placement" as const, id: p.id })),
                 });
-              });
-              const selection = sel.filter((s) => s.kind === "placement").map((s) => ({ kind: "placement" as const, id: s.id }));
-              connectedIds.forEach((id) => selection.push({ kind: "placement" as const, id }));
-              dispatch({ type: "SELECT", selection });
-            })}>Select connected</CommandItem>
+              })
+            }
+          >
+            Invert selection
+          </CommandItem>
+          {hasPlacementSel && (
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const connectedIds = new Set<string>();
+                  sel
+                    .filter((s) => s.kind === "placement")
+                    .forEach((s) => {
+                      state.connections.forEach((c) => {
+                        if (c.from.placementId === s.id) connectedIds.add(c.to.placementId);
+                        if (c.to.placementId === s.id) connectedIds.add(c.from.placementId);
+                      });
+                    });
+                  const selection = sel
+                    .filter((s) => s.kind === "placement")
+                    .map((s) => ({ kind: "placement" as const, id: s.id }));
+                  connectedIds.forEach((id) => selection.push({ kind: "placement" as const, id }));
+                  dispatch({ type: "SELECT", selection });
+                })
+              }
+            >
+              Select connected
+            </CommandItem>
           )}
           {hasPlacementSel && (
-            <CommandItem onSelect={() => run(() => {
-              const seedIds = new Set(sel.filter((s) => s.kind === "placement").map((s) => s.id));
-              const netIds = new Set<string>(seedIds);
-              let changed = true;
-              while (changed) {
-                changed = false;
-                state.connections.forEach((c) => {
-                  if (netIds.has(c.from.placementId) && !netIds.has(c.to.placementId)) {
-                    netIds.add(c.to.placementId);
-                    changed = true;
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const seedIds = new Set(
+                    sel.filter((s) => s.kind === "placement").map((s) => s.id),
+                  );
+                  const netIds = new Set<string>(seedIds);
+                  let changed = true;
+                  while (changed) {
+                    changed = false;
+                    state.connections.forEach((c) => {
+                      if (netIds.has(c.from.placementId) && !netIds.has(c.to.placementId)) {
+                        netIds.add(c.to.placementId);
+                        changed = true;
+                      }
+                      if (netIds.has(c.to.placementId) && !netIds.has(c.from.placementId)) {
+                        netIds.add(c.from.placementId);
+                        changed = true;
+                      }
+                    });
                   }
-                  if (netIds.has(c.to.placementId) && !netIds.has(c.from.placementId)) {
-                    netIds.add(c.from.placementId);
-                    changed = true;
-                  }
-                });
+                  dispatch({
+                    type: "SELECT",
+                    selection: Array.from(netIds).map((id) => ({ kind: "placement" as const, id })),
+                  });
+                })
               }
-              dispatch({ type: "SELECT", selection: Array.from(netIds).map((id) => ({ kind: "placement" as const, id })) });
-            })}>Select net</CommandItem>
+            >
+              Select net
+            </CommandItem>
           )}
           {hasSel && (
-            <CommandItem onSelect={() => run(() => {
-              sel.filter((s) => s.kind === "placement").forEach((s) => dispatch({ type: "DELETE_PLACEMENT", id: s.id }));
-              sel.filter((s) => s.kind === "connection").forEach((s) => dispatch({ type: "DELETE_CONNECTION", id: s.id }));
-            })}>Delete selected</CommandItem>
-          )}
-          {hasPlacementSel && (
-            <CommandItem onSelect={() => run(() => {
-              const p = state.placements.find((pl) => sel.some((s) => s.kind === "placement" && s.id === pl.id));
-              if (p) dispatch({ type: "DUPLICATE_PLACEMENT", id: p.id });
-            })}>Duplicate selected</CommandItem>
-          )}
-          {hasPlacementSel && (
-            <CommandItem onSelect={() => run(() => {
-              const selPlacements = sel
-                .filter((s) => s.kind === "placement")
-                .map((s) => state.placements.find((p) => p.id === s.id))
-                .filter(Boolean) as Placement[];
-              if (selPlacements.length > 0) {
-                const payload = JSON.stringify({ version: 1, placements: selPlacements });
-                localClipboard = payload;
-                navigator.clipboard.writeText(payload).catch(() => {});
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  sel
+                    .filter((s) => s.kind === "placement")
+                    .forEach((s) => dispatch({ type: "DELETE_PLACEMENT", id: s.id }));
+                  sel
+                    .filter((s) => s.kind === "connection")
+                    .forEach((s) => dispatch({ type: "DELETE_CONNECTION", id: s.id }));
+                })
               }
-            })}>Copy selected</CommandItem>
+            >
+              Delete selected
+            </CommandItem>
+          )}
+          {hasPlacementSel && (
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const p = state.placements.find((pl) =>
+                    sel.some((s) => s.kind === "placement" && s.id === pl.id),
+                  );
+                  if (p) dispatch({ type: "DUPLICATE_PLACEMENT", id: p.id });
+                })
+              }
+            >
+              Duplicate selected
+            </CommandItem>
+          )}
+          {hasPlacementSel && (
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const selPlacements = sel
+                    .filter((s) => s.kind === "placement")
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (selPlacements.length > 0) {
+                    const payload = JSON.stringify({ version: 1, placements: selPlacements });
+                    localClipboard = payload;
+                    navigator.clipboard.writeText(payload).catch(() => {});
+                  }
+                })
+              }
+            >
+              Copy selected
+            </CommandItem>
           )}
           {localClipboard && (
-            <CommandItem onSelect={() => run(() => {
-              try {
-                const parsed = JSON.parse(localClipboard);
-                if (parsed.placements && Array.isArray(parsed.placements)) {
-                  dispatch({ type: "PASTE_PLACEMENTS", placements: parsed.placements });
-                }
-              } catch { /* ignore */ }
-            })}>Paste</CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  try {
+                    const parsed = JSON.parse(localClipboard);
+                    if (parsed.placements && Array.isArray(parsed.placements)) {
+                      dispatch({ type: "PASTE_PLACEMENTS", placements: parsed.placements });
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                })
+              }
+            >
+              Paste
+            </CommandItem>
           )}
         </CommandGroup>
         {state.connections.length > 0 && (
           <CommandGroup heading="Routes">
-            <CommandItem onSelect={() => run(() => state.connections.forEach((c) => dispatch({ type: "LOCK_CONNECTION", id: c.id })))}>Lock all routes</CommandItem>
-            <CommandItem onSelect={() => run(() => state.connections.forEach((c) => dispatch({ type: "UNLOCK_CONNECTION", id: c.id })))}>Unlock all routes</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const connectedIds = new Set<string>();
-              state.connections.forEach((c) => { connectedIds.add(c.from.placementId); connectedIds.add(c.to.placementId); });
-              state.placements.forEach((p) => { if (!connectedIds.has(p.id)) dispatch({ type: "DELETE_PLACEMENT", id: p.id }); });
-            })}>Delete unconnected placements</CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() =>
+                  state.connections.forEach((c) => dispatch({ type: "LOCK_CONNECTION", id: c.id })),
+                )
+              }
+            >
+              Lock all routes
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() =>
+                  state.connections.forEach((c) =>
+                    dispatch({ type: "UNLOCK_CONNECTION", id: c.id }),
+                  ),
+                )
+              }
+            >
+              Unlock all routes
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const connectedIds = new Set<string>();
+                  state.connections.forEach((c) => {
+                    connectedIds.add(c.from.placementId);
+                    connectedIds.add(c.to.placementId);
+                  });
+                  state.placements.forEach((p) => {
+                    if (!connectedIds.has(p.id)) dispatch({ type: "DELETE_PLACEMENT", id: p.id });
+                  });
+                })
+              }
+            >
+              Delete unconnected placements
+            </CommandItem>
           </CommandGroup>
         )}
         {hasPlacementSel && sel.filter((s) => s.kind === "placement").length >= 2 && (
           <CommandGroup heading="Align">
-            <CommandItem onSelect={() => run(() => {
-              const targets = sel.filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
-              const ps = targets.map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              if (ps.length < 2) return;
-              const minX = Math.min(...ps.map((p) => p.x));
-              ps.forEach((p) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { x: minX } }));
-            })}>Align left</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const targets = sel.filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
-              const ps = targets.map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              if (ps.length < 2) return;
-              const maxX = Math.max(...ps.map((p) => p.x));
-              ps.forEach((p) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { x: maxX } }));
-            })}>Align right</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const targets = sel.filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
-              const ps = targets.map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              if (ps.length < 2) return;
-              const avgX = ps.reduce((sum, p) => sum + p.x, 0) / ps.length;
-              ps.forEach((p) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { x: avgX } }));
-            })}>Align center X</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const targets = sel.filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
-              const ps = targets.map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              if (ps.length < 2) return;
-              const minY = Math.min(...ps.map((p) => p.y));
-              ps.forEach((p) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { y: minY } }));
-            })}>Align top</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const targets = sel.filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
-              const ps = targets.map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              if (ps.length < 2) return;
-              const maxY = Math.max(...ps.map((p) => p.y));
-              ps.forEach((p) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { y: maxY } }));
-            })}>Align bottom</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const targets = sel.filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
-              const ps = targets.map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              if (ps.length < 2) return;
-              const avgY = ps.reduce((sum, p) => sum + p.y, 0) / ps.length;
-              ps.forEach((p) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { y: avgY } }));
-            })}>Align center Y</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const targets = sel.filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
-              const ps = targets.map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              if (ps.length < 3) return;
-              const sorted = [...ps].sort((a, b) => a.x - b.x);
-              const minX = sorted[0].x, maxX = sorted[sorted.length - 1].x;
-              const step = (maxX - minX) / (sorted.length - 1);
-              sorted.forEach((p, i) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { x: minX + step * i } }));
-            })}>Distribute horizontally</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const targets = sel.filter((s): s is { kind: "placement"; id: string } => s.kind === "placement");
-              const ps = targets.map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              if (ps.length < 3) return;
-              const sorted = [...ps].sort((a, b) => a.y - b.y);
-              const minY = sorted[0].y, maxY = sorted[sorted.length - 1].y;
-              const step = (maxY - minY) / (sorted.length - 1);
-              sorted.forEach((p, i) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { y: minY + step * i } }));
-            })}>Distribute vertically</CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const targets = sel.filter(
+                    (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+                  );
+                  const ps = targets
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (ps.length < 2) return;
+                  const minX = Math.min(...ps.map((p) => p.x));
+                  ps.forEach((p) =>
+                    dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { x: minX } }),
+                  );
+                })
+              }
+            >
+              Align left
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const targets = sel.filter(
+                    (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+                  );
+                  const ps = targets
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (ps.length < 2) return;
+                  const maxX = Math.max(...ps.map((p) => p.x));
+                  ps.forEach((p) =>
+                    dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { x: maxX } }),
+                  );
+                })
+              }
+            >
+              Align right
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const targets = sel.filter(
+                    (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+                  );
+                  const ps = targets
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (ps.length < 2) return;
+                  const avgX = ps.reduce((sum, p) => sum + p.x, 0) / ps.length;
+                  ps.forEach((p) =>
+                    dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { x: avgX } }),
+                  );
+                })
+              }
+            >
+              Align center X
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const targets = sel.filter(
+                    (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+                  );
+                  const ps = targets
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (ps.length < 2) return;
+                  const minY = Math.min(...ps.map((p) => p.y));
+                  ps.forEach((p) =>
+                    dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { y: minY } }),
+                  );
+                })
+              }
+            >
+              Align top
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const targets = sel.filter(
+                    (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+                  );
+                  const ps = targets
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (ps.length < 2) return;
+                  const maxY = Math.max(...ps.map((p) => p.y));
+                  ps.forEach((p) =>
+                    dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { y: maxY } }),
+                  );
+                })
+              }
+            >
+              Align bottom
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const targets = sel.filter(
+                    (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+                  );
+                  const ps = targets
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (ps.length < 2) return;
+                  const avgY = ps.reduce((sum, p) => sum + p.y, 0) / ps.length;
+                  ps.forEach((p) =>
+                    dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { y: avgY } }),
+                  );
+                })
+              }
+            >
+              Align center Y
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const targets = sel.filter(
+                    (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+                  );
+                  const ps = targets
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (ps.length < 3) return;
+                  const sorted = [...ps].sort((a, b) => a.x - b.x);
+                  const minX = sorted[0].x,
+                    maxX = sorted[sorted.length - 1].x;
+                  const step = (maxX - minX) / (sorted.length - 1);
+                  sorted.forEach((p, i) =>
+                    dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { x: minX + step * i } }),
+                  );
+                })
+              }
+            >
+              Distribute horizontally
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const targets = sel.filter(
+                    (s): s is { kind: "placement"; id: string } => s.kind === "placement",
+                  );
+                  const ps = targets
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  if (ps.length < 3) return;
+                  const sorted = [...ps].sort((a, b) => a.y - b.y);
+                  const minY = sorted[0].y,
+                    maxY = sorted[sorted.length - 1].y;
+                  const step = (maxY - minY) / (sorted.length - 1);
+                  sorted.forEach((p, i) =>
+                    dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { y: minY + step * i } }),
+                  );
+                })
+              }
+            >
+              Distribute vertically
+            </CommandItem>
           </CommandGroup>
         )}
         {hasPlacementSel && (
           <CommandGroup heading="Transform">
-            <CommandItem onSelect={() => run(() => {
-              sel.filter((s) => s.kind === "placement").forEach((s) => {
-                const p = state.placements.find((pl) => pl.id === s.id);
-                if (p) dispatch({ type: "UPDATE_PLACEMENT", id: s.id, patch: { rotation: (p.rotation + 90) % 360 } });
-              });
-            })}>Rotate 90°</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              sel.filter((s) => s.kind === "placement").forEach((s) => {
-                dispatch({ type: "MIRROR_PLACEMENT", id: s.id });
-              });
-            })}>Mirror selected</CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  sel
+                    .filter((s) => s.kind === "placement")
+                    .forEach((s) => {
+                      const p = state.placements.find((pl) => pl.id === s.id);
+                      if (p)
+                        dispatch({
+                          type: "UPDATE_PLACEMENT",
+                          id: s.id,
+                          patch: { rotation: (p.rotation + 90) % 360 },
+                        });
+                    });
+                })
+              }
+            >
+              Rotate 90°
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  sel
+                    .filter((s) => s.kind === "placement")
+                    .forEach((s) => {
+                      dispatch({ type: "MIRROR_PLACEMENT", id: s.id });
+                    });
+                })
+              }
+            >
+              Mirror selected
+            </CommandItem>
           </CommandGroup>
         )}
         {hasPlacementSel && (
           <CommandGroup heading="Lock">
-            <CommandItem onSelect={() => run(() => {
-              sel.filter((s) => s.kind === "placement").forEach((s) => dispatch({ type: "LOCK_PLACEMENT", id: s.id }));
-            })}>Lock selected</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              sel.filter((s) => s.kind === "placement").forEach((s) => dispatch({ type: "UNLOCK_PLACEMENT", id: s.id }));
-            })}>Unlock selected</CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  sel
+                    .filter((s) => s.kind === "placement")
+                    .forEach((s) => dispatch({ type: "LOCK_PLACEMENT", id: s.id }));
+                })
+              }
+            >
+              Lock selected
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  sel
+                    .filter((s) => s.kind === "placement")
+                    .forEach((s) => dispatch({ type: "UNLOCK_PLACEMENT", id: s.id }));
+                })
+              }
+            >
+              Unlock selected
+            </CommandItem>
           </CommandGroup>
         )}
         {hasPlacementSel && (
           <CommandGroup heading="Array">
-            <CommandItem onSelect={() => run(() => {
-              const selPlacements = sel.filter((s) => s.kind === "placement").map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              const spacing = 1.0;
-              const copies = selPlacements.flatMap((p, idx) =>
-                [1, 2].map((col) => ({
-                  ...p,
-                  id: `pl_${p.componentId}_${Date.now()}_${idx}_${col}`,
-                  name: `${p.name}_copy${col}`,
-                  x: p.x + spacing * col,
-                  y: p.y,
-                })),
-              );
-              dispatch({ type: "PASTE_PLACEMENTS", placements: copies });
-            })}>Duplicate in row ×3</CommandItem>
-            <CommandItem onSelect={() => run(() => {
-              const selPlacements = sel.filter((s) => s.kind === "placement").map((s) => state.placements.find((p) => p.id === s.id)).filter(Boolean) as Placement[];
-              const spacing = 1.0;
-              const copies = selPlacements.flatMap((p, idx) =>
-                [1, 2].map((row) => ({
-                  ...p,
-                  id: `pl_${p.componentId}_${Date.now()}_${idx}_${row}`,
-                  name: `${p.name}_copy${row}`,
-                  x: p.x,
-                  y: p.y + spacing * row,
-                })),
-              );
-              dispatch({ type: "PASTE_PLACEMENTS", placements: copies });
-            })}>Duplicate in column ×3</CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const selPlacements = sel
+                    .filter((s) => s.kind === "placement")
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  const spacing = 1.0;
+                  const copies = selPlacements.flatMap((p, idx) =>
+                    [1, 2].map((col) => ({
+                      ...p,
+                      id: `pl_${p.componentId}_${Date.now()}_${idx}_${col}`,
+                      name: `${p.name}_copy${col}`,
+                      x: p.x + spacing * col,
+                      y: p.y,
+                    })),
+                  );
+                  dispatch({ type: "PASTE_PLACEMENTS", placements: copies });
+                })
+              }
+            >
+              Duplicate in row ×3
+            </CommandItem>
+            <CommandItem
+              onSelect={() =>
+                run(() => {
+                  const selPlacements = sel
+                    .filter((s) => s.kind === "placement")
+                    .map((s) => state.placements.find((p) => p.id === s.id))
+                    .filter(Boolean) as Placement[];
+                  const spacing = 1.0;
+                  const copies = selPlacements.flatMap((p, idx) =>
+                    [1, 2].map((row) => ({
+                      ...p,
+                      id: `pl_${p.componentId}_${Date.now()}_${idx}_${row}`,
+                      name: `${p.name}_copy${row}`,
+                      x: p.x,
+                      y: p.y + spacing * row,
+                    })),
+                  );
+                  dispatch({ type: "PASTE_PLACEMENTS", placements: copies });
+                })
+              }
+            >
+              Duplicate in column ×3
+            </CommandItem>
           </CommandGroup>
         )}
       </CommandList>
@@ -1144,7 +1621,10 @@ function KeyboardShortcutsHelp({ onClose }: { onClose: () => void }) {
   ];
 
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="absolute inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -1158,7 +1638,9 @@ function KeyboardShortcutsHelp({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col gap-5">
           {groups.map((g) => (
             <div key={g.title}>
-              <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{g.title}</h3>
+              <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {g.title}
+              </h3>
               <div className="flex flex-col gap-1">
                 {g.items.map((item) => (
                   <div key={item.key} className="flex items-center justify-between py-1">

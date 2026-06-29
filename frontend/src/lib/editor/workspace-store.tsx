@@ -1,16 +1,29 @@
 /**
  * workspace-store.tsx — Multi-canvas workspace state management.
+ *
+ * Persistence strategy (two-tier):
+ *   1. localStorage — fast local cache, works offline
+ *   2. Supabase (via backend API) — cloud source of truth when a project is active
  */
 import {
-  createContext, useCallback, useContext, useEffect,
-  useMemo, useReducer, useRef, type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  type ReactNode,
 } from "react";
 import { toast } from "sonner";
 import {
-  editorReducer, initialEditorState,
-  type EditorState, type EditorAction,
+  editorReducer,
+  initialEditorState,
+  type EditorState,
+  type EditorAction,
 } from "./design-store";
 import type { DesignDocument } from "@/lib/bridge/types";
+import { getProjectWorkspace, saveProjectWorkspace, fetchProject } from "@/lib/api/backend";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,7 +49,8 @@ type WorkspaceAction =
   | { type: "CANVAS_ACTION"; id: string; action: EditorAction }
   | { type: "LOAD_INTO_CANVAS"; id: string; doc: DesignDocument }
   | { type: "MARK_SAVED"; id: string }
-  | { type: "SET_SAVE_STATUS"; status: WorkspaceState["saveStatus"] };
+  | { type: "SET_SAVE_STATUS"; status: WorkspaceState["saveStatus"] }
+  | { type: "RESET_WORKSPACE"; state: WorkspaceState };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -51,7 +65,13 @@ function uniqueName(existing: string[]): string {
 }
 
 function makeTab(name: string, id?: string): CanvasTab {
-  return { id: id ?? generateId(), name, state: { ...initialEditorState }, dirty: false, savedAt: null };
+  return {
+    id: id ?? generateId(),
+    name,
+    state: { ...initialEditorState },
+    dirty: false,
+    savedAt: null,
+  };
 }
 
 // ── Initial state ─────────────────────────────────────────────────────────────
@@ -72,36 +92,57 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
     }
     case "CLOSE_CANVAS": {
       if (state.tabs.length === 1)
-        return { ...state, tabs: [{ ...state.tabs[0], state: { ...initialEditorState }, dirty: false }], saveStatus: "saved" };
+        return {
+          ...state,
+          tabs: [{ ...state.tabs[0], state: { ...initialEditorState }, dirty: false }],
+          saveStatus: "saved",
+        };
       const idx = state.tabs.findIndex((t) => t.id === action.id);
       const newTabs = state.tabs.filter((t) => t.id !== action.id);
-      const newActive = state.activeId === action.id ? (newTabs[Math.max(0, idx - 1)]?.id ?? newTabs[0].id) : state.activeId;
+      const newActive =
+        state.activeId === action.id
+          ? (newTabs[Math.max(0, idx - 1)]?.id ?? newTabs[0].id)
+          : state.activeId;
       return { ...state, tabs: newTabs, activeId: newActive, saveStatus: "unsaved" };
     }
     case "SWITCH_CANVAS":
       return { ...state, activeId: action.id };
     case "RENAME_CANVAS":
-      return { ...state, tabs: state.tabs.map((t) => t.id === action.id ? { ...t, name: action.name, dirty: true } : t), saveStatus: "unsaved" };
+      return {
+        ...state,
+        tabs: state.tabs.map((t) =>
+          t.id === action.id ? { ...t, name: action.name, dirty: true } : t,
+        ),
+        saveStatus: "unsaved",
+      };
     case "CANVAS_ACTION": {
       const newTabs = state.tabs.map((t) =>
-        t.id !== action.id ? t : { ...t, state: editorReducer(t.state, action.action), dirty: true },
+        t.id !== action.id
+          ? t
+          : { ...t, state: editorReducer(t.state, action.action), dirty: true },
       );
       return { ...state, tabs: newTabs, saveStatus: "unsaved" };
     }
     case "LOAD_INTO_CANVAS": {
       const newTabs = state.tabs.map((t) =>
-        t.id !== action.id ? t : { ...t, state: editorReducer(t.state, { type: "LOAD", doc: action.doc }), dirty: true },
+        t.id !== action.id
+          ? t
+          : { ...t, state: editorReducer(t.state, { type: "LOAD", doc: action.doc }), dirty: true },
       );
       return { ...state, tabs: newTabs, activeId: action.id, saveStatus: "unsaved" };
     }
     case "MARK_SAVED": {
       const now = Date.now();
-      const newTabs = state.tabs.map((t) => t.id === action.id ? { ...t, dirty: false, savedAt: now } : t);
+      const newTabs = state.tabs.map((t) =>
+        t.id === action.id ? { ...t, dirty: false, savedAt: now } : t,
+      );
       const allSaved = newTabs.every((t) => !t.dirty);
       return { ...state, tabs: newTabs, saveStatus: allSaved ? "saved" : "unsaved" };
     }
     case "SET_SAVE_STATUS":
       return { ...state, saveStatus: action.status };
+    case "RESET_WORKSPACE":
+      return action.state;
     default:
       return state;
   }
@@ -216,7 +257,8 @@ function loadWorkspace(): WorkspaceState | null {
     const migrated = migrateWorkspace(parsed);
     if (!migrated) return null;
     return {
-      ...migrated, saveStatus: "saved",
+      ...migrated,
+      saveStatus: "saved",
       tabs: migrated.tabs.map((t) => ({
         ...t,
         state: {
@@ -228,7 +270,9 @@ function loadWorkspace(): WorkspaceState | null {
         } as EditorState,
       })),
     };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 // ── Context ───────────────────────────────────────────────────────────────────
@@ -241,12 +285,24 @@ export interface WorkspaceContextValue {
   newCanvas: (name?: string, doc?: DesignDocument, customId?: string) => string;
   loadIntoCanvas: (canvasId: string, doc: DesignDocument) => void;
   saveAll: () => void;
+  syncToBackend: (projectId: string) => Promise<void>;
+  loadFromBackend: (projectId: string) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [workspace, dispatch] = useReducer(workspaceReducer, null, () => loadWorkspace() ?? makeInitialState());
+export function WorkspaceProvider({
+  children,
+  activeProjectId,
+}: {
+  children: ReactNode;
+  activeProjectId?: string | null;
+}) {
+  const [workspace, dispatch] = useReducer(
+    workspaceReducer,
+    null,
+    () => loadWorkspace() ?? makeInitialState(),
+  );
 
   const activeTab = useMemo(
     () => workspace.tabs.find((t) => t.id === workspace.activeId) ?? workspace.tabs[0],
@@ -258,36 +314,154 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [workspace.activeId],
   );
 
-  const newCanvas = useCallback((name?: string, doc?: DesignDocument, customId?: string): string => {
-    const existingNames = workspace.tabs.map((t) => t.name);
-    const resolvedName = name?.trim() || uniqueName(existingNames);
-    const newId = customId ?? generateId();
-    dispatch({ type: "NEW_CANVAS", name: resolvedName, id: newId });
-    if (doc) dispatch({ type: "LOAD_INTO_CANVAS", id: newId, doc });
-    return newId;
-  }, [workspace.tabs]);
+  const newCanvas = useCallback(
+    (name?: string, doc?: DesignDocument, customId?: string): string => {
+      const existingNames = workspace.tabs.map((t) => t.name);
+      const resolvedName = name?.trim() || uniqueName(existingNames);
+      const newId = customId ?? generateId();
+      dispatch({ type: "NEW_CANVAS", name: resolvedName, id: newId });
+      if (doc) dispatch({ type: "LOAD_INTO_CANVAS", id: newId, doc });
+      return newId;
+    },
+    [workspace.tabs],
+  );
 
   const loadIntoCanvas = useCallback((canvasId: string, doc: DesignDocument) => {
     dispatch({ type: "LOAD_INTO_CANVAS", id: canvasId, doc });
     dispatch({ type: "SWITCH_CANVAS", id: canvasId });
   }, []);
 
+  // ── Backend sync helpers ─────────────────────────────────────────────────────
+
+  const syncToBackend = useCallback(
+    async (projectId: string) => {
+      try {
+        await saveProjectWorkspace(projectId, workspace);
+      } catch {
+        // silently fail if backend is offline — localStorage still has it
+      }
+    },
+    [workspace],
+  );
+
+  const loadFromBackend = useCallback(async (projectId: string) => {
+    try {
+      const remote = await getProjectWorkspace(projectId);
+      if (remote) {
+        const migrated = migrateWorkspace(remote);
+        if (migrated) {
+          const restored: WorkspaceState = {
+            ...migrated,
+            saveStatus: "saved",
+            tabs: migrated.tabs.map((t) => ({
+              ...t,
+              state: {
+                ...initialEditorState,
+                ...t.state,
+                selection: Array.isArray(t.state.selection) ? t.state.selection : [],
+                past: [],
+                future: [],
+              } as EditorState,
+            })),
+          };
+          persistWorkspace(restored);
+          dispatch({ type: "RESET_WORKSPACE", state: restored });
+          return;
+        }
+      }
+
+      // No remote workspace saved yet, or migration failed. Check if project has design_payload
+      const project = await fetchProject(projectId);
+      if (project && project.design_payload) {
+        // Local helper to extract design document from response
+        const designFromPayload = (payload: any): DesignDocument => {
+          const empty: DesignDocument = { placements: [], connections: [] };
+          if (!payload) return empty;
+          if (payload.design && payload.design.placements && payload.design.connections) {
+            return {
+              placements: payload.design.placements,
+              connections: payload.design.connections,
+            };
+          }
+          if (payload.placements && payload.connections) {
+            return {
+              placements: payload.placements,
+              connections: payload.connections,
+            };
+          }
+          return empty;
+        };
+
+        const doc = designFromPayload(project.design_payload);
+        if (doc.placements.length > 0) {
+          const firstTabId = `canvas_project_${projectId}`;
+          const initialTab: CanvasTab = {
+            id: firstTabId,
+            name: project.name || "Schematic",
+            state: editorReducer({ ...initialEditorState }, { type: "LOAD", doc }),
+            dirty: false,
+            savedAt: Date.now(),
+          };
+          const ws: WorkspaceState = {
+            tabs: [initialTab],
+            activeId: firstTabId,
+            saveStatus: "saved",
+          };
+          persistWorkspace(ws);
+          dispatch({ type: "RESET_WORKSPACE", state: ws });
+          return;
+        }
+      }
+
+      // Fallback: create a fresh workspace for this project
+      const freshProject = project || (await fetchProject(projectId).catch(() => null));
+      const firstTabId = `canvas_project_${projectId}`;
+      const freshTab = makeTab(freshProject?.name || "Schematic", firstTabId);
+      const ws: WorkspaceState = {
+        tabs: [freshTab],
+        activeId: firstTabId,
+        saveStatus: "saved",
+      };
+      persistWorkspace(ws);
+      dispatch({ type: "RESET_WORKSPACE", state: ws });
+    } catch {
+      // Backend offline — localStorage remains as fallback
+    }
+  }, []);
+
+  // Load workspace when activeProjectId changes
+  useEffect(() => {
+    if (activeProjectId) {
+      loadFromBackend(activeProjectId);
+    }
+  }, [activeProjectId, loadFromBackend]);
+
+  // ── Save all (localStorage + backend) ────────────────────────────────────────
+
   const saveAll = useCallback(() => {
     dispatch({ type: "SET_SAVE_STATUS", status: "saving" });
     const ok = persistWorkspace(workspace);
     if (!ok) {
-      toast.error("Save failed: localStorage quota exceeded. Export your design to avoid data loss.");
+      toast.error(
+        "Save failed: localStorage quota exceeded. Export your design to avoid data loss.",
+      );
       dispatch({ type: "SET_SAVE_STATUS", status: "unsaved" });
       return;
     }
     workspace.tabs.forEach((t) => dispatch({ type: "MARK_SAVED", id: t.id }));
     dispatch({ type: "SET_SAVE_STATUS", status: "saved" });
-  }, [workspace]);
+    // Sync to Supabase if a project is active
+    if (activeProjectId) {
+      saveProjectWorkspace(activeProjectId, workspace).catch(() => {});
+    }
+  }, [workspace, activeProjectId]);
 
   // Debounced auto-persist on every change
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
   const savingRef = useRef(false);
+  const activeProjectIdRef = useRef(activeProjectId);
+  activeProjectIdRef.current = activeProjectId;
 
   useEffect(() => {
     if (workspace.saveStatus !== "unsaved") return;
@@ -304,6 +478,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
       workspaceRef.current.tabs.forEach((tab) => dispatch({ type: "MARK_SAVED", id: tab.id }));
       dispatch({ type: "SET_SAVE_STATUS", status: "saved" });
+      // Cloud sync
+      if (activeProjectIdRef.current) {
+        saveProjectWorkspace(activeProjectIdRef.current, workspaceRef.current).catch(() => {});
+      }
     }, 1_000);
     return () => clearTimeout(t);
   }, [workspace]);
@@ -324,6 +502,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
         ws.tabs.forEach((t) => dispatch({ type: "MARK_SAVED", id: t.id }));
         dispatch({ type: "SET_SAVE_STATUS", status: "saved" });
+        if (activeProjectIdRef.current) {
+          saveProjectWorkspace(activeProjectIdRef.current, ws).catch(() => {});
+        }
       }
     }, 25_000);
     return () => clearInterval(interval);
@@ -343,8 +524,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<WorkspaceContextValue>(
-    () => ({ workspace, activeTab, dispatch, dispatchActive, newCanvas, loadIntoCanvas, saveAll }),
-    [workspace, activeTab, dispatchActive, newCanvas, loadIntoCanvas, saveAll],
+    () => ({
+      workspace,
+      activeTab,
+      dispatch,
+      dispatchActive,
+      newCanvas,
+      loadIntoCanvas,
+      saveAll,
+      syncToBackend,
+      loadFromBackend,
+    }),
+    [
+      workspace,
+      activeTab,
+      dispatchActive,
+      newCanvas,
+      loadIntoCanvas,
+      saveAll,
+      syncToBackend,
+      loadFromBackend,
+    ],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

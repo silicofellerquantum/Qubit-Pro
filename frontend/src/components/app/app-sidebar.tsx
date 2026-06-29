@@ -69,7 +69,12 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
     items: [
       { title: "Projects", url: "/projects", icon: FolderKanban },
       { title: "Design Copilot", url: "/designer", icon: Sparkles, locked: true },
-      { title: "Architecture Explorer", url: "/architecture-explorer", icon: Network, locked: true },
+      {
+        title: "Architecture Explorer",
+        url: "/architecture-explorer",
+        icon: Network,
+        locked: true,
+      },
       { title: "Schematic Editor", url: "/schematic-editor", icon: PenSquare },
       { title: "Layout Viewer", url: "/layout-viewer", icon: LayoutTemplate, locked: true },
       { title: "Component Library", url: "/component-library", icon: Library },
@@ -82,7 +87,6 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
       { title: "Simulations", url: "/simulations", icon: PlayCircle, locked: true },
       { title: "Physics Analysis", url: "/physics-analysis", icon: Atom, locked: true },
       { title: "Fault Tolerance Studio", url: "/fault-tolerance", icon: Shield, locked: true },
-      
     ],
   },
   {
@@ -123,15 +127,10 @@ export function AppSidebar() {
               <LogoMark className="[&_img]:!h-5 [&_img]:brightness-0 [&_img]:invert" />
             </span>
           ) : (
-            <SilicofellerLogo
-              className="brightness-0 scale-[1.2]"
-              iconClassName="h-16"
-            />
+            <SilicofellerLogo className="brightness-0 scale-[1.2]" iconClassName="h-16" />
           )}
         </Link>
       </SidebarHeader>
-
-
 
       <SidebarContent className="py-3 flex-1 overflow-y-auto">
         {NAV.map((group, gi) => (

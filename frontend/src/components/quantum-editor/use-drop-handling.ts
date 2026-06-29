@@ -18,18 +18,42 @@ type Dispatch = (action: any) => void;
 
 export interface DropHandlingResult {
   dropPrev: { componentId: string; x: number; y: number } | null;
-  onDrop: (e: React.DragEvent, svgRef: React.RefObject<SVGSVGElement | null>, s2w: (px: number, py: number) => { x: number; y: number }, snap: number, compsById: Map<string, any>, uniqueName: (prefix: string) => string) => void;
-  onDragOver: (e: React.DragEvent<SVGSVGElement>, svgRef: React.RefObject<SVGSVGElement | null>, s2w: (px: number, py: number) => { x: number; y: number }, snap: number) => void;
+  onDrop: (
+    e: React.DragEvent,
+    svgRef: React.RefObject<SVGSVGElement | null>,
+    s2w: (px: number, py: number) => { x: number; y: number },
+    snap: number,
+    compsById: Map<string, any>,
+    uniqueName: (prefix: string) => string,
+  ) => void;
+  onDragOver: (
+    e: React.DragEvent<SVGSVGElement>,
+    svgRef: React.RefObject<SVGSVGElement | null>,
+    s2w: (px: number, py: number) => { x: number; y: number },
+    snap: number,
+  ) => void;
   onDragLeave: (e: React.DragEvent) => void;
 }
 
-export function useDropHandling(dispatch: Dispatch, chipHalfW = 20, chipHalfH = 20): DropHandlingResult {
+export function useDropHandling(
+  dispatch: Dispatch,
+  chipHalfW = 20,
+  chipHalfH = 20,
+): DropHandlingResult {
   const qc = useQueryClient();
-  const [dropPrev, setDropPrev] = useState<{ componentId: string; x: number; y: number } | null>(null);
+  const [dropPrev, setDropPrev] = useState<{ componentId: string; x: number; y: number } | null>(
+    null,
+  );
 
   const snapAndConstrain = (raw: { x: number; y: number }, snap: number) => ({
-    x: Math.max(-chipHalfW, Math.min(chipHalfW, parseFloat((Math.round(raw.x / snap) * snap).toFixed(3)))),
-    y: Math.max(-chipHalfH, Math.min(chipHalfH, parseFloat((Math.round(raw.y / snap) * snap).toFixed(3)))),
+    x: Math.max(
+      -chipHalfW,
+      Math.min(chipHalfW, parseFloat((Math.round(raw.x / snap) * snap).toFixed(3))),
+    ),
+    y: Math.max(
+      -chipHalfH,
+      Math.min(chipHalfH, parseFloat((Math.round(raw.y / snap) * snap).toFixed(3))),
+    ),
   });
 
   const onDrop = (
@@ -78,8 +102,13 @@ export function useDropHandling(dispatch: Dispatch, chipHalfW = 20, chipHalfH = 
 
     try {
       const recent = JSON.parse(localStorage.getItem("sf_recent_components") || "[]") as string[];
-      localStorage.setItem("sf_recent_components", JSON.stringify([cid, ...recent.filter((id) => id !== cid)].slice(0, 10)));
-    } catch { /* ignore */ }
+      localStorage.setItem(
+        "sf_recent_components",
+        JSON.stringify([cid, ...recent.filter((id) => id !== cid)].slice(0, 10)),
+      );
+    } catch {
+      /* ignore */
+    }
 
     if (!cachedMetadata) {
       bridgeClient
@@ -88,7 +117,11 @@ export function useDropHandling(dispatch: Dispatch, chipHalfW = 20, chipHalfH = 
           if (metaRes.data) {
             const baseParams = defaultParamsFromMetadata(metaRes.data);
             const mergedParams = getMergedParams(baseParams);
-            dispatch({ type: "UPDATE_PLACEMENT", id: placementId, patch: { params: mergedParams } });
+            dispatch({
+              type: "UPDATE_PLACEMENT",
+              id: placementId,
+              patch: { params: mergedParams },
+            });
           }
         })
         .catch(console.error);

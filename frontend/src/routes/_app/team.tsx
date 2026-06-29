@@ -8,7 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useAuth, canAccess } from "@/lib/auth/auth-context";
 import { fetchProjects as _dummy } from "@/lib/api/backend"; // Not used but keeps api import path structure
 
@@ -87,7 +94,7 @@ function TeamPage() {
     if (!inviteEmail) return;
 
     if (state) {
-      const planLimit = state.limits.find(l => l.plan === invitePlan);
+      const planLimit = state.limits.find((l) => l.plan === invitePlan);
       if (!planLimit || planLimit.used >= planLimit.total) {
         toast.error(`No ${invitePlan} licenses available. Please upgrade your plan in Billing.`);
         return;
@@ -150,9 +157,7 @@ function TeamPage() {
         className="mx-auto w-full max-w-5xl px-4 py-8 md:px-6 md:py-10"
       >
         <div className="mb-8">
-          <h1 className="text-[2rem] font-bold tracking-tight text-foreground">
-            Team Management
-          </h1>
+          <h1 className="text-[2rem] font-bold tracking-tight text-foreground">Team Management</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Invite colleagues to share your subscription benefits and collaborate on projects.
           </p>
@@ -174,10 +179,12 @@ function TeamPage() {
             </div>
             <Progress value={progressPercent} className="mt-3 h-1.5" />
             <div className="mt-4 space-y-2">
-              {state.limits.map(l => (
+              {state.limits.map((l) => (
                 <div key={l.plan} className="flex justify-between text-xs text-muted-foreground">
                   <span className="capitalize">{l.plan} Plan</span>
-                  <span>{l.used} / {l.total}</span>
+                  <span>
+                    {l.used} / {l.total}
+                  </span>
                 </div>
               ))}
             </div>
@@ -186,9 +193,15 @@ function TeamPage() {
           <Card className="rounded-2xl border-border p-5 shadow-none flex flex-col justify-center">
             <h3 className="text-sm font-semibold">Need more seats?</h3>
             <p className="text-xs text-muted-foreground mt-1 mb-3">
-              You currently have {licensesAvailable} {licensesAvailable === 1 ? "seat" : "seats"} available across all plans.
+              You currently have {licensesAvailable} {licensesAvailable === 1 ? "seat" : "seats"}{" "}
+              available across all plans.
             </p>
-            <Button variant="outline" size="sm" className="w-fit" onClick={() => navigate({ to: "/billing" })}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={() => navigate({ to: "/billing" })}
+            >
               Manage Plan
             </Button>
           </Card>
@@ -217,8 +230,8 @@ function TeamPage() {
               <option value="basic">Basic Plan</option>
               <option value="pro">Pro Plan</option>
             </select>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="rounded-full bg-[#072654] text-white hover:bg-[#072654]/90"
               disabled={inviting || licensesAvailable <= 0}
             >
@@ -227,7 +240,9 @@ function TeamPage() {
             </Button>
           </form>
           {licensesAvailable <= 0 && (
-            <p className="mt-2 text-xs text-red-500 font-medium">You must purchase more licenses before inviting.</p>
+            <p className="mt-2 text-xs text-red-500 font-medium">
+              You must purchase more licenses before inviting.
+            </p>
           )}
         </Card>
 
@@ -251,7 +266,9 @@ function TeamPage() {
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2">
                       {user?.name}
-                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300">You</Badge>
+                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300">
+                        You
+                      </Badge>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -269,7 +286,9 @@ function TeamPage() {
                     </TableCell>
                     <TableCell>
                       <div className="text-xs text-muted-foreground">Member</div>
-                      <Badge variant="secondary" className="mt-1 capitalize text-[10px]">{m.plan}</Badge>
+                      <Badge variant="secondary" className="mt-1 capitalize text-[10px]">
+                        {m.plan}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" onClick={() => handleRemoveMember(m.id)}>
@@ -291,8 +310,12 @@ function TeamPage() {
                     <TableRow key={i.id}>
                       <TableCell className="text-sm">
                         {i.email}
-                        <Badge variant="outline" className="ml-2">Pending</Badge>
-                        <Badge variant="secondary" className="ml-2 capitalize text-[10px]">{i.plan}</Badge>
+                        <Badge variant="outline" className="ml-2">
+                          Pending
+                        </Badge>
+                        <Badge variant="secondary" className="ml-2 capitalize text-[10px]">
+                          {i.plan}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => handleRevokeInvite(i.id)}>
@@ -306,7 +329,6 @@ function TeamPage() {
             </div>
           )}
         </Card>
-
       </motion.div>
     </div>
   );

@@ -22,11 +22,14 @@ import { useWorkspace } from "@/lib/editor/workspace-store";
 import { getSingleSelection } from "@/lib/editor/design-store";
 import { metadataToFields } from "@/lib/bridge/adapters";
 import { QISKIT_CATALOG } from "./qiskit-metal-catalog";
-import {
-  getRouteDefaults,
-  buildInitialRouteOverrides,
-} from "@/lib/editor/route-defaults";
-import type { Placement, Connection, ValidationResult, ComponentPreview, ComponentPins } from "@/lib/bridge/types";
+import { getRouteDefaults, buildInitialRouteOverrides } from "@/lib/editor/route-defaults";
+import type {
+  Placement,
+  Connection,
+  ValidationResult,
+  ComponentPreview,
+  ComponentPins,
+} from "@/lib/bridge/types";
 
 // â”€â”€â”€ Resonator detection & physics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -100,29 +103,39 @@ function computeResonatorDiagnostics(
   const isCoil = componentId === "ResonatorCoilRect";
 
   // ResonatorCoilRect uses "length"; ReadoutResFC may use "total_length"
-  const lengthVal =
-    params.total_length ?? params.length ?? (isCoil ? "2mm" : "1.5mm");
+  const lengthVal = params.total_length ?? params.length ?? (isCoil ? "2mm" : "1.5mm");
   const lengthMm = parseLengthMm(lengthVal);
 
-  const traceWidthMm = parseLengthMm(params.trace_width ?? params.line_width ?? params.readout_cpw_width ?? (isCoil ? "1um" : "5um"));
-  const traceGapMm = parseLengthMm(params.trace_gap ?? params.gap ?? params.readout_cpw_gap ?? (isCoil ? "4um" : "5um"));
+  const traceWidthMm = parseLengthMm(
+    params.trace_width ?? params.line_width ?? params.readout_cpw_width ?? (isCoil ? "1um" : "5um"),
+  );
+  const traceGapMm = parseLengthMm(
+    params.trace_gap ?? params.gap ?? params.readout_cpw_gap ?? (isCoil ? "4um" : "5um"),
+  );
 
   // Meander pitch (controls turn spacing)
   // For ReadoutResFC: pitch = 2 * turnradius
   // For ResonatorCoilRect: pitch = gap
   const pitchMm = parseLengthMm(
-    params.meander_pitch ?? params.meander_spacing ?? params.gap ?? (params.fillet ? String(parseLengthMm(params.fillet) * 2) + "mm" : (isCoil ? "4um" : "100um"))
+    params.meander_pitch ??
+      params.meander_spacing ??
+      params.gap ??
+      (params.fillet ? String(parseLengthMm(params.fillet) * 2) + "mm" : isCoil ? "4um" : "100um"),
   );
 
   // Fillet
-  const filletMm = isCoil ? 0 : parseLengthMm(
-    params.fillet ?? params.readout_cpw_turnradius ?? (params.meander_pitch ? String(parseLengthMm(params.meander_pitch) / 2) + "mm" : "50um")
-  );
+  const filletMm = isCoil
+    ? 0
+    : parseLengthMm(
+        params.fillet ??
+          params.readout_cpw_turnradius ??
+          (params.meander_pitch ? String(parseLengthMm(params.meander_pitch) / 2) + "mm" : "50um"),
+      );
 
   const leadMm = isCoil ? 0 : parseLengthMm(params.lead_length ?? params.readout_l1 ?? "150um");
 
   const colWidthMm = parseLengthMm(
-    params.resonator_width ?? params.height ?? params.readout_l2 ?? (isCoil ? "40um" : "200um")
+    params.resonator_width ?? params.height ?? params.readout_l2 ?? (isCoil ? "40um" : "200um"),
   );
 
   // Turn count
@@ -133,7 +146,7 @@ function computeResonatorDiagnostics(
   if (isCoil) {
     const n = 3; // default turns
     turnCount = n;
-    const x_n = (lengthMm / (2 * n)) - (colWidthMm + 2 * (traceGapMm + traceWidthMm) * (2 * n - 1));
+    const x_n = lengthMm / (2 * n) - (colWidthMm + 2 * (traceGapMm + traceWidthMm) * (2 * n - 1));
     const widthMm = Math.max(0.1, x_n + 2 * n * (traceWidthMm + traceGapMm));
     footprintWum = widthMm * 1000;
     footprintHum = (colWidthMm + 2 * n * (traceWidthMm + traceGapMm)) * 1000;
@@ -152,20 +165,28 @@ function computeResonatorDiagnostics(
 
   // Î»/2 resonant frequency on silicon substrate
   const C0 = 299_792_458; // m/s
-  const EPS_EFF = 6.2;        // CPW on silicon, typical value
+  const EPS_EFF = 6.2; // CPW on silicon, typical value
   const vPh = C0 / Math.sqrt(EPS_EFF);
-  const freqGHz = lengthMm > 0
-    ? (vPh / (2 * lengthMm * 1e-3)) / 1e9
-    : 0;
+  const freqGHz = lengthMm > 0 ? vPh / (2 * lengthMm * 1e-3) / 1e9 : 0;
 
   return {
-    lengthMm, freqGHz, turnCount, footprintWum, footprintHum,
-    traceWidthMm, traceGapMm, filletMm, leadMm, pitchMm, colWidthMm
+    lengthMm,
+    freqGHz,
+    turnCount,
+    footprintWum,
+    footprintHum,
+    traceWidthMm,
+    traceGapMm,
+    filletMm,
+    leadMm,
+    pitchMm,
+    colWidthMm,
   };
 }
 
 export function PropertyInspector() {
-  const { activeTab, dispatchActive: dispatch } = useWorkspace(); const state = activeTab.state;
+  const { activeTab, dispatchActive: dispatch } = useWorkspace();
+  const state = activeTab.state;
   const sel = getSingleSelection(state.selection);
 
   if (state.selection.length === 0) {
@@ -195,26 +216,29 @@ function useLocalValue<T>(propValue: T, onCommit: (v: T) => void) {
   const [local, setLocal] = useState<T>(propValue);
   useEffect(() => setLocal(propValue), [propValue]);
   const commit = useCallback(() => onCommit(local), [local, onCommit]);
-  const onKeyDown = useCallback((e: React.KeyboardEvent) => { if (e.key === "Enter") commit(); }, [commit]);
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") commit();
+    },
+    [commit],
+  );
   return { local, setLocal, commit, onKeyDown };
 }
 
 function PlacementInspector({ placement }: { placement: Placement }) {
-  const { activeTab, dispatchActive: dispatch } = useWorkspace(); const state = activeTab.state;
+  const { activeTab, dispatchActive: dispatch } = useWorkspace();
+  const state = activeTab.state;
   const metaQ = useQuery(componentMetadataQueryOptions(placement.componentId));
   const pinsQ = useQuery(componentPinsQueryOptions(placement.componentId));
 
-  const fields = useMemo(
-    () => (metaQ.data ? metadataToFields(metaQ.data) : []),
-    [metaQ.data],
-  );
+  const fields = useMemo(() => (metaQ.data ? metadataToFields(metaQ.data) : []), [metaQ.data]);
 
-  const update = useCallback((patch: Partial<Placement>) =>
-    dispatch({ type: "UPDATE_PLACEMENT", id: placement.id, patch }),
+  const update = useCallback(
+    (patch: Partial<Placement>) => dispatch({ type: "UPDATE_PLACEMENT", id: placement.id, patch }),
     [dispatch, placement.id],
   );
-  const updateParam = useCallback((k: string, v: string) =>
-    update({ params: { ...placement.params, [k]: v } }),
+  const updateParam = useCallback(
+    (k: string, v: string) => update({ params: { ...placement.params, [k]: v } }),
     [update, placement.params],
   );
 
@@ -238,8 +262,7 @@ function PlacementInspector({ placement }: { placement: Placement }) {
 
   const isOverlapping = state.placements.some(
     (p) =>
-      p.id !== placement.id &&
-      Math.sqrt((p.x - placement.x) ** 2 + (p.y - placement.y) ** 2) < 0.4,
+      p.id !== placement.id && Math.sqrt((p.x - placement.x) ** 2 + (p.y - placement.y) ** 2) < 0.4,
   );
 
   return (
@@ -258,7 +281,9 @@ function PlacementInspector({ placement }: { placement: Placement }) {
           <p className="text-[10px] text-muted-foreground">
             {placement.componentId}
             {(() => {
-              const connCount = state.connections.filter((c) => c.from.placementId === placement.id || c.to.placementId === placement.id).length;
+              const connCount = state.connections.filter(
+                (c) => c.from.placementId === placement.id || c.to.placementId === placement.id,
+              ).length;
               return connCount > 0 ? ` Â· ${connCount} connection${connCount > 1 ? "s" : ""}` : "";
             })()}
           </p>
@@ -286,7 +311,11 @@ function PlacementInspector({ placement }: { placement: Placement }) {
             className="h-7 gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             title={placement.locked ? "Unlock placement" : "Lock placement"}
           >
-            {placement.locked ? <Lock className="h-3 w-3 text-amber-500" /> : <Unlock className="h-3 w-3" />}
+            {placement.locked ? (
+              <Lock className="h-3 w-3 text-amber-500" />
+            ) : (
+              <Unlock className="h-3 w-3" />
+            )}
           </Button>
           <Button
             variant="ghost"
@@ -383,31 +412,25 @@ function PlacementInspector({ placement }: { placement: Placement }) {
               checked={placement.mirrorX ?? false}
               onCheckedChange={() => dispatch({ type: "MIRROR_PLACEMENT", id: placement.id })}
             />
-            <span className="text-[11px] text-muted-foreground">{placement.mirrorX ? "Mirrored" : "Normal"}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {placement.mirrorX ? "Mirrored" : "Normal"}
+            </span>
           </div>
         </Field>
       </Section>
 
       <Section title="Parameters (from bridge)">
         {metaQ.isLoading && <p className="text-muted-foreground">Loading metadataâ€¦</p>}
-        {metaQ.error && (
-          <p className="text-destructive">Bridge error: {String(metaQ.error)}</p>
-        )}
+        {metaQ.error && <p className="text-destructive">Bridge error: {String(metaQ.error)}</p>}
         {fields.length === 0 && !metaQ.isLoading && !metaQ.error && (
           <p className="text-muted-foreground">No parameters declared.</p>
         )}
-        <ParamFields
-          fields={fields}
-          placement={placement}
-          updateParam={updateParam}
-        />
+        <ParamFields fields={fields} placement={placement} updateParam={updateParam} />
       </Section>
 
       <Section title="Pins">
         {pinsQ.isLoading && <p className="text-muted-foreground">Loading pinsâ€¦</p>}
-        {pinsQ.error && (
-          <p className="text-destructive">Bridge error: {String(pinsQ.error)}</p>
-        )}
+        {pinsQ.error && <p className="text-destructive">Bridge error: {String(pinsQ.error)}</p>}
         {pinsQ.data && pinsQ.data.pins.length === 0 && (
           <p className="text-muted-foreground">No pins defined.</p>
         )}
@@ -427,7 +450,10 @@ function PlacementInspector({ placement }: { placement: Placement }) {
                   <td className="px-1 py-1 uppercase text-muted-foreground">{p.direction}</td>
                   <td className="px-1 py-1 text-right">
                     {pinNets.has(p.name) ? (
-                      <span className="inline-flex items-center gap-1 text-primary" title={pinNets.get(p.name)}>
+                      <span
+                        className="inline-flex items-center gap-1 text-primary"
+                        title={pinNets.get(p.name)}
+                      >
                         <Plug className="h-3 w-3 shrink-0" />
                         <span className="max-w-[80px] truncate">{pinNets.get(p.name)}</span>
                       </span>
@@ -445,7 +471,11 @@ function PlacementInspector({ placement }: { placement: Placement }) {
   );
 }
 
-function ParamFields({ fields, placement, updateParam }: {
+function ParamFields({
+  fields,
+  placement,
+  updateParam,
+}: {
   fields: ReturnType<typeof metadataToFields>;
   placement: Placement;
   updateParam: (k: string, v: string) => void;
@@ -582,13 +612,29 @@ function RouteMetricsPanel({ connection }: { connection: Connection }) {
       <span className="text-muted-foreground">Actual length</span>
       <span className="font-mono text-right">{actualLength}</span>
       <span className="text-muted-foreground">Fillet radius</span>
-      <span className={`font-mono text-right ${overrides.fillet ? "" : "text-muted-foreground/70"}`}>{filletRadius}</span>
+      <span
+        className={`font-mono text-right ${overrides.fillet ? "" : "text-muted-foreground/70"}`}
+      >
+        {filletRadius}
+      </span>
       <span className="text-muted-foreground">Lead length</span>
-      <span className={`font-mono text-right ${overrides.lead_length ? "" : "text-muted-foreground/70"}`}>{leadLength}</span>
+      <span
+        className={`font-mono text-right ${overrides.lead_length ? "" : "text-muted-foreground/70"}`}
+      >
+        {leadLength}
+      </span>
       <span className="text-muted-foreground">Trace width</span>
-      <span className={`font-mono text-right ${overrides.trace_width ? "" : "text-muted-foreground/70"}`}>{traceWidth}</span>
+      <span
+        className={`font-mono text-right ${overrides.trace_width ? "" : "text-muted-foreground/70"}`}
+      >
+        {traceWidth}
+      </span>
       <span className="text-muted-foreground">Trace gap</span>
-      <span className={`font-mono text-right ${overrides.trace_gap ? "" : "text-muted-foreground/70"}`}>{traceGap}</span>
+      <span
+        className={`font-mono text-right ${overrides.trace_gap ? "" : "text-muted-foreground/70"}`}
+      >
+        {traceGap}
+      </span>
       <span className="text-muted-foreground">Geometry</span>
       <span className={`font-mono text-right ${hasGeometry ? "text-green-600" : "text-amber-500"}`}>
         {hasGeometry ? "cached" : "pendingâ€¦"}
@@ -655,7 +701,9 @@ function FilletField({
           value={local}
           onChange={(e) => setLocal(e.target.value)}
           onBlur={commit}
-          onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+          }}
           placeholder={`e.g. ${defaultValue}`}
           className={`h-7 flex-1 font-mono text-[11px] ${isNegative ? "border-destructive ring-1 ring-destructive" : isDefault ? "text-muted-foreground" : ""}`}
           title={isDefault ? `Qiskit Metal default: ${defaultValue}` : undefined}
@@ -689,7 +737,8 @@ function FilletField({
 }
 
 function ConnectionInspector({ connection }: { connection: Connection }) {
-  const { activeTab, dispatchActive: dispatch } = useWorkspace(); const state = activeTab.state;
+  const { activeTab, dispatchActive: dispatch } = useWorkspace();
+  const state = activeTab.state;
   const fromP = state.placements.find((p) => p.id === connection.from.placementId);
   const toP = state.placements.find((p) => p.id === connection.to.placementId);
   // Pull supported route components from the originating placement's metadata.
@@ -730,7 +779,12 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => dispatch({ type: connection.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION", id: connection.id })}
+            onClick={() =>
+              dispatch({
+                type: connection.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
+                id: connection.id,
+              })
+            }
             className="h-7 gap-1 px-2"
           >
             {connection.locked ? <Unlock className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
@@ -816,23 +870,44 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
 
       <Section title="Route overrides">
         <p className="text-[9px] text-muted-foreground/70 -mt-1 mb-0.5">
-          Pre-filled with {activeRouteId} defaults. Clear a field to reset to Qiskit Metal default. Defaults: {defaultsHint}
+          Pre-filled with {activeRouteId} defaults. Clear a field to reset to Qiskit Metal default.
+          Defaults: {defaultsHint}
         </p>
         <RouteOverrideField
           label="Total length"
           placeholder={`e.g. ${currentDefaults.total_length}`}
           value={overrideVal("total_length")}
-          onCommit={(v) => updateRouteOverride(connection.id, "total_length", v, dispatch, connection.routeOverrides)}
+          onCommit={(v) =>
+            updateRouteOverride(
+              connection.id,
+              "total_length",
+              v,
+              dispatch,
+              connection.routeOverrides,
+            )
+          }
           defaultUnit="mm"
           isDefault={!connection.routeOverrides?.total_length}
           defaultValue={currentDefaults.total_length}
         />
-        <FilletField connection={connection} dispatch={dispatch} defaultValue={currentDefaults.fillet} />
+        <FilletField
+          connection={connection}
+          dispatch={dispatch}
+          defaultValue={currentDefaults.fillet}
+        />
         <RouteOverrideField
           label="Lead length"
           placeholder={`e.g. ${currentDefaults.lead_length}`}
           value={overrideVal("lead_length")}
-          onCommit={(v) => updateRouteOverride(connection.id, "lead_length", v, dispatch, connection.routeOverrides)}
+          onCommit={(v) =>
+            updateRouteOverride(
+              connection.id,
+              "lead_length",
+              v,
+              dispatch,
+              connection.routeOverrides,
+            )
+          }
           defaultUnit="um"
           isDefault={!connection.routeOverrides?.lead_length}
           defaultValue={currentDefaults.lead_length}
@@ -841,7 +916,15 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
           label="Trace width"
           placeholder={`e.g. ${currentDefaults.trace_width}`}
           value={overrideVal("trace_width")}
-          onCommit={(v) => updateRouteOverride(connection.id, "trace_width", v, dispatch, connection.routeOverrides)}
+          onCommit={(v) =>
+            updateRouteOverride(
+              connection.id,
+              "trace_width",
+              v,
+              dispatch,
+              connection.routeOverrides,
+            )
+          }
           defaultUnit="um"
           isDefault={!connection.routeOverrides?.trace_width}
           defaultValue={currentDefaults.trace_width}
@@ -850,13 +933,15 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
           label="Trace gap"
           placeholder={`e.g. ${currentDefaults.trace_gap}`}
           value={overrideVal("trace_gap")}
-          onCommit={(v) => updateRouteOverride(connection.id, "trace_gap", v, dispatch, connection.routeOverrides)}
+          onCommit={(v) =>
+            updateRouteOverride(connection.id, "trace_gap", v, dispatch, connection.routeOverrides)
+          }
           defaultUnit="um"
           isDefault={!connection.routeOverrides?.trace_gap}
           defaultValue={currentDefaults.trace_gap}
         />
-      </Section >
-    </div >
+      </Section>
+    </div>
   );
 }
 
@@ -866,7 +951,9 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
 
   // Only show common params if all same component type
   const allSameType = placements.every((p) => p.componentId === placements[0].componentId);
-  const metaQ = useQuery(componentMetadataQueryOptions(allSameType ? placements[0].componentId : ""));
+  const metaQ = useQuery(
+    componentMetadataQueryOptions(allSameType ? placements[0].componentId : ""),
+  );
   const fields = useMemo(() => (metaQ.data ? metadataToFields(metaQ.data) : []), [metaQ.data]);
 
   // Compute shared value per field: single value if all same, "â€”" if mixed
@@ -952,9 +1039,13 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
           </p>
           {(() => {
             const state = activeTab.state;
-            const connCount = state.connections.filter((c) => ids.includes(c.from.placementId) || ids.includes(c.to.placementId)).length;
+            const connCount = state.connections.filter(
+              (c) => ids.includes(c.from.placementId) || ids.includes(c.to.placementId),
+            ).length;
             return connCount > 0 ? (
-              <p className="text-[10px] text-muted-foreground">{connCount} connection{connCount > 1 ? "s" : ""}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {connCount} connection{connCount > 1 ? "s" : ""}
+              </p>
             ) : null;
           })()}
         </div>
@@ -964,11 +1055,17 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
             size="sm"
             onClick={() => {
               const baseDefaults = defaultParamsFromMetadata(metaQ.data!);
-              const catalogEntry = QISKIT_CATALOG.find(c => c.className === activeTab.state.placements.find(p => p.id === ids[0])?.componentId);
+              const catalogEntry = QISKIT_CATALOG.find(
+                (c) =>
+                  c.className ===
+                  activeTab.state.placements.find((p) => p.id === ids[0])?.componentId,
+              );
               const defaults = catalogEntry?.defaultParams
                 ? { ...baseDefaults, ...catalogEntry.defaultParams }
                 : baseDefaults;
-              ids.forEach((id) => dispatch({ type: "UPDATE_PLACEMENT", id, patch: { params: defaults } }));
+              ids.forEach((id) =>
+                dispatch({ type: "UPDATE_PLACEMENT", id, patch: { params: defaults } }),
+              );
             }}
             className="h-7 gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             title="Reset all params to defaults"
@@ -989,13 +1086,18 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
                 <Field key={f.name} label={`${f.label}${f.unit ? ` (${f.unit})` : ""}`}>
                   <div className="flex items-center gap-1">
                     {f.kind === "enum" && f.options ? (
-                      <Select value={mixed ? "" : value} onValueChange={(v) => updateParamBulk(f.name, v)}>
+                      <Select
+                        value={mixed ? "" : value}
+                        onValueChange={(v) => updateParamBulk(f.name, v)}
+                      >
                         <SelectTrigger className="h-7 flex-1 text-[11px]">
                           <SelectValue placeholder={mixed ? "â€” mixed â€”" : undefined} />
                         </SelectTrigger>
                         <SelectContent>
                           {f.options.map((o) => (
-                            <SelectItem key={o} value={o}>{o}</SelectItem>
+                            <SelectItem key={o} value={o}>
+                              {o}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -1010,7 +1112,9 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
                         placeholder={mixed ? "â€” mixed â€”" : undefined}
                         onChange={(e) => setVal(f.name, e.target.value)}
                         onBlur={() => commit(f.name)}
-                        onKeyDown={(e) => { if (e.key === "Enter") commit(f.name); }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commit(f.name);
+                        }}
                         className="h-7 flex-1 font-mono text-[11px]"
                       />
                     )}
@@ -1035,10 +1139,14 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
         {(() => {
           const xs = placements.map((p) => p.x);
           const ys = placements.map((p) => p.y);
-          const minX = Math.min(...xs), maxX = Math.max(...xs);
-          const minY = Math.min(...ys), maxY = Math.max(...ys);
-          const w = maxX - minX, h = maxY - minY;
-          const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+          const minX = Math.min(...xs),
+            maxX = Math.max(...xs);
+          const minY = Math.min(...ys),
+            maxY = Math.max(...ys);
+          const w = maxX - minX,
+            h = maxY - minY;
+          const cx = (minX + maxX) / 2,
+            cy = (minY + maxY) / 2;
           return (
             <div className="grid grid-cols-2 gap-1 text-[11px]">
               <span className="text-muted-foreground">Count</span>
@@ -1048,7 +1156,9 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
               <span className="text-muted-foreground">Height</span>
               <span className="font-mono text-right">{h.toFixed(3)} mm</span>
               <span className="text-muted-foreground">Center</span>
-              <span className="font-mono text-right">{cx.toFixed(3)}, {cy.toFixed(3)}</span>
+              <span className="font-mono text-right">
+                {cx.toFixed(3)}, {cy.toFixed(3)}
+              </span>
             </div>
           );
         })()}
@@ -1192,9 +1302,8 @@ function ValidationPanel() {
 
   const stats = useMemo(() => {
     const locked = state.placements.filter((p) => p.locked).length;
-    const avgConnections = state.placements.length > 0
-      ? (state.connections.length * 2) / state.placements.length
-      : 0;
+    const avgConnections =
+      state.placements.length > 0 ? (state.connections.length * 2) / state.placements.length : 0;
     return { locked, avgConnections: avgConnections.toFixed(1) };
   }, [state.placements, state.connections]);
 
@@ -1209,7 +1318,9 @@ function ValidationPanel() {
         </div>
         {counts.length > 0 && (
           <div className="rounded-md border border-border bg-card p-2">
-            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Design stats</p>
+            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+              Design stats
+            </p>
             <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
               <span className="text-muted-foreground">Placements</span>
               <span className="font-mono text-right">{state.placements.length}</span>
@@ -1220,7 +1331,9 @@ function ValidationPanel() {
               <span className="text-muted-foreground">Avg conn/placement</span>
               <span className="font-mono text-right">{stats.avgConnections}</span>
             </div>
-            <p className="mt-2 mb-1 text-[10px] font-bold uppercase text-muted-foreground">Component counts</p>
+            <p className="mt-2 mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+              Component counts
+            </p>
             <ul className="flex flex-col gap-0.5">
               {counts.map(([cid, count]) => (
                 <li key={cid} className="flex justify-between text-[11px] text-foreground">
@@ -1233,14 +1346,17 @@ function ValidationPanel() {
         )}
         {state.connections.length > 0 && (
           <div className="rounded-md border border-border bg-card p-2">
-            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">Connections ({state.connections.length})</p>
+            <p className="mb-1 text-[10px] font-bold uppercase text-muted-foreground">
+              Connections ({state.connections.length})
+            </p>
             <ul className="flex flex-col gap-0.5 max-h-40 overflow-y-auto">
               {state.connections.map((c) => {
                 const fromP = state.placements.find((p) => p.id === c.from.placementId);
                 const toP = state.placements.find((p) => p.id === c.to.placementId);
                 return (
                   <li key={c.id} className="text-[11px] text-foreground truncate">
-                    {fromP?.name ?? c.from.placementId}.{c.from.pinName} â†’ {toP?.name ?? c.to.placementId}.{c.to.pinName}
+                    {fromP?.name ?? c.from.placementId}.{c.from.pinName} â†’{" "}
+                    {toP?.name ?? c.to.placementId}.{c.to.pinName}
                   </li>
                 );
               })}
@@ -1260,30 +1376,42 @@ function ValidationPanel() {
     <div className="flex flex-col gap-2 text-xs">
       {errors.length > 0 && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 p-2">
-          <p className="mb-1 text-[10px] font-bold uppercase text-destructive">Errors ({errors.length})</p>
+          <p className="mb-1 text-[10px] font-bold uppercase text-destructive">
+            Errors ({errors.length})
+          </p>
           <ul className="flex flex-col gap-1">
             {errors.map((e, i) => (
-              <li key={i} className="text-[11px] text-destructive">{e.message}</li>
+              <li key={i} className="text-[11px] text-destructive">
+                {e.message}
+              </li>
             ))}
           </ul>
         </div>
       )}
       {warnings.length > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-2">
-          <p className="mb-1 text-[10px] font-bold uppercase text-amber-700">Warnings ({warnings.length})</p>
+          <p className="mb-1 text-[10px] font-bold uppercase text-amber-700">
+            Warnings ({warnings.length})
+          </p>
           <ul className="flex flex-col gap-1">
             {warnings.map((w, i) => (
-              <li key={i} className="text-[11px] text-amber-800">{w.message}</li>
+              <li key={i} className="text-[11px] text-amber-800">
+                {w.message}
+              </li>
             ))}
           </ul>
         </div>
       )}
       {infos.length > 0 && (
         <div className="rounded-md border border-blue-100 bg-blue-50 p-2">
-          <p className="mb-1 text-[10px] font-bold uppercase text-blue-700">Info ({infos.length})</p>
+          <p className="mb-1 text-[10px] font-bold uppercase text-blue-700">
+            Info ({infos.length})
+          </p>
           <ul className="flex flex-col gap-1">
             {infos.map((info, i) => (
-              <li key={i} className="text-[11px] text-blue-800">{info.message}</li>
+              <li key={i} className="text-[11px] text-blue-800">
+                {info.message}
+              </li>
             ))}
           </ul>
         </div>
@@ -1292,7 +1420,15 @@ function ValidationPanel() {
   );
 }
 
-function Field({ label, geo, children }: { label: string; geo?: boolean; children: React.ReactNode }) {
+function Field({
+  label,
+  geo,
+  children,
+}: {
+  label: string;
+  geo?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <Label className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

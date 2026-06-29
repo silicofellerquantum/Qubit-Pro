@@ -1,9 +1,4 @@
-import type {
-  ComponentMetadata,
-  Connection,
-  DesignDocument,
-  Placement,
-} from "./types";
+import type { ComponentMetadata, Connection, DesignDocument, Placement } from "./types";
 
 /**
  * Adapters map bridge DTOs to view-model shapes the editor uses directly,

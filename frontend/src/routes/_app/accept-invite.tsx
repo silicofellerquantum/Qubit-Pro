@@ -71,7 +71,8 @@ function AcceptInvitePage() {
               </div>
               <h2 className="mb-2 text-2xl font-bold text-foreground">Team Invitation</h2>
               <p className="mb-6 text-sm text-muted-foreground">
-                You have been invited to join a team. Accept the invitation to upgrade your account and access shared resources.
+                You have been invited to join a team. Accept the invitation to upgrade your account
+                and access shared resources.
               </p>
 
               {error && (

@@ -16,6 +16,8 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==5.0.0              # Direct pin — passlib delegates to it; missing = ModuleNotFoundError
 python-multipart==0.0.20
+google-auth==2.29.0
+requests>=2.32.0
 
 # ── HTTP / Utils ──────────────────────────────────────────────────────────────
 httpx==0.28.1

@@ -30,7 +30,7 @@ export function FAQAccordion({
   // or matches any element inside this accordion's children.
   useEffect(() => {
     if (!activeHash) return;
-    
+
     const hashId = activeHash.replace("#", "");
     if (!hashId) return;
 
@@ -53,21 +53,29 @@ export function FAQAccordion({
   };
 
   // Determine styles based on variant
-  let containerClass = "my-4 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)]";
-  let summaryClass = "flex cursor-pointer items-center justify-between px-5 py-4 font-bold text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors select-none [&::-webkit-details-marker]:display-none list-none";
+  let containerClass =
+    "my-4 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)]";
+  let summaryClass =
+    "flex cursor-pointer items-center justify-between px-5 py-4 font-bold text-[var(--text)] hover:bg-[var(--panel-2)] transition-colors select-none [&::-webkit-details-marker]:display-none list-none";
   let contentClass = "p-5 border-t border-[var(--line)] bg-[var(--panel)]";
 
   if (variant === "sheet") {
-    containerClass = "result-sheet my-5 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)]";
-    summaryClass = "flex cursor-pointer flex-col gap-1 px-4.5 py-4 bg-[var(--panel-2)] text-[var(--text)] font-extrabold select-none list-none relative pr-10";
+    containerClass =
+      "result-sheet my-5 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--panel)] shadow-[var(--shadow)]";
+    summaryClass =
+      "flex cursor-pointer flex-col gap-1 px-4.5 py-4 bg-[var(--panel-2)] text-[var(--text)] font-extrabold select-none list-none relative pr-10";
     contentClass = "p-0";
   } else if (variant === "category") {
-    containerClass = "result-category my-4.5 overflow-hidden rounded-xl border border-[var(--line)] bg-white";
-    summaryClass = "flex cursor-pointer items-center justify-between px-4.5 py-3.5 bg-[#eef5ff] text-[#244fdb] font-extrabold select-none list-none";
+    containerClass =
+      "result-category my-4.5 overflow-hidden rounded-xl border border-[var(--line)] bg-white";
+    summaryClass =
+      "flex cursor-pointer items-center justify-between px-4.5 py-3.5 bg-[#eef5ff] text-[#244fdb] font-extrabold select-none list-none";
     contentClass = "p-0";
   } else if (variant === "subcategory") {
-    containerClass = "result-subcategory my-3 overflow-hidden rounded-xl border border-[var(--line)] bg-white";
-    summaryClass = "flex cursor-pointer items-center justify-between px-4.5 py-3.5 bg-[#f6f8fb] text-[var(--text)] font-extrabold select-none list-none";
+    containerClass =
+      "result-subcategory my-3 overflow-hidden rounded-xl border border-[var(--line)] bg-white";
+    summaryClass =
+      "flex cursor-pointer items-center justify-between px-4.5 py-3.5 bg-[#f6f8fb] text-[var(--text)] font-extrabold select-none list-none";
     contentClass = "p-0";
   }
 
@@ -91,7 +99,7 @@ export function FAQAccordion({
             <ChevronRight
               className={cn(
                 "absolute right-4.5 top-1/2 -translate-y-1/2 h-5 w-5 text-[var(--muted)] transition-transform duration-200",
-                isOpen ? "rotate-90" : ""
+                isOpen ? "rotate-90" : "",
               )}
             />
           </>
@@ -101,7 +109,7 @@ export function FAQAccordion({
             <ChevronRight
               className={cn(
                 "h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200",
-                isOpen ? "rotate-90" : ""
+                isOpen ? "rotate-90" : "",
               )}
             />
           </>

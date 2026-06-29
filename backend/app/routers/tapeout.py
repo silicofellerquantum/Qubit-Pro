@@ -56,6 +56,7 @@ async def generate_tapeout(
     )
     db.add(db_pkg)
     await db.flush()
+    await db.commit()
 
     return {
         "id": db_pkg.id,

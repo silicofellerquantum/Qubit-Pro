@@ -113,9 +113,7 @@ const META: Record<string, ComponentMetadata> = {
   },
   RouteStraight: {
     id: "RouteStraight",
-    parameters: [
-      { name: "total_length", type: "length", unit: "um", default: "3000" },
-    ],
+    parameters: [{ name: "total_length", type: "length", unit: "um", default: "3000" }],
   },
 };
 
@@ -269,18 +267,18 @@ export const mockBridge = {
     ].join("\n");
     const body =
       doc.placements
-          .map(
-            (p) =>
-              `# ${p.name}: ${p.componentId} @ (${p.x}, ${p.y}) mm — params: ${JSON.stringify(p.params)}`,
-          )
-          .join("\n") || "# (no placements)";
+        .map(
+          (p) =>
+            `# ${p.name}: ${p.componentId} @ (${p.x}, ${p.y}) mm — params: ${JSON.stringify(p.params)}`,
+        )
+        .join("\n") || "# (no placements)";
     const conns =
       doc.connections
-          .map(
-            (c) =>
-              `# connect ${c.from.placementId}.${c.from.pinName} -> ${c.to.placementId}.${c.to.pinName} via ${c.routeComponentId ?? "RouteMeander"}`,
-          )
-          .join("\n") || "# (no connections)";
+        .map(
+          (c) =>
+            `# connect ${c.from.placementId}.${c.from.pinName} -> ${c.to.placementId}.${c.to.pinName} via ${c.routeComponentId ?? "RouteMeander"}`,
+        )
+        .join("\n") || "# (no connections)";
     return {
       language: "python",
       filename: "design_preview.py",

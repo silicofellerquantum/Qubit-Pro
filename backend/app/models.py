@@ -91,6 +91,7 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.engineer)
     organization: Mapped[str] = mapped_column(String(120), default="Independent")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_premium: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
@@ -108,6 +109,16 @@ class User(Base):
     # ── Teams / Licensing ─────────────────────────────────────────────────────
     licenses_purchased: Mapped[int] = mapped_column(Integer, default=1)
     team_owner_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # OAuth fields
+    oauth_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    oauth_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Verification & OTP fields
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_otp: Mapped[str | None] = mapped_column(String(6), nullable=True)
+    otp_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    otp_attempts: Mapped[int] = mapped_column(Integer, default=0)
 
     projects: Mapped[list["Project"]] = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
     chat_history: Mapped[list["ChatHistory"]] = relationship("ChatHistory", back_populates="user", cascade="all, delete-orphan")
@@ -298,3 +309,28 @@ class ChatHistory(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     user: Mapped["User"] = relationship("User", back_populates="chat_history")
+
+
+# ── Feature Usage Gating ──────────────────────────────────────────────────────
+
+class FeatureKey(str, PyEnum):
+    download_svg = "download_svg"
+    download_png = "download_png"
+    download_jpeg = "download_jpeg"
+    download_code = "download_code"
+    run_code = "run_code"
+
+
+class UserFeatureUsage(Base):
+    __tablename__ = "user_feature_usages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    feature_key: Mapped[FeatureKey] = mapped_column(Enum(FeatureKey), nullable=False)
+    used_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "feature_key", name="uq_user_feature"),
+    )
+
+    user: Mapped["User"] = relationship("User")

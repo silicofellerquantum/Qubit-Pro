@@ -19,16 +19,16 @@ import type { EditorState, Selection } from "@/lib/editor/design-store";
 // components that don't have access to EditorState (e.g. drop-handling).
 export const CHIP_W_MM = 40.0;
 export const CHIP_H_MM = 40.0;
-export const CHIP_HALF_W = CHIP_W_MM / 2;   // ±20 mm
-export const CHIP_HALF_H = CHIP_H_MM / 2;   // ±20 mm
+export const CHIP_HALF_W = CHIP_W_MM / 2; // ±20 mm
+export const CHIP_HALF_H = CHIP_H_MM / 2; // ±20 mm
 
-export const MM_TO_PX = 80;   // pixels per mm at scale=1
-export const SCALE_MIN = 0.1;  // zoom out to see full chip
+export const MM_TO_PX = 80; // pixels per mm at scale=1
+export const SCALE_MIN = 0.1; // zoom out to see full chip
 export const SCALE_MAX = 10.0; // zoom in for fine detail
 
 // Ruler dimensions (px) — these are the sticky axis bars on the SVG edges
-export const RULER_B = 28;  // X-axis ruler height, anchored to bottom
-export const RULER_L = 36;  // Y-axis ruler width,  anchored to left
+export const RULER_B = 28; // X-axis ruler height, anchored to bottom
+export const RULER_L = 36; // Y-axis ruler width,  anchored to left
 
 const MAX_VIRTUAL_PAN = 50_000; // px — effectively infinite canvas
 
@@ -60,10 +60,7 @@ export interface CanvasViewport {
   RULER_L: number;
 }
 
-export function useCanvasViewport(
-  state: EditorState,
-  dispatch: Dispatch,
-): CanvasViewport {
+export function useCanvasViewport(state: EditorState, dispatch: Dispatch): CanvasViewport {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
@@ -80,13 +77,14 @@ export function useCanvasViewport(
     let raf = 0;
     const ro = new ResizeObserver(() => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() =>
-        setSize({ w: el.clientWidth, h: el.clientHeight }),
-      );
+      raf = requestAnimationFrame(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
     });
     ro.observe(el);
     setSize({ w: el.clientWidth, h: el.clientHeight });
-    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   // ── Scale ────────────────────────────────────────────────────────────────
@@ -95,10 +93,7 @@ export function useCanvasViewport(
   const baseScale = useMemo(() => {
     const usableW = size.w - RULER_L;
     const usableH = size.h - RULER_B;
-    return Math.max(0.01, Math.min(
-      usableW / (chipW * MM_TO_PX),
-      usableH / (chipH * MM_TO_PX),
-    ));
+    return Math.max(0.01, Math.min(usableW / (chipW * MM_TO_PX), usableH / (chipH * MM_TO_PX)));
   }, [size.w, size.h, chipW, chipH]);
 
   const scale = baseScale * state.zoom;
@@ -152,15 +147,15 @@ export function useCanvasViewport(
     }
     const xs = state.placements.map((p: Placement) => p.x);
     const ys = state.placements.map((p: Placement) => p.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const minX = Math.min(...xs),
+      maxX = Math.max(...xs);
+    const minY = Math.min(...ys),
+      maxY = Math.max(...ys);
     const padding = 1.5;
     const contentW = (maxX - minX + 2 * padding) * MM_TO_PX;
     const contentH = (maxY - minY + 2 * padding) * MM_TO_PX;
-    const newZoom = Math.min(
-      (size.w - RULER_L) / contentW,
-      (size.h - RULER_B) / contentH,
-    ) / baseScale;
+    const newZoom =
+      Math.min((size.w - RULER_L) / contentW, (size.h - RULER_B) / contentH) / baseScale;
     const clampedZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, newZoom));
     const k = MM_TO_PX * baseScale * clampedZoom;
     dispatch({ type: "ZOOM", zoom: clampedZoom });
@@ -181,28 +176,47 @@ export function useCanvasViewport(
       fitToContent();
       return;
     }
-    const xs: number[] = [], ys: number[] = [];
-    selPlacements.forEach((p: Placement) => { xs.push(p.x); ys.push(p.y); });
+    const xs: number[] = [],
+      ys: number[] = [];
+    selPlacements.forEach((p: Placement) => {
+      xs.push(p.x);
+      ys.push(p.y);
+    });
     selConnections.forEach((c: Connection) => {
       const a = state.placements.find((p: Placement) => p.id === c.from.placementId);
       const b = state.placements.find((p: Placement) => p.id === c.to.placementId);
-      if (a) { xs.push(a.x); ys.push(a.y); }
-      if (b) { xs.push(b.x); ys.push(b.y); }
+      if (a) {
+        xs.push(a.x);
+        ys.push(a.y);
+      }
+      if (b) {
+        xs.push(b.x);
+        ys.push(b.y);
+      }
     });
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const minX = Math.min(...xs),
+      maxX = Math.max(...xs);
+    const minY = Math.min(...ys),
+      maxY = Math.max(...ys);
     const padding = 1.5;
     const contentW = (maxX - minX + 2 * padding) * MM_TO_PX;
     const contentH = (maxY - minY + 2 * padding) * MM_TO_PX;
-    const newZoom = Math.min(
-      (size.w - RULER_L) / contentW,
-      (size.h - RULER_B) / contentH,
-    ) / baseScale;
+    const newZoom =
+      Math.min((size.w - RULER_L) / contentW, (size.h - RULER_B) / contentH) / baseScale;
     const clampedZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, newZoom));
     const k = MM_TO_PX * baseScale * clampedZoom;
     dispatch({ type: "ZOOM", zoom: clampedZoom });
     dispatch({ type: "PAN", x: -((minX + maxX) / 2) * k, y: ((minY + maxY) / 2) * k });
-  }, [state.selection, state.placements, state.connections, size.w, size.h, baseScale, dispatch, fitToContent]);
+  }, [
+    state.selection,
+    state.placements,
+    state.connections,
+    size.w,
+    size.h,
+    baseScale,
+    dispatch,
+    fitToContent,
+  ]);
 
   // ── Adaptive ruler tick generation ───────────────────────────────────────
   // Step size adapts to zoom so we never emit thousands of ticks.
@@ -211,7 +225,8 @@ export function useCanvasViewport(
     const ticks: { value: number; px: number; type: "major" | "half" | "minor" }[] = [];
     const pxPerMm = MM_TO_PX * scale;
     const step = pxPerMm >= 60 ? 0.5 : pxPerMm >= 20 ? 1 : pxPerMm >= 8 ? 2 : pxPerMm >= 3 ? 5 : 10;
-    const majorStep = pxPerMm >= 60 ? 1 : pxPerMm >= 20 ? 5 : pxPerMm >= 8 ? 10 : pxPerMm >= 3 ? 10 : 20;
+    const majorStep =
+      pxPerMm >= 60 ? 1 : pxPerMm >= 20 ? 5 : pxPerMm >= 8 ? 10 : pxPerMm >= 3 ? 10 : 20;
 
     // World x range visible between the left ruler and the right edge
     const visLeft = (RULER_L - cx) / (MM_TO_PX * scale);
@@ -234,7 +249,8 @@ export function useCanvasViewport(
     const ticks: { value: number; py: number; type: "major" | "half" | "minor" }[] = [];
     const pxPerMm = MM_TO_PX * scale;
     const step = pxPerMm >= 60 ? 0.5 : pxPerMm >= 20 ? 1 : pxPerMm >= 8 ? 2 : pxPerMm >= 3 ? 5 : 10;
-    const majorStep = pxPerMm >= 60 ? 1 : pxPerMm >= 20 ? 5 : pxPerMm >= 8 ? 10 : pxPerMm >= 3 ? 10 : 20;
+    const majorStep =
+      pxPerMm >= 60 ? 1 : pxPerMm >= 20 ? 5 : pxPerMm >= 8 ? 10 : pxPerMm >= 3 ? 10 : 20;
 
     // World y range visible between top and the bottom ruler
     const visTop = -(0 - cy) / (MM_TO_PX * scale);
@@ -254,13 +270,28 @@ export function useCanvasViewport(
   }, [cy, scale, size.h, usableH]);
 
   return {
-    size, containerRef, svgRef,
-    panDrag, setPanDrag,
-    cx, cy, scale, baseScale,
-    bw, bh, left, right, top, bottom,
-    w2s, s2w,
-    fitToContent, zoomToSelection,
-    hTicks, vTicks,
-    RULER_B, RULER_L,
+    size,
+    containerRef,
+    svgRef,
+    panDrag,
+    setPanDrag,
+    cx,
+    cy,
+    scale,
+    baseScale,
+    bw,
+    bh,
+    left,
+    right,
+    top,
+    bottom,
+    w2s,
+    s2w,
+    fitToContent,
+    zoomToSelection,
+    hTicks,
+    vTicks,
+    RULER_B,
+    RULER_L,
   };
 }

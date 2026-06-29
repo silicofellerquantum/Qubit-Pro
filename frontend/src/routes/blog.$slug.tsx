@@ -299,23 +299,15 @@ function BlogPostPage() {
       </header>
 
       {/* Article Content */}
-      <article className="blog-content-body mt-10">
-        {post.content}
-      </article>
+      <article className="blog-content-body mt-10">{post.content}</article>
 
       {/* Author Profiles */}
       {post.authorProfile && (
-        <section className="author-card-section">
-          {post.authorProfile}
-        </section>
+        <section className="author-card-section">{post.authorProfile}</section>
       )}
 
       {/* Comments / Discussion Thread */}
-      {post.comments && (
-        <section className="discussion-section">
-          {post.comments}
-        </section>
-      )}
+      {post.comments && <section className="discussion-section">{post.comments}</section>}
     </main>
   );
 }

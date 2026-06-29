@@ -74,6 +74,7 @@ async def run_verification_endpoint(
     )
     db.add(report)
     await db.flush()
+    await db.commit()
 
     return _report_out(report)
 

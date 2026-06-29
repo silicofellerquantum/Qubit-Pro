@@ -19,9 +19,9 @@ export function HeroSection({ onNavigate, className }: HeroSectionProps) {
       </h1>
       <p className="lead m-0 mb-8 text-[18px] md:text-[22px] leading-[1.7] text-[var(--muted)] max-w-[920px]">
         QClang is a domain-specific hardware description language (QHDL) designed for modeling,
-        synthesizing, and verifying superconducting quantum chip architectures. The compiler translates
-        declarative chip layouts into design graphs, runs Design Rule Checking (DRC), and generates exports
-        for Qiskit Metal, GDS layouts, and SPICE-level simulations.
+        synthesizing, and verifying superconducting quantum chip architectures. The compiler
+        translates declarative chip layouts into design graphs, runs Design Rule Checking (DRC), and
+        generates exports for Qiskit Metal, GDS layouts, and SPICE-level simulations.
       </p>
 
       <div className="hero-actions flex flex-wrap gap-3.5 mb-9">

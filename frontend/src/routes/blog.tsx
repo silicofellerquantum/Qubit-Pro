@@ -11,19 +11,19 @@ export const Route = createFileRoute("/blog")({
 });
 
 const BLOG_NAV = [
-  { label: "About Us",      href: "/#about" },
-  { label: "Technology",    href: "/#technology" },
-  { label: "Features",      href: "/#features" },
+  { label: "About Us", href: "/#about" },
+  { label: "Technology", href: "/#technology" },
+  { label: "Features", href: "/#features" },
   { label: "Documentation", href: "/documentation" },
-  { label: "Community",     href: "/community" },
-  { label: "Blog",          href: "/blog" },
-  { label: "Team",          href: "/our-team" },
-  { label: "Contact",       href: "/#contact" },
+  { label: "Community", href: "/community" },
+  { label: "Blog", href: "/blog" },
+  { label: "Team", href: "/our-team" },
+  { label: "Contact", href: "/#contact" },
 ];
 
 function BlogLayout() {
   const { user } = useAuth();
-  const [scrolled, setScrolled]     = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -35,13 +35,17 @@ function BlogLayout() {
   // Body scroll lock
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [mobileOpen]);
 
   // ESC to close
   useEffect(() => {
     if (!mobileOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileOpen]);
@@ -69,7 +73,10 @@ function BlogLayout() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden items-center gap-7 text-sm text-foreground/65 md:flex" aria-label="Main navigation">
+          <nav
+            className="hidden items-center gap-7 text-sm text-foreground/65 md:flex"
+            aria-label="Main navigation"
+          >
             {BLOG_NAV.map((item) => (
               <a
                 key={item.label}
@@ -88,20 +95,36 @@ function BlogLayout() {
             <div className="hidden md:flex items-center gap-2">
               {user ? (
                 <>
-                  <Button asChild variant="ghost" className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-black/5">
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-black/5"
+                  >
                     <Link to="/dashboard">Dashboard</Link>
                   </Button>
-                  <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
+                  <Button
+                    asChild
+                    className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
+                  >
                     <Link to="/schematic-editor">Open designer</Link>
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button asChild variant="ghost" className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-black/5">
+                  <Button
+                    asChild
+                    variant="ghost"
+                    className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-black/5"
+                  >
                     <Link to="/sign-in">Sign in</Link>
                   </Button>
-                  <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
-                    <Link to="/sign-up">Sign up <ArrowRight className="ml-1 h-4 w-4" /></Link>
+                  <Button
+                    asChild
+                    className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
+                  >
+                    <Link to="/sign-up">
+                      Sign up <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
                   </Button>
                 </>
               )}
@@ -118,11 +141,23 @@ function BlogLayout() {
             >
               <AnimatePresence mode="wait" initial={false}>
                 {mobileOpen ? (
-                  <motion.span key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                  <motion.span
+                    key="close"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
                     <X className="h-5 w-5" />
                   </motion.span>
                 ) : (
-                  <motion.span key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}>
+                  <motion.span
+                    key="open"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
                     <Menu className="h-5 w-5" />
                   </motion.span>
                 )}
@@ -138,7 +173,9 @@ function BlogLayout() {
           <>
             <motion.div
               key="backdrop"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="md:hidden fixed inset-0 top-[64px] z-40 bg-black/30 backdrop-blur-[2px]"
               aria-hidden
@@ -150,13 +187,20 @@ function BlogLayout() {
               role="dialog"
               aria-modal="true"
               aria-label="Mobile navigation"
-              initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
               className="md:hidden fixed inset-x-0 top-[64px] z-50 max-h-[calc(100svh-64px)] overflow-y-auto bg-[#E8E6DE] shadow-xl pb-safe"
             >
               <nav className="flex flex-col px-4 sm:px-6 pt-2 pb-8" aria-label="Mobile navigation">
                 {BLOG_NAV.map((item, i) => (
-                  <motion.div key={item.label} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04, duration: 0.2 }}>
+                  <motion.div
+                    key={item.label}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.04, duration: 0.2 }}
+                  >
                     <a
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
@@ -168,22 +212,47 @@ function BlogLayout() {
                     </a>
                   </motion.div>
                 ))}
-                <motion.div className="mt-6 flex flex-col gap-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: BLOG_NAV.length * 0.04 + 0.05 }}>
+                <motion.div
+                  className="mt-6 flex flex-col gap-3"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: BLOG_NAV.length * 0.04 + 0.05 }}
+                >
                   {user ? (
                     <>
-                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
-                        <Link to="/dashboard" onClick={() => setMobileOpen(false)}>Dashboard</Link>
+                      <Button
+                        variant="ghost"
+                        asChild
+                        className="w-full h-12 rounded-full border border-black/15 text-sm font-medium"
+                      >
+                        <Link to="/dashboard" onClick={() => setMobileOpen(false)}>
+                          Dashboard
+                        </Link>
                       </Button>
-                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
-                        <Link to="/schematic-editor" onClick={() => setMobileOpen(false)}>Open designer</Link>
+                      <Button
+                        asChild
+                        className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90"
+                      >
+                        <Link to="/schematic-editor" onClick={() => setMobileOpen(false)}>
+                          Open designer
+                        </Link>
                       </Button>
                     </>
                   ) : (
                     <>
-                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
-                        <Link to="/sign-in" onClick={() => setMobileOpen(false)}>Sign in</Link>
+                      <Button
+                        variant="ghost"
+                        asChild
+                        className="w-full h-12 rounded-full border border-black/15 text-sm font-medium"
+                      >
+                        <Link to="/sign-in" onClick={() => setMobileOpen(false)}>
+                          Sign in
+                        </Link>
                       </Button>
-                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                      <Button
+                        asChild
+                        className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90"
+                      >
                         <Link to="/sign-up" onClick={() => setMobileOpen(false)}>
                           Sign up <ArrowRight className="ml-1 h-4 w-4" />
                         </Link>

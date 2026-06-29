@@ -64,10 +64,17 @@ class Base(DeclarativeBase):
 # ---------------------------------------------------------------------------
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Provide a DB session. Endpoints that do writes MUST call await db.commit()
+    themselves. This dependency will attempt to commit any remaining work and
+    rollback on unhandled exceptions.
+    """
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
+            # Commit any uncommitted work (no-op if endpoint already committed)
+            if session.in_transaction():
+                await session.commit()
         except Exception:
             await session.rollback()
             raise
@@ -98,6 +105,8 @@ async def init_db() -> None:
                         hashed_password=hash_password("password"),
                         role=UserRole.admin,
                         organization="Silicofeller Labs",
+                        is_verified=True,
+                        is_premium=True,
                     ),
                     User(
                         id="u_org_manager",
@@ -106,6 +115,8 @@ async def init_db() -> None:
                         hashed_password=hash_password("password"),
                         role=UserRole.org_manager,
                         organization="Quantum Labs",
+                        is_verified=True,
+                        is_premium=True,
                     ),
                     User(
                         id="u_engineer",
@@ -114,6 +125,8 @@ async def init_db() -> None:
                         hashed_password=hash_password("password"),
                         role=UserRole.engineer,
                         organization="Quantum Labs",
+                        is_verified=True,
+                        is_premium=False,
                     ),
                 ]
                 session.add_all(demo_users)

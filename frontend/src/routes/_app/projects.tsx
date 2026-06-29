@@ -5,17 +5,53 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Plus, Cpu, Search, Trash2, MoreHorizontal, FolderOpen,
-  FlaskConical, Layers, Calendar, ArrowRight, Loader2,
-  Sparkles, CircuitBoard, CheckCircle2, Clock, Network,
-  Edit3, Check, X, Save, AlertTriangle, Upload, BookOpen, FileCode,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Plus,
+  Cpu,
+  Search,
+  Trash2,
+  MoreHorizontal,
+  FolderOpen,
+  FlaskConical,
+  Layers,
+  Calendar,
+  ArrowRight,
+  Loader2,
+  Sparkles,
+  CircuitBoard,
+  CheckCircle2,
+  Clock,
+  Network,
+  Edit3,
+  Check,
+  X,
+  Save,
+  AlertTriangle,
+  Upload,
+  BookOpen,
+  FileCode,
 } from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { deleteProject, updateProject, fetchSimulations, createProject, type Project } from "@/lib/api/backend";
+import {
+  deleteProject,
+  updateProject,
+  fetchSimulations,
+  createProject,
+  type Project,
+} from "@/lib/api/backend";
 import { useProject } from "@/lib/project-context";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -25,7 +61,16 @@ export const Route = createFileRoute("/_app/projects")({
   component: ProjectsPage,
 });
 
-const TOPOLOGY_OPTIONS = ["custom", "heavy-hex", "surface-code", "grid", "ring", "chain", "star", "all-to-all"];
+const TOPOLOGY_OPTIONS = [
+  "custom",
+  "heavy-hex",
+  "surface-code",
+  "grid",
+  "ring",
+  "chain",
+  "star",
+  "all-to-all",
+];
 
 // ── Chip Templates ────────────────────────────────────────────────────────────
 
@@ -91,7 +136,8 @@ function ChipSchematicMini({ topology, numQubits }: { topology: string; numQubit
     }
   } else if (topo === "ring") {
     const r = 35;
-    const cx = 130, cy = 60;
+    const cx = 130,
+      cy = 60;
     for (let i = 0; i < n; i++) {
       const angle = (2 * Math.PI * i) / n;
       positions.push({
@@ -124,7 +170,8 @@ function ChipSchematicMini({ topology, numQubits }: { topology: string; numQubit
   }
 
   const edges: { x1: number; y1: number; x2: number; y2: number }[] = [];
-  const maxDist = topo === "chain" ? 240 / n + 10 : topo === "ring" ? (2 * Math.PI * 35) / n + 10 : 45;
+  const maxDist =
+    topo === "chain" ? 240 / n + 10 : topo === "ring" ? (2 * Math.PI * 35) / n + 10 : 45;
 
   for (let i = 0; i < positions.length; i++) {
     for (let j = i + 1; j < positions.length; j++) {
@@ -145,7 +192,7 @@ function ChipSchematicMini({ topology, numQubits }: { topology: string; numQubit
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#gridPattern)" />
-      
+
       {edges.map((e, idx) => (
         <line
           key={idx}
@@ -170,9 +217,14 @@ function ChipSchematicMini({ topology, numQubits }: { topology: string; numQubit
 
 // ── Create custom project modal ───────────────────────────────────────────────
 
-function CreateModal({ onClose, onCreate }: {
+function CreateModal({
+  onClose,
+  onCreate,
+}: {
   onClose: () => void;
-  onCreate: (data: Parameters<ReturnType<typeof useProject>["createAndActivate"]>[0]) => Promise<unknown>;
+  onCreate: (
+    data: Parameters<ReturnType<typeof useProject>["createAndActivate"]>[0],
+  ) => Promise<unknown>;
 }) {
   const [name, setName] = useState("");
   const [topology, setTopology] = useState("heavy-hex");
@@ -203,7 +255,9 @@ function CreateModal({ onClose, onCreate }: {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 8 }}
@@ -222,7 +276,10 @@ function CreateModal({ onClose, onCreate }: {
                 <p className="text-xs text-slate-500">Define your quantum chip parameters</p>
               </div>
             </div>
-            <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer">
+            <button
+              onClick={onClose}
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -230,81 +287,132 @@ function CreateModal({ onClose, onCreate }: {
 
         <div className="p-6 space-y-4">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Project Name *</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Project Name *
+            </p>
             <Input
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               placeholder="e.g. IBM_Style_64Q"
               className="rounded-xl text-sm border-slate-200"
               autoFocus
-              onKeyDown={e => e.key === "Enter" && handleCreate()}
+              onKeyDown={(e) => e.key === "Enter" && handleCreate()}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Topology</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                Topology
+              </p>
               <Select value={topology} onValueChange={setTopology}>
                 <SelectTrigger className="rounded-xl text-xs h-9 border-slate-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TOPOLOGY_OPTIONS.map(t => (
-                    <SelectItem key={t} value={t} className="text-xs capitalize">{t.replace("-", " ")}</SelectItem>
+                  {TOPOLOGY_OPTIONS.map((t) => (
+                    <SelectItem key={t} value={t} className="text-xs capitalize">
+                      {t.replace("-", " ")}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Target Qubits</p>
-              <Input value={qubits} onChange={e => setQubits(e.target.value)} type="number" min={1} max={512} className="rounded-xl text-xs h-9 border-slate-200" />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                Target Qubits
+              </p>
+              <Input
+                value={qubits}
+                onChange={(e) => setQubits(e.target.value)}
+                type="number"
+                min={1}
+                max={512}
+                className="rounded-xl text-xs h-9 border-slate-200"
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Target Freq (GHz)</p>
-              <Input value={freq} onChange={e => setFreq(e.target.value)} type="number" step={0.1} className="rounded-xl text-xs h-9 border-slate-200" />
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                Target Freq (GHz)
+              </p>
+              <Input
+                value={freq}
+                onChange={(e) => setFreq(e.target.value)}
+                type="number"
+                step={0.1}
+                className="rounded-xl text-xs h-9 border-slate-200"
+              />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Technology</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                Technology
+              </p>
               <Select value={substrate} onValueChange={setSubstrate}>
                 <SelectTrigger className="rounded-xl text-xs h-9 border-slate-200">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="silicon" className="text-xs">Silicon</SelectItem>
-                  <SelectItem value="sapphire" className="text-xs">Sapphire</SelectItem>
-                  <SelectItem value="silicon_nitride" className="text-xs">SiN</SelectItem>
+                  <SelectItem value="silicon" className="text-xs">
+                    Silicon
+                  </SelectItem>
+                  <SelectItem value="sapphire" className="text-xs">
+                    Sapphire
+                  </SelectItem>
+                  <SelectItem value="silicon_nitride" className="text-xs">
+                    SiN
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Metal Layer</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+              Metal Layer
+            </p>
             <Select value={metal} onValueChange={setMetal}>
               <SelectTrigger className="rounded-xl text-xs h-9 border-slate-200">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="aluminum"  className="text-xs">Aluminum (Al) — Standard</SelectItem>
-                <SelectItem value="niobium"   className="text-xs">Niobium (Nb) — High Tc</SelectItem>
-                <SelectItem value="tantalum"  className="text-xs">Tantalum (Ta) — Best T₁</SelectItem>
-                <SelectItem value="nbtin"     className="text-xs">NbTiN — High KI</SelectItem>
+                <SelectItem value="aluminum" className="text-xs">
+                  Aluminum (Al) — Standard
+                </SelectItem>
+                <SelectItem value="niobium" className="text-xs">
+                  Niobium (Nb) — High Tc
+                </SelectItem>
+                <SelectItem value="tantalum" className="text-xs">
+                  Tantalum (Ta) — Best T₁
+                </SelectItem>
+                <SelectItem value="nbtin" className="text-xs">
+                  NbTiN — High KI
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
 
         <div className="px-6 pb-6 flex gap-2">
-          <Button onClick={onClose} variant="outline" className="flex-1 rounded-xl text-sm font-bold h-10">Cancel</Button>
+          <Button
+            onClick={onClose}
+            variant="outline"
+            className="flex-1 rounded-xl text-sm font-bold h-10"
+          >
+            Cancel
+          </Button>
           <Button
             onClick={handleCreate}
             disabled={saving || !name.trim()}
             className="flex-1 rounded-xl bg-accent text-white text-sm font-bold h-10"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Plus className="h-4 w-4 mr-1.5" />}
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+            ) : (
+              <Plus className="h-4 w-4 mr-1.5" />
+            )}
             Create Project
           </Button>
         </div>
@@ -315,9 +423,14 @@ function CreateModal({ onClose, onCreate }: {
 
 // ── Templates Modal ──────────────────────────────────────────────────────────
 
-function TemplatesModal({ onClose, onCreate }: {
+function TemplatesModal({
+  onClose,
+  onCreate,
+}: {
   onClose: () => void;
-  onCreate: (data: Parameters<ReturnType<typeof useProject>["createAndActivate"]>[0]) => Promise<unknown>;
+  onCreate: (
+    data: Parameters<ReturnType<typeof useProject>["createAndActivate"]>[0],
+  ) => Promise<unknown>;
 }) {
   const [creating, setCreating] = useState<string | null>(null);
 
@@ -347,7 +460,9 @@ function TemplatesModal({ onClose, onCreate }: {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 8 }}
@@ -362,16 +477,21 @@ function TemplatesModal({ onClose, onCreate }: {
             </div>
             <div>
               <h2 className="text-base font-black text-slate-900">Quantum QPU Templates</h2>
-              <p className="text-xs text-slate-500 font-semibold">Select a predefined architecture to instantiate instantly</p>
+              <p className="text-xs text-slate-500 font-semibold">
+                Select a predefined architecture to instantiate instantly
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer">
+          <button
+            onClick={onClose}
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto bg-slate-50/30">
-          {TEMPLATES.map(tpl => (
+          {TEMPLATES.map((tpl) => (
             <div
               key={tpl.name}
               className="border border-slate-200 rounded-2xl p-4 bg-white hover:border-accent hover:shadow-md transition-all flex flex-col justify-between group cursor-pointer"
@@ -379,24 +499,43 @@ function TemplatesModal({ onClose, onCreate }: {
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-slate-900 text-sm group-hover:text-accent transition-colors">{tpl.name}</h3>
+                  <h3 className="font-bold text-slate-900 text-sm group-hover:text-accent transition-colors">
+                    {tpl.name}
+                  </h3>
                   <Badge className="bg-slate-50 text-slate-600 border border-slate-200 capitalize text-[9px] font-bold">
                     {tpl.topology.replace("-", " ")}
                   </Badge>
                 </div>
                 <p className="text-[11px] text-slate-500 leading-normal mb-3">{tpl.description}</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-slate-400 font-medium">
-                  <div>Qubits: <span className="text-slate-700 font-bold">{tpl.num_qubits}</span></div>
-                  <div>Freq: <span className="text-slate-700 font-bold">{tpl.target_frequency_ghz} GHz</span></div>
-                  <div>Substrate: <span className="text-slate-700 font-bold capitalize">{tpl.substrate_material}</span></div>
-                  <div>Metal: <span className="text-slate-700 font-bold capitalize">{tpl.metal_layer}</span></div>
+                  <div>
+                    Qubits: <span className="text-slate-700 font-bold">{tpl.num_qubits}</span>
+                  </div>
+                  <div>
+                    Freq:{" "}
+                    <span className="text-slate-700 font-bold">{tpl.target_frequency_ghz} GHz</span>
+                  </div>
+                  <div>
+                    Substrate:{" "}
+                    <span className="text-slate-700 font-bold capitalize">
+                      {tpl.substrate_material}
+                    </span>
+                  </div>
+                  <div>
+                    Metal:{" "}
+                    <span className="text-slate-700 font-bold capitalize">{tpl.metal_layer}</span>
+                  </div>
                 </div>
               </div>
               <Button
                 disabled={creating !== null}
                 className="w-full mt-4 rounded-xl text-xs font-bold h-8 bg-slate-50 text-slate-700 group-hover:bg-accent group-hover:text-white transition-colors"
               >
-                {creating === tpl.name ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Instantiate Template"}
+                {creating === tpl.name ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  "Instantiate Template"
+                )}
               </Button>
             </div>
           ))}
@@ -408,7 +547,15 @@ function TemplatesModal({ onClose, onCreate }: {
 
 // ── Project Card ──────────────────────────────────────────────────────────────
 
-function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplicate, simulationsCount }: {
+function ProjectCard({
+  project,
+  isActive,
+  onActivate,
+  onDelete,
+  onEdit,
+  onDuplicate,
+  simulationsCount,
+}: {
   project: Project;
   isActive: boolean;
   onActivate: () => void;
@@ -424,7 +571,10 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
     navigate({ to: routePath });
   };
 
-  const isSuperconducting = project.substrate_material === "silicon" || project.substrate_material === "sapphire" || project.substrate_material === "silicon_nitride";
+  const isSuperconducting =
+    project.substrate_material === "silicon" ||
+    project.substrate_material === "sapphire" ||
+    project.substrate_material === "silicon_nitride";
   const techLabel = isSuperconducting ? "Superconducting" : "Semiconductor Spin";
 
   // Health Status Badge
@@ -442,16 +592,18 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
   }
 
   return (
-    <Card className={cn(
-      "rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-200 group overflow-hidden flex flex-col justify-between h-full cursor-pointer",
-      isActive ? "border-accent ring-1 ring-accent/20" : "border-slate-200"
-    )}
-    onClick={() => openRoute("/schematic-editor")}>
+    <Card
+      className={cn(
+        "rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all duration-200 group overflow-hidden flex flex-col justify-between h-full cursor-pointer",
+        isActive ? "border-accent ring-1 ring-accent/20" : "border-slate-200",
+      )}
+      onClick={() => openRoute("/schematic-editor")}
+    >
       <div>
         {/* Layout Preview Thumbnail with overlay badges */}
         <div className="h-[120px] w-full overflow-hidden border-b border-slate-100 relative bg-slate-50/50">
           <ChipSchematicMini topology={project.topology} numQubits={project.num_qubits} />
-          
+
           {/* Active status badge */}
           {isActive && (
             <div className="absolute top-2 left-2 z-10">
@@ -463,7 +615,12 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
 
           {/* Health Status badge */}
           <div className="absolute top-2 right-2 z-10">
-            <Badge className={cn("rounded-full text-[9px] font-bold px-2 py-0.5 border shadow-sm flex items-center gap-1", healthColor)}>
+            <Badge
+              className={cn(
+                "rounded-full text-[9px] font-bold px-2 py-0.5 border shadow-sm flex items-center gap-1",
+                healthColor,
+              )}
+            >
               <HealthIcon className="h-2.5 w-2.5" />
               {healthLabel}
             </Badge>
@@ -484,9 +641,10 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button 
+                <button
                   onClick={(e) => e.stopPropagation()}
-                  className="h-6 w-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer">
+                  className="h-6 w-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
                   <MoreHorizontal className="h-4 w-4" />
                 </button>
               </DropdownMenuTrigger>
@@ -501,7 +659,10 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
                   <Edit3 className="mr-2 h-3.5 w-3.5 text-slate-400" /> Rename
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-xs text-rose-600 cursor-pointer" onClick={onDelete}>
+                <DropdownMenuItem
+                  className="text-xs text-rose-600 cursor-pointer"
+                  onClick={onDelete}
+                >
                   <Trash2 className="mr-2 h-3.5 w-3.5 text-slate-400" /> Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -516,7 +677,9 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400 font-medium">Topology</span>
-              <span className="font-bold text-slate-800 capitalize">{project.topology.replace("-", " ")}</span>
+              <span className="font-bold text-slate-800 capitalize">
+                {project.topology.replace("-", " ")}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400 font-medium">Qubits</span>
@@ -537,7 +700,11 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
             <div className="flex justify-between">
               <span className="text-slate-400 font-medium">Updated</span>
               <span className="font-semibold text-slate-600">
-                {new Date(project.updated_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                {new Date(project.updated_at).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
               </span>
             </div>
           </div>
@@ -546,25 +713,43 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
           <div className="space-y-1.5 text-[11px] font-semibold text-slate-700">
             <div className="flex justify-between items-center">
               <span>Schematic</span>
-              <span className={project.num_qubits > 0 ? "text-emerald-600 font-bold" : "text-slate-300 font-bold"}>
+              <span
+                className={
+                  project.num_qubits > 0 ? "text-emerald-600 font-bold" : "text-slate-300 font-bold"
+                }
+              >
                 {project.num_qubits > 0 ? "✓" : "○"}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span>Layout</span>
-              <span className={project.has_design ? "text-emerald-600 font-bold" : "text-slate-300 font-bold"}>
+              <span
+                className={
+                  project.has_design ? "text-emerald-600 font-bold" : "text-slate-300 font-bold"
+                }
+              >
                 {project.has_design ? "✓" : "○"}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span>Verification</span>
-              <span className={project.status === "completed" ? "text-emerald-600 font-bold" : "text-slate-300 font-bold"}>
+              <span
+                className={
+                  project.status === "completed"
+                    ? "text-emerald-600 font-bold"
+                    : "text-slate-300 font-bold"
+                }
+              >
                 {project.status === "completed" ? "✓" : "○"}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span>Simulation</span>
-              <span className={simulationsCount > 0 ? "text-emerald-600 font-bold" : "text-slate-300 font-bold"}>
+              <span
+                className={
+                  simulationsCount > 0 ? "text-emerald-600 font-bold" : "text-slate-300 font-bold"
+                }
+              >
                 {simulationsCount > 0 ? "✓" : "○"}
               </span>
             </div>
@@ -605,7 +790,14 @@ function ProjectCard({ project, isActive, onActivate, onDelete, onEdit, onDuplic
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 function ProjectsPage() {
-  const { projects, activeProject, setActiveProject, refreshProjects, createAndActivate, backendOnline } = useProject();
+  const {
+    projects,
+    activeProject,
+    setActiveProject,
+    refreshProjects,
+    createAndActivate,
+    backendOnline,
+  } = useProject();
   const [search, setSearch] = useState("");
   const [filterTech, setFilterTech] = useState("all");
   const [filterTopology, setFilterTopology] = useState("all");
@@ -681,7 +873,7 @@ function ProjectsPage() {
       try {
         const content = event.target?.result as string;
         const parsed = JSON.parse(content);
-        
+
         if (!parsed.name) {
           toast.error("Import failed: JSON must contain a 'name' field");
           return;
@@ -707,31 +899,40 @@ function ProjectsPage() {
   };
 
   // Combining filters
-  const filtered = projects.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-                          p.topology.toLowerCase().includes(search.toLowerCase());
-    
+  const filtered = projects.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.topology.toLowerCase().includes(search.toLowerCase());
+
     let matchesTech = true;
     if (filterTech !== "all") {
-      const isSuperconducting = p.substrate_material === "silicon" || p.substrate_material === "sapphire" || p.substrate_material === "silicon_nitride";
+      const isSuperconducting =
+        p.substrate_material === "silicon" ||
+        p.substrate_material === "sapphire" ||
+        p.substrate_material === "silicon_nitride";
       if (filterTech === "superconducting") matchesTech = isSuperconducting;
       else if (filterTech === "semiconductor") matchesTech = !isSuperconducting;
     }
 
-    const matchesTopology = filterTopology === "all" || p.topology.toLowerCase() === filterTopology.toLowerCase();
+    const matchesTopology =
+      filterTopology === "all" || p.topology.toLowerCase() === filterTopology.toLowerCase();
 
     let matchesStatus = true;
     if (filterStatus !== "all") {
       const stat = p.status.toLowerCase();
       if (filterStatus === "active") matchesStatus = stat === "active" || stat === "in_progress";
       else if (filterStatus === "draft") matchesStatus = stat === "draft";
-      else if (filterStatus === "released") matchesStatus = stat === "released" || stat === "completed";
+      else if (filterStatus === "released")
+        matchesStatus = stat === "released" || stat === "completed";
       else if (filterStatus === "archived") matchesStatus = stat === "archived";
     }
 
     let matchesOwner = true;
     if (filterOwner !== "all") {
-      const isSystem = p.name.toLowerCase().includes("copy") || p.name.toLowerCase().includes("templates") || p.id === "seeded-id";
+      const isSystem =
+        p.name.toLowerCase().includes("copy") ||
+        p.name.toLowerCase().includes("templates") ||
+        p.id === "seeded-id";
       if (filterOwner === "admin") matchesOwner = !isSystem;
       else if (filterOwner === "system") matchesOwner = isSystem;
     }
@@ -741,25 +942,23 @@ function ProjectsPage() {
 
   // Calculate statistics strip values
   const totalCount = projects.length;
-  const activeCount = projects.filter(p => p.status === 'active' || p.status === 'in_progress').length;
-  const draftCount = projects.filter(p => p.status === 'draft').length;
-  const releasedCount = projects.filter(p => p.status === 'released' || p.status === 'completed').length;
-  const archivedCount = projects.filter(p => p.status === 'archived').length;
+  const activeCount = projects.filter(
+    (p) => p.status === "active" || p.status === "in_progress",
+  ).length;
+  const draftCount = projects.filter((p) => p.status === "draft").length;
+  const releasedCount = projects.filter(
+    (p) => p.status === "released" || p.status === "completed",
+  ).length;
+  const archivedCount = projects.filter((p) => p.status === "archived").length;
 
   return (
     <div className="h-full overflow-y-auto bg-[#F8F9FB]">
       <AnimatePresence>
         {showCreate && (
-          <CreateModal
-            onClose={() => setShowCreate(false)}
-            onCreate={createAndActivate}
-          />
+          <CreateModal onClose={() => setShowCreate(false)} onCreate={createAndActivate} />
         )}
         {showTemplates && (
-          <TemplatesModal
-            onClose={() => setShowTemplates(false)}
-            onCreate={createAndActivate}
-          />
+          <TemplatesModal onClose={() => setShowTemplates(false)} onCreate={createAndActivate} />
         )}
       </AnimatePresence>
 
@@ -780,7 +979,11 @@ function ProjectsPage() {
               <h1 className="text-2xl font-black tracking-tight text-slate-900">Projects</h1>
               <p className="text-sm text-slate-500 mt-1">
                 Manage quantum processor design programs.
-                {!backendOnline && <span className="text-rose-600 ml-2 font-semibold">(offline — backend not running)</span>}
+                {!backendOnline && (
+                  <span className="text-rose-600 ml-2 font-semibold">
+                    (offline — backend not running)
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -814,7 +1017,7 @@ function ProjectsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <Input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search projects…"
               className="pl-8 rounded-xl text-xs h-9 border-slate-200"
             />
@@ -827,9 +1030,15 @@ function ProjectsPage() {
                 <SelectValue placeholder="Technology" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">All Technologies</SelectItem>
-                <SelectItem value="superconducting" className="text-xs">Superconducting</SelectItem>
-                <SelectItem value="semiconductor" className="text-xs">Semiconductor Spin</SelectItem>
+                <SelectItem value="all" className="text-xs">
+                  All Technologies
+                </SelectItem>
+                <SelectItem value="superconducting" className="text-xs">
+                  Superconducting
+                </SelectItem>
+                <SelectItem value="semiconductor" className="text-xs">
+                  Semiconductor Spin
+                </SelectItem>
               </SelectContent>
             </Select>
 
@@ -839,9 +1048,13 @@ function ProjectsPage() {
                 <SelectValue placeholder="Topology" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">All Topologies</SelectItem>
-                {TOPOLOGY_OPTIONS.map(t => (
-                  <SelectItem key={t} value={t} className="text-xs capitalize">{t.replace("-", " ")}</SelectItem>
+                <SelectItem value="all" className="text-xs">
+                  All Topologies
+                </SelectItem>
+                {TOPOLOGY_OPTIONS.map((t) => (
+                  <SelectItem key={t} value={t} className="text-xs capitalize">
+                    {t.replace("-", " ")}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -852,11 +1065,21 @@ function ProjectsPage() {
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
-                <SelectItem value="active" className="text-xs">Active</SelectItem>
-                <SelectItem value="draft" className="text-xs">Draft</SelectItem>
-                <SelectItem value="released" className="text-xs">Released</SelectItem>
-                <SelectItem value="archived" className="text-xs">Archived</SelectItem>
+                <SelectItem value="all" className="text-xs">
+                  All Statuses
+                </SelectItem>
+                <SelectItem value="active" className="text-xs">
+                  Active
+                </SelectItem>
+                <SelectItem value="draft" className="text-xs">
+                  Draft
+                </SelectItem>
+                <SelectItem value="released" className="text-xs">
+                  Released
+                </SelectItem>
+                <SelectItem value="archived" className="text-xs">
+                  Archived
+                </SelectItem>
               </SelectContent>
             </Select>
 
@@ -866,9 +1089,15 @@ function ProjectsPage() {
                 <SelectValue placeholder="Owner" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">All Owners</SelectItem>
-                <SelectItem value="admin" className="text-xs">Admin User</SelectItem>
-                <SelectItem value="system" className="text-xs">System / Seeded</SelectItem>
+                <SelectItem value="all" className="text-xs">
+                  All Owners
+                </SelectItem>
+                <SelectItem value="admin" className="text-xs">
+                  Admin User
+                </SelectItem>
+                <SelectItem value="system" className="text-xs">
+                  System / Seeded
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -916,10 +1145,17 @@ function ProjectsPage() {
             </p>
             {projects.length === 0 && (
               <div className="mt-4 flex justify-center gap-2">
-                <Button onClick={() => setShowCreate(true)} className="rounded-xl bg-accent text-white text-xs font-bold">
+                <Button
+                  onClick={() => setShowCreate(true)}
+                  className="rounded-xl bg-accent text-white text-xs font-bold"
+                >
                   <Plus className="h-3.5 w-3.5 mr-1.5" /> Create Project
                 </Button>
-                <Button onClick={() => setShowTemplates(true)} variant="outline" className="rounded-xl text-xs font-bold">
+                <Button
+                  onClick={() => setShowTemplates(true)}
+                  variant="outline"
+                  className="rounded-xl text-xs font-bold"
+                >
                   <BookOpen className="h-3.5 w-3.5 mr-1.5" /> Choose Template
                 </Button>
               </div>
@@ -939,16 +1175,28 @@ function ProjectsPage() {
                     <p className="text-xs font-bold text-slate-700 mb-2">Rename Project</p>
                     <Input
                       value={editName}
-                      onChange={e => setEditName(e.target.value)}
+                      onChange={(e) => setEditName(e.target.value)}
                       className="rounded-xl text-xs mb-2"
                       autoFocus
-                      onKeyDown={e => { if (e.key === "Enter") handleRename(p.id); if (e.key === "Escape") setEditingId(null); }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRename(p.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
                     />
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleRename(p.id)} className="rounded-lg bg-accent text-white text-xs flex-1">
+                      <Button
+                        size="sm"
+                        onClick={() => handleRename(p.id)}
+                        className="rounded-lg bg-accent text-white text-xs flex-1"
+                      >
                         <Check className="h-3 w-3 mr-1" /> Save
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingId(null)} className="rounded-lg text-xs">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingId(null)}
+                        className="rounded-lg text-xs"
+                      >
                         <X className="h-3 w-3" />
                       </Button>
                     </div>
@@ -959,9 +1207,12 @@ function ProjectsPage() {
                     isActive={activeProject?.id === p.id}
                     onActivate={() => setActiveProject(p)}
                     onDelete={() => handleDelete(p.id)}
-                    onEdit={() => { setEditingId(p.id); setEditName(p.name); }}
+                    onEdit={() => {
+                      setEditingId(p.id);
+                      setEditName(p.name);
+                    }}
                     onDuplicate={() => handleDuplicate(p)}
-                    simulationsCount={simulations.filter(s => s.project_id === p.id).length}
+                    simulationsCount={simulations.filter((s) => s.project_id === p.id).length}
                   />
                 )}
               </motion.div>

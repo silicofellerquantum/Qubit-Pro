@@ -53,8 +53,14 @@ const SIDEBAR_STRUCTURE: SidebarGroup[] = [
           { id: "material-sapphire-al2o3-substrate", label: "Sapphire (Al2O3) Substrate" },
           { id: "material-titanium-nitride-tin", label: "Titanium Nitride (TiN)" },
           { id: "material-niobium-nitride-nbn", label: "Niobium Nitride (NbN)" },
-          { id: "material-niobium-titanium-nitride-nbtin", label: "Niobium Titanium Nitride (NbTiN)" },
-          { id: "material-aluminum-oxide-alox-tunnel-barrier", label: "Aluminum Oxide (AlOx) Tunnel Barrier" },
+          {
+            id: "material-niobium-titanium-nitride-nbtin",
+            label: "Niobium Titanium Nitride (NbTiN)",
+          },
+          {
+            id: "material-aluminum-oxide-alox-tunnel-barrier",
+            label: "Aluminum Oxide (AlOx) Tunnel Barrier",
+          },
           { id: "material-molybdenum-rhenium-more", label: "Molybdenum Rhenium (MoRe)" },
           { id: "material-indium-in-bump-bonds", label: "Indium (In) Bump Bonds" },
           { id: "materials-summary", label: "Materials Summary" },
@@ -178,7 +184,10 @@ export function DocumentationSidebar({ activeHash, onNavigate }: DocumentationSi
   };
 
   return (
-    <aside className="sidebar sticky top-[132px] self-start max-h-[calc(100vh-142px)] overflow-y-auto pr-2 text-[var(--muted)]" aria-label="Documentation sections">
+    <aside
+      className="sidebar sticky top-[132px] self-start max-h-[calc(100vh-142px)] overflow-y-auto pr-2 text-[var(--muted)]"
+      aria-label="Documentation sections"
+    >
       {SIDEBAR_STRUCTURE.map((group, gIdx) => (
         <div key={gIdx} className="mb-6">
           <div className="side-title text-[var(--text)] font-bold text-sm tracking-wide uppercase mt-7.5 mb-2.5">
@@ -200,7 +209,7 @@ export function DocumentationSidebar({ activeHash, onNavigate }: DocumentationSi
                       aria-expanded={isExpanded}
                       className={cn(
                         "side-parent flex items-center justify-between rounded-[14px] min-h-[46px] px-4 py-2 hover:bg-[#43c7d5]/10 hover:text-[var(--accent)] transition-all cursor-pointer",
-                        isExpanded ? "selected text-[var(--accent)] bg-[#43c7d5]/10" : ""
+                        isExpanded ? "selected text-[var(--accent)] bg-[#43c7d5]/10" : "",
                       )}
                     >
                       <span className="flex items-center gap-3 font-semibold">
@@ -209,7 +218,7 @@ export function DocumentationSidebar({ activeHash, onNavigate }: DocumentationSi
                       <ChevronRight
                         className={cn(
                           "h-4 w-4 shrink-0 transition-transform duration-150 text-[var(--muted)]",
-                          isExpanded ? "rotate-90" : ""
+                          isExpanded ? "rotate-90" : "",
                         )}
                       />
                     </a>
@@ -228,7 +237,9 @@ export function DocumentationSidebar({ activeHash, onNavigate }: DocumentationSi
                               }}
                               className={cn(
                                 "side-child flex items-center gap-3 rounded-[10px] min-h-[34px] ml-[28px] pl-3.5 pr-3 text-[14px] hover:text-[var(--accent)] transition-colors cursor-pointer",
-                                isChildSelected ? "selected text-[var(--accent)] font-bold" : "text-[var(--muted)]"
+                                isChildSelected
+                                  ? "selected text-[var(--accent)] font-bold"
+                                  : "text-[var(--muted)]",
                               )}
                             >
                               <span className="truncate">{child.label}</span>
@@ -251,7 +262,7 @@ export function DocumentationSidebar({ activeHash, onNavigate }: DocumentationSi
                   }}
                   className={cn(
                     "flex items-center gap-3 rounded-[14px] min-h-[46px] px-4 py-2 hover:bg-[#43c7d5]/10 hover:text-[var(--accent)] transition-all cursor-pointer",
-                    isSelected ? "selected text-[var(--accent)] bg-[#43c7d5]/10 font-bold" : ""
+                    isSelected ? "selected text-[var(--accent)] bg-[#43c7d5]/10 font-bold" : "",
                   )}
                 >
                   <span>{item.label}</span>

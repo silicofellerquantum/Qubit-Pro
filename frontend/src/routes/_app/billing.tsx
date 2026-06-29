@@ -217,9 +217,7 @@ const TEST_PLANS = [
     designs: 3,
     accentClass: "text-blue-500",
     ringClass: "border-blue-500/60",
-    features: [
-      { icon: Layers, text: "Test payment USD" },
-    ],
+    features: [{ icon: Layers, text: "Test payment USD" }],
     cta: "Pay 2 USD",
     ctaVariant: "outline" as const,
   },
@@ -231,9 +229,7 @@ const TEST_PLANS = [
     designs: 3,
     accentClass: "text-orange-500",
     ringClass: "border-orange-500/60",
-    features: [
-      { icon: Layers, text: "Test payment INR" },
-    ],
+    features: [{ icon: Layers, text: "Test payment INR" }],
     cta: "Pay 2 INR",
     ctaVariant: "outline" as const,
     currency: "₹",
@@ -289,7 +285,8 @@ const CUSTOM_PLANS: {
     key: "onpremise",
     name: "On-Premise",
     price: { monthly: null, annual: null },
-    tagline: "Complete control and security on your servers. Contact us for custom volume discounts.",
+    tagline:
+      "Complete control and security on your servers. Contact us for custom volume discounts.",
     designs: 100,
     badge: "Maximum Security",
     accentClass: "text-slate-800 dark:text-slate-200",
@@ -355,12 +352,11 @@ function loadRazorpayScript(): Promise<boolean> {
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
-const API_BASE = ((import.meta.env.VITE_BACKEND_URL as string | undefined) ?? "http://localhost:5000").replace(/\/$/, "");
+const API_BASE = (
+  (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? "http://localhost:5000"
+).replace(/\/$/, "");
 
-async function apiFetch<T>(
-  path: string,
-  options?: RequestInit,
-): Promise<T> {
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem("qs_token");
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -468,19 +464,24 @@ function PlanCard({
         {/* Name + price */}
         <div className={cn("flex flex-col", isPro ? "mt-7" : "mt-0")}>
           {price !== null && (
-            <div className={cn("text-xs font-semibold uppercase tracking-widest", plan.accentClass)}>
+            <div
+              className={cn("text-xs font-semibold uppercase tracking-widest", plan.accentClass)}
+            >
               {plan.name}
             </div>
           )}
           <div className={cn("flex items-baseline gap-1", price !== null ? "mt-2" : "mt-0")}>
             {price === null ? (
-              <span className={cn("text-3xl font-bold tracking-tight", plan.accentClass)}>{plan.name}</span>
+              <span className={cn("text-3xl font-bold tracking-tight", plan.accentClass)}>
+                {plan.name}
+              </span>
             ) : price === 0 ? (
               <span className="text-4xl font-bold tracking-tight text-foreground">Free</span>
             ) : (
               <>
                 <span className="text-4xl font-bold tracking-tight text-foreground">
-                  {plan.currency || "$"}{price}
+                  {plan.currency || "$"}
+                  {price}
                 </span>
                 <span className="text-sm text-muted-foreground">
                   /{plan.key.startsWith("test") ? "week" : "month"}
@@ -498,7 +499,10 @@ function PlanCard({
 
         {/* Design dots */}
         {price !== null && (
-          <DesignDots total={plan.designs} used={isFree ? 1 : plan.key === "basic" ? 2 : plan.key === "pro" ? 4 : 1} />
+          <DesignDots
+            total={plan.designs}
+            used={isFree ? 1 : plan.key === "basic" ? 2 : plan.key === "pro" ? 4 : 1}
+          />
         )}
 
         {/* Divider */}
@@ -520,7 +524,11 @@ function PlanCard({
                 <Check
                   className={cn(
                     "h-4 w-4 shrink-0",
-                    isPro ? "text-fuchsia-500" : plan.key === "basic" ? "text-violet-500" : "text-slate-400",
+                    isPro
+                      ? "text-fuchsia-500"
+                      : plan.key === "basic"
+                        ? "text-violet-500"
+                        : "text-slate-400",
                   )}
                 />
               )}
@@ -546,9 +554,7 @@ function PlanCard({
           disabled={isCurrentPlan || isFree || upgrading}
           onClick={handleClick}
         >
-          {upgrading ? (
-            <RefreshCw className="mr-1.5 h-4 w-4 animate-spin" />
-          ) : null}
+          {upgrading ? <RefreshCw className="mr-1.5 h-4 w-4 animate-spin" /> : null}
           {isCurrentPlan ? "Current Plan" : plan.cta}
           {!isCurrentPlan && !isFree && !upgrading && <ArrowRight className="ml-1.5 h-4 w-4" />}
         </Button>
@@ -624,8 +630,18 @@ function UsageSnapshot({ plan }: { plan: PlanKey }) {
           value: planLabel,
           sub: `${designSlots} design slot${designSlots > 1 ? "s" : ""}`,
           icon: Sparkles,
-          color: plan === "free" ? "text-slate-500" : plan === "basic" ? "text-violet-500" : "text-fuchsia-500",
-          bg: plan === "free" ? "bg-slate-50 dark:bg-slate-900/40" : plan === "basic" ? "bg-violet-50 dark:bg-violet-900/20" : "bg-fuchsia-50 dark:bg-fuchsia-900/20",
+          color:
+            plan === "free"
+              ? "text-slate-500"
+              : plan === "basic"
+                ? "text-violet-500"
+                : "text-fuchsia-500",
+          bg:
+            plan === "free"
+              ? "bg-slate-50 dark:bg-slate-900/40"
+              : plan === "basic"
+                ? "bg-violet-50 dark:bg-violet-900/20"
+                : "bg-fuchsia-50 dark:bg-fuchsia-900/20",
         },
         {
           label: "Designs Used",
@@ -694,10 +710,8 @@ const COMPARE_ROWS: {
 ];
 
 function CompareValue({ val }: { val: string | boolean }) {
-  if (val === false)
-    return <X className="mx-auto h-4 w-4 text-muted-foreground/40" />;
-  if (val === true)
-    return <Check className="mx-auto h-4 w-4 text-violet-500" />;
+  if (val === false) return <X className="mx-auto h-4 w-4 text-muted-foreground/40" />;
+  if (val === true) return <Check className="mx-auto h-4 w-4 text-violet-500" />;
   return <span className="text-sm font-medium text-foreground">{val}</span>;
 }
 
@@ -782,8 +796,8 @@ function RazorpayPaymentDialog({
         <DialogHeader>
           <DialogTitle>Upgrade to {planObj.name}</DialogTitle>
           <DialogDescription>
-            You'll be charged <strong>${totalPrice}/month</strong> ({cycle}) via Razorpay's
-            secure checkout. No card details are stored on our servers.
+            You'll be charged <strong>${totalPrice}/month</strong> ({cycle}) via Razorpay's secure
+            checkout. No card details are stored on our servers.
           </DialogDescription>
         </DialogHeader>
 
@@ -827,18 +841,24 @@ function RazorpayPaymentDialog({
           </p>
           <div className="flex flex-wrap justify-center gap-1.5 text-[10px] text-muted-foreground">
             <span className="rounded-md bg-background px-2 py-0.5 border border-border">Visa</span>
-            <span className="rounded-md bg-background px-2 py-0.5 border border-border">Mastercard</span>
+            <span className="rounded-md bg-background px-2 py-0.5 border border-border">
+              Mastercard
+            </span>
             <span className="rounded-md bg-background px-2 py-0.5 border border-border">UPI</span>
-            <span className="rounded-md bg-background px-2 py-0.5 border border-border">Net Banking</span>
-            <span className="rounded-md bg-background px-2 py-0.5 border border-border">Wallets</span>
+            <span className="rounded-md bg-background px-2 py-0.5 border border-border">
+              Net Banking
+            </span>
+            <span className="rounded-md bg-background px-2 py-0.5 border border-border">
+              Wallets
+            </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-xs text-amber-700 dark:text-amber-300">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>
-            A secure Razorpay checkout window will open. Complete payment there —
-            your card details never touch our servers.
+            A secure Razorpay checkout window will open. Complete payment there — your card details
+            never touch our servers.
           </span>
         </div>
 
@@ -878,8 +898,7 @@ function BillingPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (user && !canAccess(user.role, "billing"))
-      navigate({ to: "/dashboard", replace: true });
+    if (user && !canAccess(user.role, "billing")) navigate({ to: "/dashboard", replace: true });
   }, [user, navigate]);
 
   const [billingState, setBillingState] = useState<BillingState>({
@@ -906,16 +925,18 @@ function BillingPage() {
   const [cancelling, setCancelling] = useState(false);
 
   // ── Invoices ───────────────────────────────────────────────────────────────
-  const [invoices, setInvoices] = useState<Array<{
-    id: string;
-    date?: string;          // legacy fallback
-    paid_at?: number;       // Razorpay Unix timestamp (seconds)
-    issued_at?: number;     // Razorpay Unix timestamp (seconds)
-    amount?: number;        // in smallest currency unit (paise/cents)
-    currency?: string;      // "INR" | "USD" etc.
-    status?: string;
-    short_url?: string;
-  }>>([]);
+  const [invoices, setInvoices] = useState<
+    Array<{
+      id: string;
+      date?: string; // legacy fallback
+      paid_at?: number; // Razorpay Unix timestamp (seconds)
+      issued_at?: number; // Razorpay Unix timestamp (seconds)
+      amount?: number; // in smallest currency unit (paise/cents)
+      currency?: string; // "INR" | "USD" etc.
+      status?: string;
+      short_url?: string;
+    }>
+  >([]);
 
   // ── Load billing state on mount ────────────────────────────────────────────
   const fetchBilling = useCallback(async () => {
@@ -925,7 +946,9 @@ function BillingPage() {
       setBillingState(data);
       setAnnual(data.billing_cycle === "annual");
 
-      const subsData = await apiFetch<{ subscriptions: SubscriptionState[] }>("/api/billing/subscription");
+      const subsData = await apiFetch<{ subscriptions: SubscriptionState[] }>(
+        "/api/billing/subscription",
+      );
       setOwnedSubscriptions(subsData.subscriptions || []);
     } catch {
       // Backend not yet configured — fall back to free defaults silently
@@ -950,14 +973,11 @@ function BillingPage() {
   }, [fetchBilling]);
 
   // ── Razorpay checkout flow ─────────────────────────────────────────────────
-  const handleUpgrade = useCallback(
-    async (planKey: PlanKey, cycle: BillingCycle) => {
-      setPendingPlan(planKey);
-      setPendingCycle(cycle);
-      setShowPayDialog(true);
-    },
-    [],
-  );
+  const handleUpgrade = useCallback(async (planKey: PlanKey, cycle: BillingCycle) => {
+    setPendingPlan(planKey);
+    setPendingCycle(cycle);
+    setShowPayDialog(true);
+  }, []);
 
   const handleProTryFromBanner = useCallback(() => {
     handleUpgrade("pro", annual ? "annual" : "monthly");
@@ -1000,8 +1020,7 @@ function BillingPage() {
       // 4. Open Razorpay Checkout
       setShowPayDialog(false);
 
-      const rzpKeyId =
-        import.meta.env.VITE_RAZORPAY_KEY_ID ?? "rzp_test_REPLACE_ME";
+      const rzpKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID ?? "rzp_test_REPLACE_ME";
 
       const rzpOptions: RazorpayOptions = {
         key: rzpKeyId,
@@ -1074,9 +1093,9 @@ function BillingPage() {
 
   const handleSwitchPlan = async (plan: string) => {
     try {
-      const res = await apiFetch<{ status: string, plan: string }>("/api/billing/switch-plan", {
+      const res = await apiFetch<{ status: string; plan: string }>("/api/billing/switch-plan", {
         method: "POST",
-        body: JSON.stringify({ plan })
+        body: JSON.stringify({ plan }),
       });
       if (res.status === "success") {
         toast.success(`Switched active plan to ${plan}`);
@@ -1088,33 +1107,46 @@ function BillingPage() {
     }
   };
 
-  const handleCancelSubscription = useCallback(async (subscriptionId?: string) => {
-    if (!subscriptionId) {
-      toast.error("Cannot cancel without a subscription ID.");
-      return;
-    }
-    if (!confirm("Are you sure you want to turn off auto-renewal? You will lose access at the end of the billing cycle.")) return;
-    setCancelling(true);
-    try {
-      const result = await apiFetch<{ status: string; razorpay_status: string }>("/api/billing/cancel-subscription", {
-        method: "POST",
-        body: JSON.stringify({ subscription_id: subscriptionId })
-      });
-      if (result.status === "success") {
-        toast.success("Auto-renewal disabled. Plan will remain active until the end of the cycle.");
-        fetchBilling();
+  const handleCancelSubscription = useCallback(
+    async (subscriptionId?: string) => {
+      if (!subscriptionId) {
+        toast.error("Cannot cancel without a subscription ID.");
+        return;
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to turn off auto-renewal";
-      toast.error(message);
-    } finally {
-      setCancelling(false);
-    }
-  }, [fetchBilling]);
+      if (
+        !confirm(
+          "Are you sure you want to turn off auto-renewal? You will lose access at the end of the billing cycle.",
+        )
+      )
+        return;
+      setCancelling(true);
+      try {
+        const result = await apiFetch<{ status: string; razorpay_status: string }>(
+          "/api/billing/cancel-subscription",
+          {
+            method: "POST",
+            body: JSON.stringify({ subscription_id: subscriptionId }),
+          },
+        );
+        if (result.status === "success") {
+          toast.success(
+            "Auto-renewal disabled. Plan will remain active until the end of the cycle.",
+          );
+          fetchBilling();
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to turn off auto-renewal";
+        toast.error(message);
+      } finally {
+        setCancelling(false);
+      }
+    },
+    [fetchBilling],
+  );
 
   const handleToggleAutoRenew = (val: boolean) => {
     if (!val) {
-      const activeSub = ownedSubscriptions.find(s => s.status === "active");
+      const activeSub = ownedSubscriptions.find((s) => s.status === "active");
       if (activeSub) {
         handleCancelSubscription(activeSub.id);
       } else {
@@ -1148,7 +1180,8 @@ function BillingPage() {
               "Loading your plan…"
             ) : currentPlan === "free" ? (
               <>
-                You're on the <strong>Free plan</strong>. Upgrade to unlock more designs and team features.
+                You're on the <strong>Free plan</strong>. Upgrade to unlock more designs and team
+                features.
               </>
             ) : (
               <>
@@ -1200,11 +1233,21 @@ function BillingPage() {
 
             {/* Annual toggle */}
             <div className="flex items-center gap-2 rounded-full border border-border bg-muted/30 px-4 py-2">
-              <span className={cn("text-sm", !annual ? "font-semibold text-foreground" : "text-muted-foreground")}>
+              <span
+                className={cn(
+                  "text-sm",
+                  !annual ? "font-semibold text-foreground" : "text-muted-foreground",
+                )}
+              >
                 Monthly
               </span>
               <Switch id="billing-cycle-toggle" checked={annual} onCheckedChange={setAnnual} />
-              <span className={cn("text-sm", annual ? "font-semibold text-foreground" : "text-muted-foreground")}>
+              <span
+                className={cn(
+                  "text-sm",
+                  annual ? "font-semibold text-foreground" : "text-muted-foreground",
+                )}
+              >
                 Annual
               </span>
               {annual && (
@@ -1294,9 +1337,18 @@ function BillingPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={designsData} margin={{ left: -20, right: 8, top: 8, bottom: 0 }}>
                     <CartesianGrid stroke="#F0F0F0" vertical={false} />
-                    <XAxis dataKey="m" stroke={MUTED} fontSize={11} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="m"
+                      stroke={MUTED}
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
                     <YAxis stroke={MUTED} fontSize={11} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(139,92,246,0.08)" }} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      cursor={{ fill: "rgba(139,92,246,0.08)" }}
+                    />
                     <Bar dataKey="v" fill={ACCENT} radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1318,10 +1370,22 @@ function BillingPage() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid stroke="#F0F0F0" vertical={false} />
-                    <XAxis dataKey="m" stroke={MUTED} fontSize={11} tickLine={false} axisLine={false} />
+                    <XAxis
+                      dataKey="m"
+                      stroke={MUTED}
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
                     <YAxis stroke={MUTED} fontSize={11} tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={tooltipStyle} />
-                    <Area type="monotone" dataKey="v" stroke={ACCENT} strokeWidth={2} fill="url(#g-spend)" />
+                    <Area
+                      type="monotone"
+                      dataKey="v"
+                      stroke={ACCENT}
+                      strokeWidth={2}
+                      fill="url(#g-spend)"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -1365,7 +1429,10 @@ function BillingPage() {
             ) : (
               <div className="space-y-3">
                 {ownedSubscriptions.map((sub) => (
-                  <div key={sub.id} className="flex items-center gap-4 rounded-xl border border-border bg-muted/20 px-5 py-4">
+                  <div
+                    key={sub.id}
+                    className="flex items-center gap-4 rounded-xl border border-border bg-muted/20 px-5 py-4"
+                  >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#072654]">
                       <CreditCard className="h-5 w-5 text-white" />
                     </div>
@@ -1377,8 +1444,8 @@ function BillingPage() {
                         {sub.status === "active"
                           ? "Active — auto-renews each billing cycle"
                           : sub.status === "halted"
-                          ? "⚠ Halted — please update your payment method in Razorpay"
-                          : sub.status ?? "Managed by Razorpay"}
+                            ? "⚠ Halted — please update your payment method in Razorpay"
+                            : (sub.status ?? "Managed by Razorpay")}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1393,7 +1460,11 @@ function BillingPage() {
                         {sub.status ?? "–"}
                       </Badge>
                       {currentPlan !== sub.plan && sub.status === "active" && (
-                        <Button size="sm" variant="outline" onClick={() => handleSwitchPlan(sub.plan)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSwitchPlan(sub.plan)}
+                        >
                           Switch to {sub.plan}
                         </Button>
                       )}
@@ -1407,10 +1478,10 @@ function BillingPage() {
           <Card className="rounded-2xl border-border p-6 shadow-none">
             <h2 className="text-base font-semibold text-foreground">Billing Settings</h2>
             <div className="mt-4 space-y-4">
-              <ToggleRow 
-                label="Auto Renewal" 
-                checked={billingState.subscription_status === "active"} 
-                onChange={handleToggleAutoRenew} 
+              <ToggleRow
+                label="Auto Renewal"
+                checked={billingState.subscription_status === "active"}
+                onChange={handleToggleAutoRenew}
               />
               <ToggleRow label="Email Invoice" checked={emailInvoice} onChange={setEmailInvoice} />
             </div>
@@ -1452,8 +1523,8 @@ function BillingPage() {
                         {inv.paid_at
                           ? new Date(inv.paid_at * 1000).toLocaleDateString()
                           : inv.date
-                          ? new Date(inv.date).toLocaleDateString()
-                          : "—"}
+                            ? new Date(inv.date).toLocaleDateString()
+                            : "—"}
                       </TableCell>
                       <TableCell className="text-foreground">
                         {inv.amount != null
@@ -1472,7 +1543,7 @@ function BillingPage() {
                           className="h-8 rounded-full"
                           onClick={() => {
                             if (inv.short_url) {
-                              window.open(inv.short_url, '_blank');
+                              window.open(inv.short_url, "_blank");
                             } else {
                               toast.info("Invoice link not available. Check Razorpay dashboard.");
                             }

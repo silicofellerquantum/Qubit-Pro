@@ -8,11 +8,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import type {
-  Connection,
-  DesignDocument,
-  Placement,
-} from "@/lib/bridge/types";
+import type { Connection, DesignDocument, Placement } from "@/lib/bridge/types";
 import { loadDesign, saveDesign, clearDesign } from "./persistence";
 import { buildInitialRouteOverrides } from "./route-defaults";
 
@@ -29,7 +25,6 @@ export const CHIP_SIZE_PRESETS = [
   { label: "20 × 20 mm", w: 20, h: 20 },
   { label: "40 × 40 mm", w: 40, h: 40 },
 ] as const;
-
 
 // ---------- State ----------
 
@@ -172,13 +167,13 @@ export type EditorAction =
   | { type: "PLACE_N_QUBITS"; n: number; componentId?: string };
 
 export type AlignLayout =
-  | "grid"        // balanced rows × cols (default)
-  | "horizontal"  // single row
-  | "vertical"    // single column
-  | "rhombus"     // diamond / rhombus pattern
-  | "u-shape"     // three sides of a rectangle (U)
-  | "circle"      // qubits on a circle
-  | "h-shape";    // two parallel rows with gap in between (H / IBM heavy-hex style)
+  | "grid" // balanced rows × cols (default)
+  | "horizontal" // single row
+  | "vertical" // single column
+  | "rhombus" // diamond / rhombus pattern
+  | "u-shape" // three sides of a rectangle (U)
+  | "circle" // qubits on a circle
+  | "h-shape"; // two parallel rows with gap in between (H / IBM heavy-hex style)
 
 function snapshot(s: EditorState): Snapshot {
   return {
@@ -216,7 +211,9 @@ export const initialEditorState: EditorState = {
     try {
       const saved = localStorage.getItem("editor_minimap_visible");
       return saved === null ? false : saved === "true";
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   })(),
   chipW: DEFAULT_CHIP_W_MM,
   chipH: DEFAULT_CHIP_H_MM,
@@ -236,7 +233,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         selection: [{ kind: "placement", id: action.placement.id }],
       };
     case "DUPLICATE_PLACEMENT": {
-      const src = state.placements.find(p => p.id === action.id);
+      const src = state.placements.find((p) => p.id === action.id);
       if (!src) return state;
       const copyId = `pl_${src.componentId}_${Date.now()}`;
       const copyName = `${src.name}_copy`;
@@ -248,7 +245,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         name: copyName,
         x: Math.max(-halfW, Math.min(halfW, src.x + 0.2)),
         y: Math.max(-halfH, Math.min(halfH, src.y - 0.2)),
-        params: { ...src.params }
+        params: { ...src.params },
       };
       return {
         ...state,
@@ -291,17 +288,13 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return {
         ...state,
         ...bump(state),
-        placements: state.placements.map((p) =>
-          p.id === action.id ? { ...p, locked: true } : p,
-        ),
+        placements: state.placements.map((p) => (p.id === action.id ? { ...p, locked: true } : p)),
       };
     case "UNLOCK_PLACEMENT":
       return {
         ...state,
         ...bump(state),
-        placements: state.placements.map((p) =>
-          p.id === action.id ? { ...p, locked: false } : p,
-        ),
+        placements: state.placements.map((p) => (p.id === action.id ? { ...p, locked: false } : p)),
       };
     case "MOVE_PLACEMENT": {
       const target = state.placements.find((p) => p.id === action.id);
@@ -311,11 +304,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const connections = action.transient
         ? state.connections
         : state.connections.map((c) => {
-          const touches =
-            c.from.placementId === action.id || c.to.placementId === action.id;
-          if (!touches) return c;
-          return { ...c, cachedGeometryHash: undefined };
-        });
+            const touches = c.from.placementId === action.id || c.to.placementId === action.id;
+            if (!touches) return c;
+            return { ...c, cachedGeometryHash: undefined };
+          });
       const next = {
         ...state,
         // Clear any stale validation error — moving a component is a geometry
@@ -347,9 +339,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         connections: state.connections.filter(
           (c) => c.from.placementId !== action.id && c.to.placementId !== action.id,
         ),
-        selection: state.selection.filter(
-          (s) => !(s.kind === "placement" && s.id === action.id),
-        ),
+        selection: state.selection.filter((s) => !(s.kind === "placement" && s.id === action.id)),
       };
     }
     case "PIN_CLICK": {
@@ -395,7 +385,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       // ── Single-connection-per-pin capacity check ─────────────────────────
       // Check the "from" pin (the first pin the user clicked, i.e. pendingPin)
       const fromMax = maxConnectionsForPin(state.pendingPin.placementId, state.pendingPin.pinName);
-      const fromCount = pinOccupancy(state.connections, state.pendingPin.placementId, state.pendingPin.pinName);
+      const fromCount = pinOccupancy(
+        state.connections,
+        state.pendingPin.placementId,
+        state.pendingPin.pinName,
+      );
       if (fromCount >= fromMax) {
         return {
           ...state,
@@ -440,9 +434,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         ...bump(state),
         connections: state.connections.filter((c) => c.id !== action.id),
-        selection: state.selection.filter(
-          (s) => !(s.kind === "connection" && s.id === action.id),
-        ),
+        selection: state.selection.filter((s) => !(s.kind === "connection" && s.id === action.id)),
       };
     case "UPDATE_CONNECTION":
       return {
@@ -465,7 +457,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         ...bump(state),
         connections: state.connections.map((c) =>
-          c.id === action.id ? { ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined } : c,
+          c.id === action.id
+            ? { ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined }
+            : c,
         ),
       };
     case "CLEAR_ROUTE_CACHE":
@@ -473,7 +467,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         ...bump(state),
         connections: state.connections.map((c) => ({
-          ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined,
+          ...c,
+          locked: false,
+          cachedSvg: undefined,
+          cachedGeometryHash: undefined,
         })),
       };
     case "SET_CONNECTION_GEOMETRY":
@@ -487,15 +484,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, selection: action.selection ?? [], pendingPin: null };
     case "TOGGLE_SELECT": {
       const sel = state.selection ?? [];
-      const exists = sel.some(
-        (s) => s.kind === action.item.kind && s.id === action.item.id,
-      );
+      const exists = sel.some((s) => s.kind === action.item.kind && s.id === action.item.id);
       return {
         ...state,
         selection: exists
-          ? sel.filter(
-            (s) => !(s.kind === action.item.kind && s.id === action.item.id),
-          )
+          ? sel.filter((s) => !(s.kind === action.item.kind && s.id === action.item.id))
           : [...sel, action.item],
         pendingPin: null,
       };
@@ -524,7 +517,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, showHUD: !state.showHUD };
     case "TOGGLE_MINIMAP": {
       const next = !state.showMiniMap;
-      try { localStorage.setItem("editor_minimap_visible", String(next)); } catch { /* ignore */ }
+      try {
+        localStorage.setItem("editor_minimap_visible", String(next));
+      } catch {
+        /* ignore */
+      }
       return { ...state, showMiniMap: next };
     }
     case "AUTO_ALIGN": {
@@ -541,9 +538,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const MIN_PITCH = 2.5;
       const PITCH = Math.max(MIN_PITCH, POCKET_MM + 2 * CLEARANCE); // 4.0 mm
 
-      const qubits = state.placements.filter(
-        (p) => !p.locked && QUBIT_RE.test(p.componentId),
-      );
+      const qubits = state.placements.filter((p) => !p.locked && QUBIT_RE.test(p.componentId));
       if (qubits.length === 0) return state;
 
       const N = qubits.length;
@@ -554,11 +549,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const cy = qubits.reduce((s, p) => s + p.y, 0) / N;
 
       // Sort qubits by (y, x) to preserve reading order
-      const sorted = [...qubits].sort((a, b) =>
-        a.y !== b.y ? a.y - b.y : a.x - b.x,
-      );
+      const sorted = [...qubits].sort((a, b) => (a.y !== b.y ? a.y - b.y : a.x - b.x));
 
-      let slots: Array<{ x: number; y: number }> = [];
+      const slots: Array<{ x: number; y: number }> = [];
 
       // ── GRID (balanced rows × cols) ──────────────────────────────────
       if (layout === "grid") {
@@ -573,14 +566,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       // ── HORIZONTAL (single row) ──────────────────────────────────────
       else if (layout === "horizontal") {
         const ox = cx - ((N - 1) * PITCH) / 2;
-        for (let i = 0; i < N; i++)
-          slots.push({ x: ox + i * PITCH, y: cy });
+        for (let i = 0; i < N; i++) slots.push({ x: ox + i * PITCH, y: cy });
       }
       // ── VERTICAL (single column) ─────────────────────────────────────
       else if (layout === "vertical") {
         const oy = cy - ((N - 1) * PITCH) / 2;
-        for (let i = 0; i < N; i++)
-          slots.push({ x: cx, y: oy + i * PITCH });
+        for (let i = 0; i < N; i++) slots.push({ x: cx, y: oy + i * PITCH });
       }
       // ── RHOMBUS / DIAMOND ────────────────────────────────────────────
       else if (layout === "rhombus") {
@@ -632,11 +623,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         const rowY = PITCH / 2;
         const stagger = PITCH / 2;
         const topOx = cx - ((topN - 1) * PITCH) / 2;
-        for (let i = 0; i < topN; i++)
-          slots.push({ x: topOx + i * PITCH, y: cy - rowY });
+        for (let i = 0; i < topN; i++) slots.push({ x: topOx + i * PITCH, y: cy - rowY });
         const botOx = cx - ((botN - 1) * PITCH) / 2 + stagger;
-        for (let i = 0; i < botN; i++)
-          slots.push({ x: botOx + i * PITCH, y: cy + rowY });
+        for (let i = 0; i < botN; i++) slots.push({ x: botOx + i * PITCH, y: cy + rowY });
       }
 
       // Apply new positions
@@ -724,9 +713,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const QUBIT_RE = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
 
       // Remove all existing unlocked qubit placements
-      const nonQubits = state.placements.filter(
-        (p) => !QUBIT_RE.test(p.componentId) || p.locked,
-      );
+      const nonQubits = state.placements.filter((p) => !QUBIT_RE.test(p.componentId) || p.locked);
 
       // Compute grid layout that fits within the current chip bounds
       const chipHalfW = state.chipW / 2;
@@ -739,11 +726,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const rows = Math.ceil(N / cols);
       const maxPitchByW = cols > 1 ? (state.chipW * 0.85) / (cols - 1) : state.chipW;
       const maxPitchByH = rows > 1 ? (state.chipH * 0.85) / (rows - 1) : state.chipH;
-      const PITCH = Math.max(MIN_PITCH, Math.min(
-        maxPitchByW,
-        maxPitchByH,
-        POCKET_MM + 2 * CLEARANCE,
-      ));
+      const PITCH = Math.max(
+        MIN_PITCH,
+        Math.min(maxPitchByW, maxPitchByH, POCKET_MM + 2 * CLEARANCE),
+      );
 
       const gridW = (cols - 1) * PITCH;
       const gridH = (rows - 1) * PITCH;
@@ -764,7 +750,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
 
           let nameIdx = placed;
           let name = `Q${nameIdx}`;
-          while (takenNames.has(name)) { nameIdx++; name = `Q${nameIdx}`; }
+          while (takenNames.has(name)) {
+            nameIdx++;
+            name = `Q${nameIdx}`;
+          }
           takenNames.add(name);
 
           newPlacements.push({
@@ -784,9 +773,10 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         ...bump(state),
         placements: [...nonQubits, ...newPlacements],
-        connections: state.connections.filter((c) =>
-          [...nonQubits].some((p) => p.id === c.from.placementId) &&
-          [...nonQubits].some((p) => p.id === c.to.placementId),
+        connections: state.connections.filter(
+          (c) =>
+            [...nonQubits].some((p) => p.id === c.from.placementId) &&
+            [...nonQubits].some((p) => p.id === c.to.placementId),
         ),
         selection: newPlacements.map((p) => ({ kind: "placement" as const, id: p.id })),
       };
@@ -849,7 +839,6 @@ export function DesignStoreProvider({ children }: { children: ReactNode }) {
   }, [state.rev, state.placements, state.connections]);
 
   const uniqueName = useCallback(
-
     (prefix: string) => {
       let n = 0;
       const taken = new Set(state.placements.map((p) => p.name));

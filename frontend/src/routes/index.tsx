@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { SilicofellerLogo } from "@/components/silicofeller-logo";
 // QuantumBurst is a heavy rAF animation — defer its JS until after the page is interactive
 const QuantumBurst = lazy(() =>
-  import("@/components/landing/quantum-burst").then((m) => ({ default: m.QuantumBurst }))
+  import("@/components/landing/quantum-burst").then((m) => ({ default: m.QuantumBurst })),
 );
 import { useAuth, ROLE_LABEL } from "@/lib/auth/auth-context";
 
@@ -81,12 +81,19 @@ function LandingPage() {
   // Body scroll lock when mobile nav is open
   useEffect(() => {
     document.body.style.overflow = mobileNavOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [mobileNavOpen]);
 
   return (
     <main className="relative min-h-[100svh] bg-background text-foreground">
-      <SiteNav scrolled={scrolled} user={user} mobileNavOpen={mobileNavOpen} setMobileNavOpen={setMobileNavOpen} />
+      <SiteNav
+        scrolled={scrolled}
+        user={user}
+        mobileNavOpen={mobileNavOpen}
+        setMobileNavOpen={setMobileNavOpen}
+      />
 
       {/* ───────── HERO — light canvas, network animation ───────── */}
       <section
@@ -181,11 +188,12 @@ function LandingPage() {
               intent and an output you can build.
             </p>
             <p className="mt-4 text-[0.9375rem] leading-relaxed text-muted-foreground">
-              The platform includes a full <span className="font-medium text-foreground">Schematic Editor</span> where
-              you can drag and drop qubits, couplers, resonators, and readout lines onto a live
-              canvas — composing quantum chip topologies interactively, the same way a PCB designer
-              would lay out a board. Every component placed on the canvas stays in sync with the
-              underlying design graph.
+              The platform includes a full{" "}
+              <span className="font-medium text-foreground">Schematic Editor</span> where you can
+              drag and drop qubits, couplers, resonators, and readout lines onto a live canvas —
+              composing quantum chip topologies interactively, the same way a PCB designer would lay
+              out a board. Every component placed on the canvas stays in sync with the underlying
+              design graph.
             </p>
             <p className="mt-4 text-[0.9375rem] leading-relaxed text-muted-foreground">
               Once your design is ready, Silicofeller automatically generates{" "}
@@ -324,8 +332,14 @@ function LandingPage() {
           ))}
         </div>
         <div className="mt-8 flex justify-center">
-          <Button asChild variant="outline" className="rounded-full border-black/15 px-6 text-sm font-medium">
-            <Link to="/blog">View all posts <ArrowRight className="ml-1.5 h-4 w-4" /></Link>
+          <Button
+            asChild
+            variant="outline"
+            className="rounded-full border-black/15 px-6 text-sm font-medium"
+          >
+            <Link to="/blog">
+              View all posts <ArrowRight className="ml-1.5 h-4 w-4" />
+            </Link>
           </Button>
         </div>
       </Section>
@@ -411,19 +425,22 @@ function LandingPage() {
           <div className="flex items-center gap-2">
             <a
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border border-white/15 text-white/50 transition-colors hover:bg-white/5"
-              href="#" aria-label="LinkedIn"
+              href="#"
+              aria-label="LinkedIn"
             >
               <Linkedin className="h-4 w-4" />
             </a>
             <a
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border border-white/15 text-white/50 transition-colors hover:bg-white/5"
-              href="#" aria-label="GitHub"
+              href="#"
+              aria-label="GitHub"
             >
               <Github className="h-4 w-4" />
             </a>
             <a
               className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full border border-white/15 text-white/50 transition-colors hover:bg-white/5"
-              href="mailto:hello@silicofeller.com" aria-label="Email"
+              href="mailto:hello@silicofeller.com"
+              aria-label="Email"
             >
               <Mail className="h-4 w-4" />
             </a>
@@ -442,12 +459,12 @@ type NavLink =
   | { kind: "route"; label: string; to: "/blog" | "/our-team" };
 
 const NAV_LINKS: NavLink[] = [
-  { kind: "section", label: "About Us",   id: "about" },
+  { kind: "section", label: "About Us", id: "about" },
   { kind: "section", label: "Technology", id: "technology" },
-  { kind: "section", label: "Features",   id: "features" },
-  { kind: "section", label: "Blog",       id: "blog" },
-  { kind: "route",   label: "Team",       to: "/our-team" },
-  { kind: "section", label: "Contact",    id: "contact" },
+  { kind: "section", label: "Features", id: "features" },
+  { kind: "section", label: "Blog", id: "blog" },
+  { kind: "route", label: "Team", to: "/our-team" },
+  { kind: "section", label: "Contact", id: "contact" },
 ];
 
 /** Smooth-scroll to a section by id, offset for sticky nav height */
@@ -475,16 +492,18 @@ function SiteNav({
   // Track which section is currently in view (IntersectionObserver)
   const [activeSection, setActiveSection] = useState<string>("");
   useEffect(() => {
-    const sectionIds = NAV_LINKS
-      .filter((l): l is Extract<NavLink, { kind: "section" }> => l.kind === "section")
-      .map((l) => l.id);
+    const sectionIds = NAV_LINKS.filter(
+      (l): l is Extract<NavLink, { kind: "section" }> => l.kind === "section",
+    ).map((l) => l.id);
 
     const observers: IntersectionObserver[] = [];
     sectionIds.forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       const obs = new IntersectionObserver(
-        ([entry]) => { if (entry.isIntersecting) setActiveSection(id); },
+        ([entry]) => {
+          if (entry.isIntersecting) setActiveSection(id);
+        },
         { rootMargin: "-30% 0px -60% 0px", threshold: 0 },
       );
       obs.observe(el);
@@ -494,12 +513,16 @@ function SiteNav({
   }, []);
 
   // Close on route change (handles /our-team navigation)
-  useEffect(() => { setMobileNavOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   // ESC key closes the drawer
   useEffect(() => {
     if (!mobileNavOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMobileNavOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileNavOpen(false);
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileNavOpen, setMobileNavOpen]);
@@ -550,7 +573,7 @@ function SiteNav({
                 >
                   {item.label}
                 </button>
-              )
+              ),
             )}
           </nav>
 
@@ -559,20 +582,36 @@ function SiteNav({
             <div className="hidden md:flex items-center gap-2">
               {user ? (
                 <>
-                  <Button variant="ghost" asChild className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-foreground/5">
+                  <Button
+                    variant="ghost"
+                    asChild
+                    className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-foreground/5"
+                  >
                     <Link to="/dashboard">Dashboard</Link>
                   </Button>
-                  <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
+                  <Button
+                    asChild
+                    className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
+                  >
                     <Link to="/schematic-editor">Open designer</Link>
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" asChild className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-foreground/5">
+                  <Button
+                    variant="ghost"
+                    asChild
+                    className="h-9 min-h-[44px] rounded-full px-4 text-sm text-foreground hover:bg-foreground/5"
+                  >
                     <Link to="/sign-in">Sign in</Link>
                   </Button>
-                  <Button asChild className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90">
-                    <Link to="/sign-up">Sign up <ArrowRight className="ml-1 h-4 w-4" /></Link>
+                  <Button
+                    asChild
+                    className="h-9 min-h-[44px] rounded-full bg-foreground px-4 text-sm font-semibold text-background hover:bg-foreground/90"
+                  >
+                    <Link to="/sign-up">
+                      Sign up <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
                   </Button>
                 </>
               )}
@@ -682,7 +721,7 @@ function SiteNav({
                         {item.label}
                       </button>
                     </motion.div>
-                  )
+                  ),
                 )}
 
                 {/* CTA buttons */}
@@ -694,19 +733,39 @@ function SiteNav({
                 >
                   {user ? (
                     <>
-                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
-                        <Link to="/dashboard" onClick={() => setMobileNavOpen(false)}>Dashboard</Link>
+                      <Button
+                        variant="ghost"
+                        asChild
+                        className="w-full h-12 rounded-full border border-black/15 text-sm font-medium"
+                      >
+                        <Link to="/dashboard" onClick={() => setMobileNavOpen(false)}>
+                          Dashboard
+                        </Link>
                       </Button>
-                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
-                        <Link to="/schematic-editor" onClick={() => setMobileNavOpen(false)}>Open designer</Link>
+                      <Button
+                        asChild
+                        className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90"
+                      >
+                        <Link to="/schematic-editor" onClick={() => setMobileNavOpen(false)}>
+                          Open designer
+                        </Link>
                       </Button>
                     </>
                   ) : (
                     <>
-                      <Button variant="ghost" asChild className="w-full h-12 rounded-full border border-black/15 text-sm font-medium">
-                        <Link to="/sign-in" onClick={() => setMobileNavOpen(false)}>Sign in</Link>
+                      <Button
+                        variant="ghost"
+                        asChild
+                        className="w-full h-12 rounded-full border border-black/15 text-sm font-medium"
+                      >
+                        <Link to="/sign-in" onClick={() => setMobileNavOpen(false)}>
+                          Sign in
+                        </Link>
                       </Button>
-                      <Button asChild className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90">
+                      <Button
+                        asChild
+                        className="w-full h-12 rounded-full bg-foreground text-sm font-semibold text-background hover:bg-foreground/90"
+                      >
                         <Link to="/sign-up" onClick={() => setMobileNavOpen(false)}>
                           Sign up <ArrowRight className="ml-1 h-4 w-4" />
                         </Link>

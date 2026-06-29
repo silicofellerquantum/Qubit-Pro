@@ -10,7 +10,13 @@ import {
 import { toast } from "sonner";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Minus, Hand, MousePointer2, X } from "lucide-react";
-import { prefixForCategory, type EditorState, type Selection, isSelected, getSingleSelection } from "@/lib/editor/design-store";
+import {
+  prefixForCategory,
+  type EditorState,
+  type Selection,
+  isSelected,
+  getSingleSelection,
+} from "@/lib/editor/design-store";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import {
   componentPinsQueryOptions,
@@ -63,17 +69,11 @@ const MAX_COMP_MM = 1.2;
  * @param scale     canvas scale (baseScale × zoom)
  * @param uiScale   per-placement uiScale override (default 1)
  */
-function svgScale(
-  vbMaxDim: number,
-  svgUnits: "um" | "mm",
-  scale: number,
-  uiScale = 1,
-): number {
+function svgScale(vbMaxDim: number, svgUnits: "um" | "mm", scale: number, uiScale = 1): number {
   const physSc = MM_TO_PX * scale * uiScale * (svgUnits === "um" ? UM_TO_MM : 1);
   const maxDimMm = vbMaxDim * (svgUnits === "um" ? UM_TO_MM : 1);
-  const capSc = maxDimMm > MAX_COMP_MM
-    ? (MAX_COMP_MM * MM_TO_PX * scale * uiScale) / vbMaxDim
-    : physSc;
+  const capSc =
+    maxDimMm > MAX_COMP_MM ? (MAX_COMP_MM * MM_TO_PX * scale * uiScale) / vbMaxDim : physSc;
   return capSc;
 }
 
@@ -115,7 +115,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   );
 
   const [drag, setDrag] = useState<DragState>(null);
-  const [dragStartPos, setDragStartPos] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [dragStartPos, setDragStartPos] = useState<{ id: string; x: number; y: number } | null>(
+    null,
+  );
   const [hovered, setHovered] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<{
@@ -171,16 +173,41 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
 
   // ── Viewport hook (resize, pan, zoom, w2s/s2w, fit, ticks) ──────────────────
   const vp = useCanvasViewport(state, dispatch);
-  const { size, containerRef, svgRef, panDrag, setPanDrag,
-    cx, cy, scale, baseScale, bw, bh, left, right, top, bottom,
-    w2s, s2w, fitToContent, zoomToSelection,
-    hTicks, vTicks, RULER_B, RULER_L } = vp;
+  const {
+    size,
+    containerRef,
+    svgRef,
+    panDrag,
+    setPanDrag,
+    cx,
+    cy,
+    scale,
+    baseScale,
+    bw,
+    bh,
+    left,
+    right,
+    top,
+    bottom,
+    w2s,
+    s2w,
+    fitToContent,
+    zoomToSelection,
+    hTicks,
+    vTicks,
+    RULER_B,
+    RULER_L,
+  } = vp;
 
   // ── Route rendering hook ────────────────────────────────────────────────────
   const { routeQueries, routeSvg } = useRouteRendering(state, doc, drag, dispatch);
 
   // ── Drop handling hook ───────────────────────────────────────────────────────
-  const { dropPrev, onDrop, onDragOver, onDragLeave } = useDropHandling(dispatch, (state.chipW ?? CHIP_W_MM) / 2, (state.chipH ?? CHIP_H_MM) / 2);
+  const { dropPrev, onDrop, onDragOver, onDragLeave } = useDropHandling(
+    dispatch,
+    (state.chipW ?? CHIP_W_MM) / 2,
+    (state.chipH ?? CHIP_H_MM) / 2,
+  );
 
   const pinQueries = useQueries({
     queries: state.placements.map((p) => componentPinsQueryOptions(p.componentId, p.params)),
@@ -246,7 +273,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
     // Middle mouse or Pan tool starts viewport pan
     if (e.button === 1 || state.tool === "pan") {
       e.preventDefault();
-      setPanDrag({ startX: e.clientX, startY: e.clientY, startPanX: state.pan.x, startPanY: state.pan.y });
+      setPanDrag({
+        startX: e.clientX,
+        startY: e.clientY,
+        startPanX: state.pan.x,
+        startPanY: state.pan.y,
+      });
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
       return;
     }
@@ -281,7 +313,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
       const snapY = parseFloat((Math.round(w.y / snap) * snap).toFixed(3));
       const constrainedX = Math.max(-state.chipW / 2, Math.min(state.chipW / 2, snapX));
       const constrainedY = Math.max(-state.chipH / 2, Math.min(state.chipH / 2, snapY));
-      dispatch({ type: "MOVE_PLACEMENT", id: drag.id, x: constrainedX, y: constrainedY, transient: true });
+      dispatch({
+        type: "MOVE_PLACEMENT",
+        id: drag.id,
+        x: constrainedX,
+        y: constrainedY,
+        transient: true,
+      });
     }
   };
 
@@ -309,10 +347,18 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   const zoomRef = useRef(state.zoom);
   const cxRef = useRef(cx);
   const cyRef = useRef(cy);
-  useEffect(() => { panRef.current = state.pan; }, [state.pan]);
-  useEffect(() => { zoomRef.current = state.zoom; }, [state.zoom]);
-  useEffect(() => { cxRef.current = cx; }, [cx]);
-  useEffect(() => { cyRef.current = cy; }, [cy]);
+  useEffect(() => {
+    panRef.current = state.pan;
+  }, [state.pan]);
+  useEffect(() => {
+    zoomRef.current = state.zoom;
+  }, [state.zoom]);
+  useEffect(() => {
+    cxRef.current = cx;
+  }, [cx]);
+  useEffect(() => {
+    cyRef.current = cy;
+  }, [cy]);
 
   // Native wheel listener with { passive: false } so preventDefault() actually works.
   // React synthetic onWheel cannot reliably call preventDefault in all browsers.
@@ -348,19 +394,28 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   }, []); // attach once — state is read via refs
 
   // No-op synthetic handler (keeps TypeScript happy for the onWheel prop)
-  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => { e.preventDefault(); };
+  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
+    e.preventDefault();
+  };
 
   const cancelDrag = useCallback(() => {
     if (drag && dragStartPos) {
-      dispatch({ type: "MOVE_PLACEMENT", id: dragStartPos.id, x: dragStartPos.x, y: dragStartPos.y });
+      dispatch({
+        type: "MOVE_PLACEMENT",
+        id: dragStartPos.id,
+        x: dragStartPos.x,
+        y: dragStartPos.y,
+      });
       setDrag(null);
       setDragStartPos(null);
     }
   }, [drag, dragStartPos, dispatch]);
 
-  useImperativeHandle(ref, () => ({ fitToContent, zoomToSelection, cancelDrag, getSvgElement: () => svgRef.current }), [
-    fitToContent, zoomToSelection, cancelDrag,
-  ]);
+  useImperativeHandle(
+    ref,
+    () => ({ fitToContent, zoomToSelection, cancelDrag, getSvgElement: () => svgRef.current }),
+    [fitToContent, zoomToSelection, cancelDrag],
+  );
 
   // hTicks and vTicks come from useCanvasViewport (vp) — no local re-declaration needed
 
@@ -517,7 +572,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         height={size.h}
         className="block touch-none"
         style={{
-          cursor: panDrag ? "grabbing" : state.tool === "pan" ? "grab" : drag?.mode === "move" ? "grabbing" : "default",
+          cursor: panDrag
+            ? "grabbing"
+            : state.tool === "pan"
+              ? "grab"
+              : drag?.mode === "move"
+                ? "grabbing"
+                : "default",
         }}
         role="application"
         aria-label="Quantum chip schematic editor canvas"
@@ -526,7 +587,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         onPointerUp={onPUp}
         onPointerCancel={onPUp}
         onWheel={onWheel}
-        onDragEnter={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
         onDragOver={(e) => onDragOver(e, svgRef, s2w, state.snap)}
         onDragLeave={onDragLeave}
         onDrop={(e) => onDrop(e, svgRef, s2w, state.snap, compsById, uniqueName)}
@@ -555,19 +619,22 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         {/* This rect covers the entire SVG so panning never reveals white.  */}
         <rect
           data-canvas-bg="true"
-          x={0} y={0}
-          width={size.w} height={size.h}
+          x={0}
+          y={0}
+          width={size.w}
+          height={size.h}
           fill="url(#siliconGrad)"
         />
 
         {/* ── Everything inside the usable canvas area ─────────────────── */}
         <g clipPath="url(#boardClip)">
-
           {/* Subtle dot-grid pattern over the chip background */}
           <rect
             data-canvas-bg="true"
-            x={RULER_L} y={0}
-            width={size.w - RULER_L} height={size.h - RULER_B}
+            x={RULER_L}
+            y={0}
+            width={size.w - RULER_L}
+            height={size.h - RULER_B}
             fill="transparent"
             style={{
               backgroundImage: "radial-gradient(circle, rgba(14,165,233,0.3) 1px, transparent 1px)",
@@ -579,7 +646,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
 
           {/* Snap-aligned grid inside board — only render visible lines for performance */}
           {state.showGrid && (
-            <g opacity={Math.min(1, Math.max(0.15, state.snap * scale * 20))} style={{ pointerEvents: "none" }}>
+            <g
+              opacity={Math.min(1, Math.max(0.15, state.snap * scale * 20))}
+              style={{ pointerEvents: "none" }}
+            >
               {(() => {
                 const step = state.snap;
                 const els = [];
@@ -596,8 +666,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                   const a = w2s(x, visBot - step);
                   const b = w2s(x, visTop + step);
                   els.push(
-                    <line key={`v-${x}`}
-                      x1={a.px} y1={a.py} x2={b.px} y2={b.py}
+                    <line
+                      key={`v-${x}`}
+                      x1={a.px}
+                      y1={a.py}
+                      x2={b.px}
+                      y2={b.py}
                       stroke={isMajor ? "rgba(14,165,233,0.30)" : "rgba(14,165,233,0.12)"}
                       strokeWidth={isMajor ? 0.8 : 0.4}
                     />,
@@ -611,8 +685,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                   const a = w2s(visLeft - step, y);
                   const b = w2s(visRight + step, y);
                   els.push(
-                    <line key={`h-${y}`}
-                      x1={a.px} y1={a.py} x2={b.px} y2={b.py}
+                    <line
+                      key={`h-${y}`}
+                      x1={a.px}
+                      y1={a.py}
+                      x2={b.px}
+                      y2={b.py}
                       stroke={isMajor ? "rgba(14,165,233,0.30)" : "rgba(14,165,233,0.12)"}
                       strokeWidth={isMajor ? 0.8 : 0.4}
                     />,
@@ -669,162 +747,201 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           ))}
 
           {/* 2. Route visuals + modest hit-rects (sit below component hit areas) */}
-          {state.showConnections && state.connections.map((c) => {
-            const a = state.placements.find((x) => x.id === c.from.placementId),
-              b = state.placements.find((x) => x.id === c.to.placementId);
-            if (!a || !b) return null;
-            const isSel = isSelected(state.selection, "connection", c.id);
-            const fromPinPos = pinWorldPos(a, c.from.pinName);
-            const toPinPos = pinWorldPos(b, c.to.pinName);
-            const pa = fromPinPos ? w2s(fromPinPos.x, fromPinPos.y) : w2s(a.x, a.y);
-            const pb = toPinPos ? w2s(toPinPos.x, toPinPos.y) : w2s(b.x, b.y);
-            const rsvg = routeSvg.get(c.id);
-            const handlers = makeConnectionHandlers(c);
-            if (rsvg) {
-              const sc = scale * MM_TO_PX * UM_TO_MM,
-                { px, py } = w2s(0, 0);
+          {state.showConnections &&
+            state.connections.map((c) => {
+              const a = state.placements.find((x) => x.id === c.from.placementId),
+                b = state.placements.find((x) => x.id === c.to.placementId);
+              if (!a || !b) return null;
+              const isSel = isSelected(state.selection, "connection", c.id);
+              const fromPinPos = pinWorldPos(a, c.from.pinName);
+              const toPinPos = pinWorldPos(b, c.to.pinName);
+              const pa = fromPinPos ? w2s(fromPinPos.x, fromPinPos.y) : w2s(a.x, a.y);
+              const pb = toPinPos ? w2s(toPinPos.x, toPinPos.y) : w2s(b.x, b.y);
+              const rsvg = routeSvg.get(c.id);
+              const handlers = makeConnectionHandlers(c);
+              if (rsvg) {
+                const sc = scale * MM_TO_PX * UM_TO_MM,
+                  { px, py } = w2s(0, 0);
 
-              // Bounding box of the route in screen coords for the hit rect.
-              // Kept modest (HIT_PAD_ROUTE) so it doesn't overwhelm nearby
-              // component hit-areas, which render afterwards and win ties.
-              const rxMin = Math.min(pa.px, pb.px) - HIT_PAD_ROUTE;
-              const ryMin = Math.min(pa.py, pb.py) - HIT_PAD_ROUTE;
-              const rxW = Math.abs(pb.px - pa.px) + HIT_PAD_ROUTE * 2;
-              const ryH = Math.abs(pb.py - pa.py) + HIT_PAD_ROUTE * 2;
+                // Bounding box of the route in screen coords for the hit rect.
+                // Kept modest (HIT_PAD_ROUTE) so it doesn't overwhelm nearby
+                // component hit-areas, which render afterwards and win ties.
+                const rxMin = Math.min(pa.px, pb.px) - HIT_PAD_ROUTE;
+                const ryMin = Math.min(pa.py, pb.py) - HIT_PAD_ROUTE;
+                const rxW = Math.abs(pb.px - pa.px) + HIT_PAD_ROUTE * 2;
+                const ryH = Math.abs(pb.py - pa.py) + HIT_PAD_ROUTE * 2;
 
-              return (
-                <g
-                  key={c.id}
-                  className="cursor-pointer"
-                  onClick={handlers.onClick}
-                  onContextMenu={handlers.onContextMenu}
-                >
-                  {/* Modest invisible hit rect covering the meander bounding box */}
-                  <rect
-                    x={rxMin} y={ryMin}
-                    width={Math.max(rxW, 32)} height={Math.max(ryH, 32)}
-                    fill="transparent" stroke="none"
-                  />
-                  {isSel && (
+                return (
+                  <g
+                    key={c.id}
+                    className="cursor-pointer"
+                    onClick={handlers.onClick}
+                    onContextMenu={handlers.onContextMenu}
+                  >
+                    {/* Modest invisible hit rect covering the meander bounding box */}
+                    <rect
+                      x={rxMin}
+                      y={ryMin}
+                      width={Math.max(rxW, 32)}
+                      height={Math.max(ryH, 32)}
+                      fill="transparent"
+                      stroke="none"
+                    />
+                    {isSel && (
+                      <g
+                        transform={`translate(${px} ${py}) scale(${sc} ${-sc})`}
+                        opacity={0.3}
+                        style={{ pointerEvents: "none" }}
+                        dangerouslySetInnerHTML={{ __html: rsvg }}
+                      />
+                    )}
                     <g
                       transform={`translate(${px} ${py}) scale(${sc} ${-sc})`}
-                      opacity={0.3}
+                      opacity={isSel ? 1 : 0.9}
                       style={{ pointerEvents: "none" }}
                       dangerouslySetInnerHTML={{ __html: rsvg }}
                     />
-                  )}
-                  <g
-                    transform={`translate(${px} ${py}) scale(${sc} ${-sc})`}
-                    opacity={isSel ? 1 : 0.9}
-                    style={{ pointerEvents: "none" }}
-                    dangerouslySetInnerHTML={{ __html: rsvg }}
+                    {/* Selection highlight border */}
+                    {isSel && (
+                      <rect
+                        x={rxMin - 2}
+                        y={ryMin - 2}
+                        width={Math.max(rxW, 32) + 4}
+                        height={Math.max(ryH, 32) + 4}
+                        rx={6}
+                        fill="none"
+                        stroke="var(--primary)"
+                        strokeOpacity={0.35}
+                        strokeWidth={2}
+                        strokeDasharray="4 2"
+                        style={{ pointerEvents: "none" }}
+                      />
+                    )}
+                    {c.locked && (
+                      <g
+                        transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}
+                        style={{ pointerEvents: "none" }}
+                      >
+                        <rect x={-6} y={-7} width={12} height={10} rx={2} fill="#64748b" />
+                        <rect
+                          x={-3}
+                          y={-10}
+                          width={6}
+                          height={5}
+                          rx={1}
+                          fill="none"
+                          stroke="#64748b"
+                          strokeWidth={1.5}
+                        />
+                      </g>
+                    )}
+                    {/* Direction arrow at midpoint */}
+                    <g
+                      transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}
+                      style={{ pointerEvents: "none" }}
+                    >
+                      <polygon
+                        points="0,-4 3,2 -3,2"
+                        fill={isSel ? "var(--primary)" : "#5B9BD5"}
+                        opacity={0.7}
+                        transform={`rotate(${(Math.atan2(pb.py - pa.py, pb.px - pa.px) * 180) / Math.PI})`}
+                      />
+                    </g>
+                  </g>
+                );
+              }
+              return (
+                <g key={c.id}>
+                  {/* Modest transparent stroke for clicking on thin wire */}
+                  <path
+                    d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
+                    stroke="transparent"
+                    strokeWidth={Math.max(8, HIT_PAD_ROUTE)}
+                    fill="none"
+                    className="cursor-pointer"
+                    onClick={handlers.onClick}
+                    onContextMenu={handlers.onContextMenu}
                   />
-                  {/* Selection highlight border */}
                   {isSel && (
-                    <rect
-                      x={rxMin - 2} y={ryMin - 2}
-                      width={Math.max(rxW, 32) + 4} height={Math.max(ryH, 32) + 4}
-                      rx={6} fill="none"
-                      stroke="var(--primary)" strokeOpacity={0.35}
-                      strokeWidth={2} strokeDasharray="4 2"
+                    <path
+                      d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
+                      stroke="var(--primary)"
+                      strokeWidth={8}
+                      strokeOpacity={0.2}
+                      fill="none"
                       style={{ pointerEvents: "none" }}
                     />
                   )}
+                  <path
+                    d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
+                    stroke={isSel ? "var(--primary)" : c.locked ? "#94a3b8" : "#5B9BD5"}
+                    strokeWidth={isSel ? 2 : 1.4}
+                    strokeDasharray={c.locked ? "4 2" : "5 3"}
+                    strokeOpacity={0.65}
+                    fill="none"
+                    style={{ pointerEvents: "none" }}
+                  />
                   {c.locked && (
-                    <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
+                    <g
+                      transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}
+                      style={{ pointerEvents: "none" }}
+                    >
                       <rect x={-6} y={-7} width={12} height={10} rx={2} fill="#64748b" />
-                      <rect x={-3} y={-10} width={6} height={5} rx={1} fill="none" stroke="#64748b" strokeWidth={1.5} />
+                      <rect
+                        x={-3}
+                        y={-10}
+                        width={6}
+                        height={5}
+                        rx={1}
+                        fill="none"
+                        stroke="#64748b"
+                        strokeWidth={1.5}
+                      />
                     </g>
                   )}
                   {/* Direction arrow at midpoint */}
-                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
+                  <g
+                    transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`}
+                    style={{ pointerEvents: "none" }}
+                  >
                     <polygon
                       points="0,-4 3,2 -3,2"
                       fill={isSel ? "var(--primary)" : "#5B9BD5"}
                       opacity={0.7}
-                      transform={`rotate(${Math.atan2(pb.py - pa.py, pb.px - pa.px) * 180 / Math.PI})`}
+                      transform={`rotate(${(Math.atan2(pb.py - pa.py, pb.px - pa.px) * 180) / Math.PI})`}
                     />
                   </g>
+                  {!c.routeComponentId && (
+                    <text
+                      x={(pa.px + pb.px) / 2}
+                      y={(pa.py + pb.py) / 2 - 14}
+                      textAnchor="middle"
+                      fontSize={9}
+                      fill="var(--muted-foreground)"
+                      opacity={0.7}
+                      style={{ pointerEvents: "none" }}
+                      className="select-none"
+                    >
+                      no route component
+                    </text>
+                  )}
+                  {c.routeComponentId && !routeSvg.get(c.id) && (
+                    <text
+                      x={(pa.px + pb.px) / 2}
+                      y={(pa.py + pb.py) / 2 - 14}
+                      textAnchor="middle"
+                      fontSize={9}
+                      fill="var(--muted-foreground)"
+                      opacity={0.6}
+                      style={{ pointerEvents: "none" }}
+                      className="select-none"
+                    >
+                      {c.routeComponentId} ···
+                    </text>
+                  )}
                 </g>
               );
-            }
-            return (
-              <g key={c.id}>
-                {/* Modest transparent stroke for clicking on thin wire */}
-                <path
-                  d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
-                  stroke="transparent"
-                  strokeWidth={Math.max(8, HIT_PAD_ROUTE)}
-                  fill="none"
-                  className="cursor-pointer"
-                  onClick={handlers.onClick}
-                  onContextMenu={handlers.onContextMenu}
-                />
-                {isSel && (
-                  <path
-                    d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
-                    stroke="var(--primary)"
-                    strokeWidth={8}
-                    strokeOpacity={0.2}
-                    fill="none"
-                    style={{ pointerEvents: "none" }}
-                  />
-                )}
-                <path
-                  d={`M ${pa.px} ${pa.py} L ${pb.px} ${pb.py}`}
-                  stroke={isSel ? "var(--primary)" : c.locked ? "#94a3b8" : "#5B9BD5"}
-                  strokeWidth={isSel ? 2 : 1.4}
-                  strokeDasharray={c.locked ? "4 2" : "5 3"}
-                  strokeOpacity={0.65}
-                  fill="none"
-                  style={{ pointerEvents: "none" }}
-                />
-                {c.locked && (
-                  <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
-                    <rect x={-6} y={-7} width={12} height={10} rx={2} fill="#64748b" />
-                    <rect x={-3} y={-10} width={6} height={5} rx={1} fill="none" stroke="#64748b" strokeWidth={1.5} />
-                  </g>
-                )}
-                {/* Direction arrow at midpoint */}
-                <g transform={`translate(${(pa.px + pb.px) / 2} ${(pa.py + pb.py) / 2})`} style={{ pointerEvents: "none" }}>
-                  <polygon
-                    points="0,-4 3,2 -3,2"
-                    fill={isSel ? "var(--primary)" : "#5B9BD5"}
-                    opacity={0.7}
-                    transform={`rotate(${Math.atan2(pb.py - pa.py, pb.px - pa.px) * 180 / Math.PI})`}
-                  />
-                </g>
-                {!c.routeComponentId && (
-                  <text
-                    x={(pa.px + pb.px) / 2}
-                    y={(pa.py + pb.py) / 2 - 14}
-                    textAnchor="middle"
-                    fontSize={9}
-                    fill="var(--muted-foreground)"
-                    opacity={0.7}
-                    style={{ pointerEvents: "none" }}
-                    className="select-none"
-                  >
-                    no route component
-                  </text>
-                )}
-                {c.routeComponentId && !routeSvg.get(c.id) && (
-                  <text
-                    x={(pa.px + pb.px) / 2}
-                    y={(pa.py + pb.py) / 2 - 14}
-                    textAnchor="middle"
-                    fontSize={9}
-                    fill="var(--muted-foreground)"
-                    opacity={0.6}
-                    style={{ pointerEvents: "none" }}
-                    className="select-none"
-                  >
-                    {c.routeComponentId} ···
-                  </text>
-                )}
-              </g>
-            );
-          })}
+            })}
 
           {/* 3. Component hit-areas — rendered LAST so they sit on top of
                  route hit-rects and the grid, guaranteeing components win
@@ -861,8 +978,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           if (selPlacements.length < 2) return null;
           const xs = selPlacements.map((p) => p.x);
           const ys = selPlacements.map((p) => p.y);
-          const minX = Math.min(...xs), maxX = Math.max(...xs);
-          const minY = Math.min(...ys), maxY = Math.max(...ys);
+          const minX = Math.min(...xs),
+            maxX = Math.max(...xs);
+          const minY = Math.min(...ys),
+            maxY = Math.max(...ys);
           const pad = 0.5;
           const { px: x1, py: y1 } = w2s(minX - pad, maxY + pad);
           const { px: x2, py: y2 } = w2s(maxX + pad, minY - pad);
@@ -891,24 +1010,35 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         ──────────────────────────────────────────────────────────────────── */}
             <g style={{ pointerEvents: "none" }}>
               <rect
-                x={RULER_L} y={size.h - RULER_B}
-                width={size.w - RULER_L} height={RULER_B}
-                fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
+                x={RULER_L}
+                y={size.h - RULER_B}
+                width={size.w - RULER_L}
+                height={RULER_B}
+                fill="#f1f5f9"
+                stroke="#cbd5e1"
+                strokeWidth={1}
               />
               {hTicks.map(({ value, px, type }) => {
                 const tickH = type === "major" ? 11 : type === "half" ? 7 : 4;
                 return (
                   <g key={`hx-${value}`}>
                     <line
-                      x1={px} y1={size.h - RULER_B}
-                      x2={px} y2={size.h - RULER_B + tickH}
-                      stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
+                      x1={px}
+                      y1={size.h - RULER_B}
+                      x2={px}
+                      y2={size.h - RULER_B + tickH}
+                      stroke={
+                        type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"
+                      }
                       strokeWidth={type === "major" ? 1.2 : 0.8}
                     />
                     {type === "major" && (
                       <text
-                        x={px} y={size.h - RULER_B + tickH + 9}
-                        fontSize={8} fill="#475569" fontWeight={600}
+                        x={px}
+                        y={size.h - RULER_B + tickH + 9}
+                        fontSize={8}
+                        fill="#475569"
+                        fontWeight={600}
                         textAnchor="middle"
                         className="pointer-events-none select-none font-mono"
                       >
@@ -926,24 +1056,35 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         ──────────────────────────────────────────────────────────────────── */}
             <g style={{ pointerEvents: "none" }}>
               <rect
-                x={0} y={0}
-                width={RULER_L} height={size.h - RULER_B}
-                fill="#f1f5f9" stroke="#cbd5e1" strokeWidth={1}
+                x={0}
+                y={0}
+                width={RULER_L}
+                height={size.h - RULER_B}
+                fill="#f1f5f9"
+                stroke="#cbd5e1"
+                strokeWidth={1}
               />
               {vTicks.map(({ value, py, type }) => {
                 const tickW = type === "major" ? 11 : type === "half" ? 7 : 4;
                 return (
                   <g key={`vy-${value}`}>
                     <line
-                      x1={RULER_L - tickW} y1={py}
-                      x2={RULER_L} y2={py}
-                      stroke={type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"}
+                      x1={RULER_L - tickW}
+                      y1={py}
+                      x2={RULER_L}
+                      y2={py}
+                      stroke={
+                        type === "major" ? "#334155" : type === "half" ? "#94a3b8" : "#cbd5e1"
+                      }
                       strokeWidth={type === "major" ? 1.2 : 0.8}
                     />
                     {type === "major" && (
                       <text
-                        x={RULER_L - tickW - 2} y={py + 3.5}
-                        fontSize={8} fill="#475569" fontWeight={600}
+                        x={RULER_L - tickW - 2}
+                        y={py + 3.5}
+                        fontSize={8}
+                        fill="#475569"
+                        fontWeight={600}
                         textAnchor="end"
                         className="pointer-events-none select-none font-mono"
                       >
@@ -959,14 +1100,24 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             {cursorPos && (
               <g style={{ pointerEvents: "none" }}>
                 <line
-                  x1={w2s(cursorPos.x, 0).px} y1={0}
-                  x2={w2s(cursorPos.x, 0).px} y2={size.h - RULER_B}
-                  stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
+                  x1={w2s(cursorPos.x, 0).px}
+                  y1={0}
+                  x2={w2s(cursorPos.x, 0).px}
+                  y2={size.h - RULER_B}
+                  stroke="#ef4444"
+                  strokeWidth={0.8}
+                  strokeDasharray="4 3"
+                  opacity={0.6}
                 />
                 <line
-                  x1={RULER_L} y1={w2s(0, cursorPos.y).py}
-                  x2={size.w} y2={w2s(0, cursorPos.y).py}
-                  stroke="#ef4444" strokeWidth={0.8} strokeDasharray="4 3" opacity={0.6}
+                  x1={RULER_L}
+                  y1={w2s(0, cursorPos.y).py}
+                  x2={size.w}
+                  y2={w2s(0, cursorPos.y).py}
+                  stroke="#ef4444"
+                  strokeWidth={0.8}
+                  strokeDasharray="4 3"
+                  opacity={0.6}
                 />
               </g>
             )}
@@ -974,13 +1125,21 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             {/* ── Corner "mm" label ─────────────────────────────────────────── */}
             <g style={{ pointerEvents: "none" }}>
               <rect
-                x={0} y={size.h - RULER_B}
-                width={RULER_L} height={RULER_B}
-                fill="#e2e8f0" stroke="#cbd5e1" strokeWidth={1}
+                x={0}
+                y={size.h - RULER_B}
+                width={RULER_L}
+                height={RULER_B}
+                fill="#e2e8f0"
+                stroke="#cbd5e1"
+                strokeWidth={1}
               />
               <text
-                x={RULER_L / 2} y={size.h - RULER_B / 2 + 3.5}
-                textAnchor="middle" fontSize={9} fontWeight="bold" fill="#0284c7"
+                x={RULER_L / 2}
+                y={size.h - RULER_B / 2 + 3.5}
+                textAnchor="middle"
+                fontSize={9}
+                fontWeight="bold"
+                fill="#0284c7"
                 className="pointer-events-none select-none font-sans"
               >
                 mm
@@ -995,8 +1154,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <p className="text-sm font-medium text-muted-foreground">Canvas is empty</p>
-            <p className="text-xs text-muted-foreground mt-1">Drag a component from the library to get started</p>
-            <p className="text-[10px] text-muted-foreground mt-2">Or press <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono">Ctrl/Cmd + K</kbd> for commands</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Drag a component from the library to get started
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Or press{" "}
+              <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono">
+                Ctrl/Cmd + K
+              </kbd>{" "}
+              for commands
+            </p>
           </div>
         </div>
       )}
@@ -1021,7 +1188,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         </button>
         <button
           className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-          onClick={() => { dispatch({ type: "ZOOM", zoom: 1 }); dispatch({ type: "PAN", x: 0, y: 0 }); }}
+          onClick={() => {
+            dispatch({ type: "ZOOM", zoom: 1 });
+            dispatch({ type: "PAN", x: 0, y: 0 });
+          }}
           title="Reset view (0)"
           aria-label="Reset zoom and pan"
         >
@@ -1082,7 +1252,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             <div className="flex items-center gap-1 border-r border-border pr-3">
               <span className="text-[11px] font-semibold text-muted-foreground">Delta:</span>
               <span className="text-[11px] font-mono font-bold text-foreground">
-                {(cursorPos!.x - dragStartPos.x).toFixed(3)}, {(cursorPos!.y - dragStartPos.y).toFixed(3)}
+                {(cursorPos!.x - dragStartPos.x).toFixed(3)},{" "}
+                {(cursorPos!.y - dragStartPos.y).toFixed(3)}
               </span>
             </div>
           )}
@@ -1137,15 +1308,21 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             <span className="text-[11px] font-semibold text-muted-foreground">Zoom:</span>
             <button
               className="text-[11px] font-bold text-muted-foreground hover:text-foreground px-1 leading-none"
-              onClick={() => dispatch({ type: "ZOOM", zoom: Math.max(SCALE_MIN, state.zoom * 0.9) })}
+              onClick={() =>
+                dispatch({ type: "ZOOM", zoom: Math.max(SCALE_MIN, state.zoom * 0.9) })
+              }
               title="Zoom out"
             >
               −
             </button>
-            <span className="text-[11px] font-bold text-foreground">{Math.round(state.zoom * 100)}%</span>
+            <span className="text-[11px] font-bold text-foreground">
+              {Math.round(state.zoom * 100)}%
+            </span>
             <button
               className="text-[11px] font-bold text-muted-foreground hover:text-foreground px-1 leading-none"
-              onClick={() => dispatch({ type: "ZOOM", zoom: Math.min(SCALE_MAX, state.zoom * 1.1) })}
+              onClick={() =>
+                dispatch({ type: "ZOOM", zoom: Math.min(SCALE_MAX, state.zoom * 1.1) })
+              }
               title="Zoom in"
             >
               +
@@ -1160,15 +1337,21 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           </div>
           <div className="flex items-center gap-1.5 border-l border-border pl-3">
             <span className="text-[11px] font-semibold text-muted-foreground">Scale:</span>
-            <span className="text-[11px] font-mono font-bold text-foreground">{Math.round(MM_TO_PX * scale)} px/mm</span>
+            <span className="text-[11px] font-mono font-bold text-foreground">
+              {Math.round(MM_TO_PX * scale)} px/mm
+            </span>
           </div>
           <div className="flex items-center gap-1.5 border-l border-border pl-3">
             <span className="text-[11px] font-semibold text-muted-foreground">Objects:</span>
-            <span className="text-[11px] font-bold text-foreground">{state.placements.length}P · {state.connections.length}C</span>
+            <span className="text-[11px] font-bold text-foreground">
+              {state.placements.length}P · {state.connections.length}C
+            </span>
           </div>
           <div className="flex items-center gap-1.5 border-l border-border pl-3">
             <span className="text-[11px] font-semibold text-muted-foreground">Chip:</span>
-            <span className="text-[11px] font-bold text-foreground">{state.chipW} × {state.chipH} mm</span>
+            <span className="text-[11px] font-bold text-foreground">
+              {state.chipW} × {state.chipH} mm
+            </span>
           </div>
           <div className="flex items-center gap-1.5 border-l border-border pl-3">
             <button
@@ -1193,18 +1376,27 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
                 }
                 const xs = state.placements.map((p) => p.x);
                 const ys = state.placements.map((p) => p.y);
-                const minX = Math.min(...xs), maxX = Math.max(...xs);
-                const minY = Math.min(...ys), maxY = Math.max(...ys);
+                const minX = Math.min(...xs),
+                  maxX = Math.max(...xs);
+                const minY = Math.min(...ys),
+                  maxY = Math.max(...ys);
                 const pad = 2;
                 const contentW = (maxX - minX + pad * 2) * MM_TO_PX;
                 const contentH = (maxY - minY + pad * 2) * MM_TO_PX;
                 const scaleX = size.w / contentW;
                 const scaleY = size.h / contentH;
-                const newZoom = Math.max(SCALE_MIN, Math.min(SCALE_MAX, Math.min(scaleX, scaleY) * 0.9));
+                const newZoom = Math.max(
+                  SCALE_MIN,
+                  Math.min(SCALE_MAX, Math.min(scaleX, scaleY) * 0.9),
+                );
                 const cxWorld = (minX + maxX) / 2;
                 const cyWorld = (minY + maxY) / 2;
                 dispatch({ type: "ZOOM", zoom: newZoom });
-                dispatch({ type: "PAN", x: size.w / 2 - cxWorld * MM_TO_PX * newZoom, y: size.h / 2 + cyWorld * MM_TO_PX * newZoom });
+                dispatch({
+                  type: "PAN",
+                  x: size.w / 2 - cxWorld * MM_TO_PX * newZoom,
+                  y: size.h / 2 + cyWorld * MM_TO_PX * newZoom,
+                });
               }}
               title="Fit all placements to screen"
             >
@@ -1251,7 +1443,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               const c = state.connections[i];
               return (
                 <li key={c.id} className="truncate">
-                  {c.from.placementId}→{c.to.placementId}: {q.error instanceof Error ? q.error.message : String(q.error)}
+                  {c.from.placementId}→{c.to.placementId}:{" "}
+                  {q.error instanceof Error ? q.error.message : String(q.error)}
                 </li>
               );
             })}
@@ -1368,7 +1561,9 @@ function CanvasScrollbars({
     const panPerPx = (2 * maxPanX) / (hTrackW - hThumbW || 1);
     onPan(hDragRef.current.startPan + dx * panPerPx, pan.y);
   };
-  const onHUp = () => { hDragRef.current = null; };
+  const onHUp = () => {
+    hDragRef.current = null;
+  };
 
   const onVDown = (e: React.PointerEvent) => {
     e.stopPropagation();
@@ -1381,26 +1576,38 @@ function CanvasScrollbars({
     const panPerPx = (2 * maxPanY) / (vTrackH - vThumbH || 1);
     onPan(pan.x, vDragRef.current.startPan - dy * panPerPx);
   };
-  const onVUp = () => { vDragRef.current = null; };
+  const onVUp = () => {
+    vDragRef.current = null;
+  };
 
   const trackStyle: React.CSSProperties = { background: "rgba(0,0,0,0.04)", borderRadius: 6 };
-  const thumbStyle: React.CSSProperties = { background: "rgba(100,116,139,0.45)", borderRadius: 6, position: "absolute", cursor: "pointer" };
+  const thumbStyle: React.CSSProperties = {
+    background: "rgba(100,116,139,0.45)",
+    borderRadius: 6,
+    position: "absolute",
+    cursor: "pointer",
+  };
 
   return (
     <>
       {/* Horizontal scrollbar */}
       <div
         style={{
-          position: "absolute", bottom: 0, left: 0,
-          width: hTrackW, height: TRACK_W,
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          width: hTrackW,
+          height: TRACK_W,
           ...trackStyle,
         }}
       >
         <div
           style={{
             ...thumbStyle,
-            left: hThumbX, top: 1,
-            width: hThumbW, height: TRACK_W - 2,
+            left: hThumbX,
+            top: 1,
+            width: hThumbW,
+            height: TRACK_W - 2,
           }}
           onPointerDown={onHDown}
           onPointerMove={onHMove}
@@ -1412,16 +1619,21 @@ function CanvasScrollbars({
       {/* Vertical scrollbar */}
       <div
         style={{
-          position: "absolute", top: 0, right: 0,
-          width: TRACK_W, height: vTrackH,
+          position: "absolute",
+          top: 0,
+          right: 0,
+          width: TRACK_W,
+          height: vTrackH,
           ...trackStyle,
         }}
       >
         <div
           style={{
             ...thumbStyle,
-            top: vThumbY, left: 1,
-            height: vThumbH, width: TRACK_W - 2,
+            top: vThumbY,
+            left: 1,
+            height: vThumbH,
+            width: TRACK_W - 2,
           }}
           onPointerDown={onVDown}
           onPointerMove={onVMove}
@@ -1431,7 +1643,16 @@ function CanvasScrollbars({
       </div>
 
       {/* Corner square */}
-      <div style={{ position: "absolute", bottom: 0, right: 0, width: TRACK_W, height: TRACK_W, background: "rgba(0,0,0,0.04)" }} />
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          right: 0,
+          width: TRACK_W,
+          height: TRACK_W,
+          background: "rgba(0,0,0,0.04)",
+        }}
+      />
     </>
   );
 }
@@ -1453,7 +1674,8 @@ function PlacementPreview({
   const mx = placement.mirrorX ? -1 : 1;
   if (!p?.svg) {
     // Fallback placeholder: 0.8 mm square
-    const s = 0.8 * MM_TO_PX * scale * uiScale, h = s / 2;
+    const s = 0.8 * MM_TO_PX * scale * uiScale,
+      h = s / 2;
     return (
       <g
         transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}
@@ -1588,10 +1810,8 @@ function PlacementGlyph({
   // sz = largest physical dimension in screen pixels, capped at MAX_COMP_MM.
   const sc = vb
     ? svgScale(Math.max(vb.w, vb.h), units, scale, uiScale)
-    : svgScale(800, "um", scale, uiScale);  // fallback ~0.8mm
-  const sz = vb
-    ? Math.max(vb.w, vb.h) * sc
-    : 0.8 * MM_TO_PX * scale * uiScale;
+    : svgScale(800, "um", scale, uiScale); // fallback ~0.8mm
+  const sz = vb ? Math.max(vb.w, vb.h) * sc : 0.8 * MM_TO_PX * scale * uiScale;
 
   const { px, py } = w2s(placement.x, placement.y),
     half = sz / 2;
@@ -1618,7 +1838,16 @@ function PlacementGlyph({
       {placement.locked && (
         <g transform={`translate(${half - 8} ${-half + 2})`}>
           <rect x={-4} y={-2} width={10} height={8} rx={1} fill="#64748b" />
-          <rect x={-2} y={-5} width={6} height={4} rx={1} fill="none" stroke="#64748b" strokeWidth={1.2} />
+          <rect
+            x={-2}
+            y={-5}
+            width={6}
+            height={4}
+            rx={1}
+            fill="none"
+            stroke="#64748b"
+            strokeWidth={1.2}
+          />
         </g>
       )}
       <text
@@ -1647,37 +1876,57 @@ function PlacementGlyph({
       {placement.locked && (
         <g transform={`translate(${-half + 4} ${-half + 4})`}>
           <circle r={6} fill="var(--amber-500)" stroke="var(--foreground)" strokeWidth={1} />
-          <text y={3} textAnchor="middle" fontSize={7} fontWeight={700} fill="var(--foreground)">L</text>
+          <text y={3} textAnchor="middle" fontSize={7} fontWeight={700} fill="var(--foreground)">
+            L
+          </text>
         </g>
       )}
       {hovered && (
         <g transform={`translate(${half + 8} ${-half})`}>
-          <rect x={0} y={0} width={140} height={42} rx={4} fill="var(--card)" stroke="var(--border)" strokeWidth={1} opacity={0.95} />
-          <text x={6} y={14} fontSize={9} fontWeight={700} fill="var(--foreground)">{placement.componentId}</text>
-          <text x={6} y={28} fontSize={8} fill="var(--muted-foreground)">
-            {Object.entries(placement.params).slice(0, 2).map(([k, v]) => `${k}=${v}`).join(" ")}
+          <rect
+            x={0}
+            y={0}
+            width={140}
+            height={42}
+            rx={4}
+            fill="var(--card)"
+            stroke="var(--border)"
+            strokeWidth={1}
+            opacity={0.95}
+          />
+          <text x={6} y={14} fontSize={9} fontWeight={700} fill="var(--foreground)">
+            {placement.componentId}
           </text>
-          <text x={6} y={38} fontSize={8} fill="var(--muted-foreground)">x:{placement.x.toFixed(2)} y:{placement.y.toFixed(2)}</text>
+          <text x={6} y={28} fontSize={8} fill="var(--muted-foreground)">
+            {Object.entries(placement.params)
+              .slice(0, 2)
+              .map(([k, v]) => `${k}=${v}`)
+              .join(" ")}
+          </text>
+          <text x={6} y={38} fontSize={8} fill="var(--muted-foreground)">
+            x:{placement.x.toFixed(2)} y:{placement.y.toFixed(2)}
+          </text>
         </g>
       )}
       {/* Pin name labels (dots themselves are interactive, drawn in PlacementHitArea) */}
-      {selected && pins.map((pin) => {
-        const cx = pin.hint.x * sc,
-          cy = -pin.hint.y * sc;
-        return (
-          <text
-            key={pin.name}
-            x={cx + 6}
-            y={cy + 3}
-            fontSize={8}
-            fill="var(--foreground)"
-            fontWeight={700}
-            className="select-none"
-          >
-            {pin.name}
-          </text>
-        );
-      })}
+      {selected &&
+        pins.map((pin) => {
+          const cx = pin.hint.x * sc,
+            cy = -pin.hint.y * sc;
+          return (
+            <text
+              key={pin.name}
+              x={cx + 6}
+              y={cy + 3}
+              fontSize={8}
+              fill="var(--foreground)"
+              fontWeight={700}
+              className="select-none"
+            >
+              {pin.name}
+            </text>
+          );
+        })}
     </g>
   );
 }
@@ -1727,9 +1976,7 @@ function PlacementHitArea({
   const sc = vb
     ? svgScale(Math.max(vb.w, vb.h), units, scale, uiScale)
     : svgScale(800, "um", scale, uiScale);
-  const sz = vb
-    ? Math.max(vb.w, vb.h) * sc
-    : 0.8 * MM_TO_PX * scale * uiScale;
+  const sz = vb ? Math.max(vb.w, vb.h) * sc : 0.8 * MM_TO_PX * scale * uiScale;
 
   // ── Hit area calculation ──────────────────────────────────────────────────
   const vbOffX = vb ? (vb.x + vb.w / 2) * sc : 0;
@@ -1799,7 +2046,13 @@ function PlacementHitArea({
         />
       )}
       {editingName && (
-        <foreignObject x={-60} y={half + 4} width={120} height={22} style={{ pointerEvents: "auto" }}>
+        <foreignObject
+          x={-60}
+          y={half + 4}
+          width={120}
+          height={22}
+          style={{ pointerEvents: "auto" }}
+        >
           <input
             type="text"
             defaultValue={placement.name}
@@ -1894,7 +2147,12 @@ function MiniMap({
 
   // Draggable panel position
   const panelRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<{ startX: number; startY: number; origLeft: number; origTop: number } | null>(null);
+  const dragState = useRef<{
+    startX: number;
+    startY: number;
+    origLeft: number;
+    origTop: number;
+  } | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   const w2m = (wx: number, wy: number) => ({
@@ -1928,7 +2186,12 @@ function MiniMap({
     const panel = panelRef.current;
     if (!panel) return;
     const rect = panel.getBoundingClientRect();
-    dragState.current = { startX: e.clientX, startY: e.clientY, origLeft: rect.left, origTop: rect.top };
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origLeft: rect.left,
+      origTop: rect.top,
+    };
 
     const onMove = (me: MouseEvent) => {
       if (!dragState.current) return;
@@ -1955,7 +2218,7 @@ function MiniMap({
       onMouseDown={onDragStart}
       style={{
         ...panelStyle,
-        width: W + 2,       // +2 for border
+        width: W + 2, // +2 for border
         opacity: visible ? 1 : 0,
         transform: visible ? "translateX(0) scale(1)" : "translateX(24px) scale(0.95)",
         pointerEvents: visible ? "auto" : "none",
@@ -1981,19 +2244,37 @@ function MiniMap({
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.03em", lineHeight: 1.4 }}>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: "var(--muted-foreground)",
+            letterSpacing: "0.03em",
+            lineHeight: 1.4,
+          }}
+        >
           TOP VIEW
         </span>
         <button
-          onClick={(e) => { e.stopPropagation(); onClose(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: 18, height: 18, borderRadius: 4, border: "none",
-            background: "transparent", cursor: "pointer", color: "var(--muted-foreground)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 18,
+            height: 18,
+            borderRadius: 4,
+            border: "none",
+            background: "transparent",
+            cursor: "pointer",
+            color: "var(--muted-foreground)",
             transition: "background 150ms",
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = "var(--destructive)/10")}
-          onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--destructive)/10")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
           title="Close Top View"
           aria-label="Close Top View panel"
         >
@@ -2010,13 +2291,18 @@ function MiniMap({
           role="img"
           aria-label="Mini-map overview"
           onClick={onSvgClick}
-          onMouseDown={e => e.stopPropagation()}  // prevent drag when clicking map
+          onMouseDown={(e) => e.stopPropagation()} // prevent drag when clicking map
         >
           {/* Chip bounds */}
           <rect
-            x={ox} y={oy}
-            width={chipW * mapScale} height={chipH * mapScale}
-            fill="var(--muted)" stroke="var(--border)" strokeWidth={1} rx={2}
+            x={ox}
+            y={oy}
+            width={chipW * mapScale}
+            height={chipH * mapScale}
+            fill="var(--muted)"
+            stroke="var(--border)"
+            strokeWidth={1}
+            rx={2}
           />
           {/* Connections */}
           {connections.map((c) => {
@@ -2026,8 +2312,16 @@ function MiniMap({
             const pa = w2m(pa_.x, pa_.y);
             const pb = w2m(pb_.x, pb_.y);
             return (
-              <line key={c.id} x1={pa.mx} y1={pa.my} x2={pb.mx} y2={pb.my}
-                stroke="var(--border)" strokeWidth={0.5} opacity={0.5} />
+              <line
+                key={c.id}
+                x1={pa.mx}
+                y1={pa.my}
+                x2={pb.mx}
+                y2={pb.my}
+                stroke="var(--border)"
+                strokeWidth={0.5}
+                opacity={0.5}
+              />
             );
           })}
           {/* Placements */}
@@ -2035,16 +2329,26 @@ function MiniMap({
             const { mx, my } = w2m(p.x, p.y);
             const isSel = selSet.has(p.id);
             return (
-              <circle key={p.id} cx={mx} cy={my} r={isSel ? 2.5 : 1.5}
+              <circle
+                key={p.id}
+                cx={mx}
+                cy={my}
+                r={isSel ? 2.5 : 1.5}
                 fill={isSel ? "var(--primary)" : "var(--foreground)"}
-                opacity={isSel ? 1 : 0.5} />
+                opacity={isSel ? 1 : 0.5}
+              />
             );
           })}
           {/* Viewport rectangle */}
           <rect
-            x={Math.min(a.mx, b.mx)} y={Math.min(a.my, b.my)}
-            width={Math.abs(b.mx - a.mx)} height={Math.abs(b.my - a.my)}
-            fill="none" stroke="var(--primary)" strokeWidth={1} opacity={0.6}
+            x={Math.min(a.mx, b.mx)}
+            y={Math.min(a.my, b.my)}
+            width={Math.abs(b.mx - a.mx)}
+            height={Math.abs(b.my - a.my)}
+            fill="none"
+            stroke="var(--primary)"
+            strokeWidth={1}
+            opacity={0.6}
             pointerEvents="none"
           />
         </svg>
