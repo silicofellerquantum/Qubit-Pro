@@ -124,14 +124,31 @@ app = FastAPI(
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 
-# In development, allow ANY origin so preflight OPTIONS never returns 400.
-# In production, lock down to the explicit allow-list from settings.
-_cors_origins: list[str] = ["*"] if not settings.is_production else settings.cors_origins_list
+# To support credentialed requests (containing Authorization headers), we must
+# provide an explicit origin list rather than wildcard "*" and enable credentials.
+_cors_origins: list[str] = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:8080",
+    "http://localhost:8081",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+    "http://127.0.0.1:8080",
+]
+
+# Append any custom origins from environment settings
+for _origin in settings.cors_origins_list:
+    if _origin not in _cors_origins:
+        _cors_origins.append(_origin)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=settings.is_production,   # must be False when origins=["*"]
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

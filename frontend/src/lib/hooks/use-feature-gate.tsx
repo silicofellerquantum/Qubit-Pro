@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +18,9 @@ export type FeatureKey =
   | "download_png"
   | "download_jpeg"
   | "download_code"
-  | "run_code";
+  | "run_code"
+  | "import_json"
+  | "export_json";
 
 export function useFeatureGate() {
   const { user } = useAuth();
@@ -25,6 +28,7 @@ export function useFeatureGate() {
   const [currentFeature, setCurrentFeature] = useState<FeatureKey | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const checkAndRun = async (featureKey: FeatureKey, action: () => void | Promise<void>) => {
     if (isChecking) return;
@@ -71,6 +75,9 @@ export function useFeatureGate() {
         });
         if (!recordRes.ok) {
           console.warn("Failed to record feature usage on backend:", recordRes.status);
+        } else {
+          // Invalidate key to trigger visual blur update immediately
+          queryClient.invalidateQueries({ queryKey: ["feature-usage"] });
         }
       } else {
         setCurrentFeature(featureKey);
@@ -95,7 +102,11 @@ export function useFeatureGate() {
       case "download_code":
         return "code download";
       case "run_code":
-        return "code run";
+        return "code execution";
+      case "import_json":
+        return "JSON import";
+      case "export_json":
+        return "JSON export";
       default:
         return "feature";
     }

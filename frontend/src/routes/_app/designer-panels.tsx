@@ -31,6 +31,7 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import type { GenerateResponse, PlacementQubit } from "@/lib/api/backend";
+import { useFeatureGate } from "@/lib/hooks/use-feature-gate";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ChipView
@@ -1131,6 +1132,7 @@ export function FreqPlanView({ result }: { result: GenerateResponse }) {
 export function CodeView({ result }: { result: GenerateResponse }) {
   const code = result.code ?? "# No Qiskit Metal code generated";
   const [copied, setCopied] = useState(false);
+  const { checkAndRun, isChecking, GateDialog } = useFeatureGate();
 
   const copy = () => {
     if (navigator?.clipboard) {
@@ -1141,14 +1143,18 @@ export function CodeView({ result }: { result: GenerateResponse }) {
   };
 
   const download = () => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([code], { type: "text/plain" }));
-    a.download = "qbeta_chip_blueprint.py";
-    a.click();
+    checkAndRun("download_code", () => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([code], { type: "text/plain" }));
+      a.download = "qbeta_chip_blueprint.py";
+      a.click();
+    });
   };
 
   return (
-    <Card className="overflow-hidden rounded-2xl border-slate-200/70 p-0 shadow-sm bg-white max-w-3xl mx-auto">
+    <>
+      <GateDialog />
+      <Card className="overflow-hidden rounded-2xl border-slate-200/70 p-0 shadow-sm bg-white max-w-3xl mx-auto">
       <div className="flex items-center justify-between border-b border-slate-200/60 bg-slate-50/80 px-5 py-3">
         <div className="flex items-center gap-3">
           <div className="flex gap-1.5">
@@ -1183,6 +1189,7 @@ export function CodeView({ result }: { result: GenerateResponse }) {
             variant="outline"
             size="sm"
             onClick={download}
+            disabled={isChecking}
             className="rounded-full border-slate-200 hover:bg-slate-100 text-slate-600 shadow-sm text-xs font-bold h-7 px-3 active:scale-95 transition-all"
           >
             <Download className="mr-1.5 h-3 w-3" />
@@ -1193,6 +1200,7 @@ export function CodeView({ result }: { result: GenerateResponse }) {
       <pre className="overflow-auto dark-scrollbar bg-[#0F172A] p-6 text-[12px] leading-relaxed text-slate-300 max-h-[520px] font-mono shadow-inner">
         <code className="language-python">{code}</code>
       </pre>
-    </Card>
+      </Card>
+    </>
   );
 }

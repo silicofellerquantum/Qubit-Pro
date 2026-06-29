@@ -92,6 +92,22 @@ def _get_razorpay_client() -> razorpay.Client:
     )
 
 
+def _rzp_error_detail(exc: Exception) -> str:
+    """Extract a human-readable error message from a Razorpay exception."""
+    try:
+        # razorpay-python raises errors.BadRequestError with a .response attribute
+        if hasattr(exc, 'response'):
+            resp = exc.response  # type: ignore
+            if hasattr(resp, 'json'):
+                body = resp.json()
+                return body.get('error', {}).get('description') or str(exc)
+            if hasattr(resp, 'text'):
+                return resp.text
+    except Exception:
+        pass
+    return str(exc)
+
+
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class CreateSubscriptionRequest(BaseModel):
@@ -155,6 +171,41 @@ def _verify_payment_signature(
     return hmac.compare_digest(expected, signature)
 
 
+# ── Diagnostic endpoint ───────────────────────────────────────────────────────
+
+@router.get("/test-connection")
+async def test_razorpay_connection(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Diagnostic: test Razorpay API connectivity and return the raw error if any.
+    Safe to call — only fetches account balance (read-only).
+    """
+    key_id = settings.razorpay_key_id or "(not set)"
+    key_secret_set = bool(settings.razorpay_key_secret)
+    try:
+        client = _get_razorpay_client()
+        # Fetch a list of customers as a lightweight connectivity test
+        client.customer.all({"count": 1})
+        return {
+            "status": "ok",
+            "key_id": key_id,
+            "key_secret_set": key_secret_set,
+            "message": "Razorpay connection successful",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        detail = _rzp_error_detail(exc)
+        return {
+            "status": "error",
+            "key_id": key_id,
+            "key_secret_set": key_secret_set,
+            "error": detail,
+            "raw": str(exc),
+        }
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 # 1. Create / fetch Razorpay customer
@@ -183,8 +234,9 @@ async def create_or_get_customer(
             }
         )
     except Exception as exc:
-        log.exception("Razorpay customer creation failed")
-        raise HTTPException(status_code=502, detail=f"Payment gateway error: {exc}") from exc
+        detail = _rzp_error_detail(exc)
+        log.exception("Razorpay customer creation failed: %s", detail)
+        raise HTTPException(status_code=502, detail=f"Payment gateway error: {detail}") from exc
 
     # Persist the customer ID
     result = await db.execute(select(User).where(User.id == current_user.id))
@@ -242,8 +294,9 @@ async def create_subscription(
             }
         )
     except Exception as exc:
-        log.exception("Razorpay subscription creation failed")
-        raise HTTPException(status_code=502, detail=f"Payment gateway error: {exc}") from exc
+        detail = _rzp_error_detail(exc)
+        log.exception("Razorpay subscription creation failed: %s", detail)
+        raise HTTPException(status_code=502, detail=f"Payment gateway error: {detail}") from exc
 
     # Persist subscription object
     sub_record = Subscription(

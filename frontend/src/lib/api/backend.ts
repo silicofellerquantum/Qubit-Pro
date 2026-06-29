@@ -410,11 +410,12 @@ export async function registerUser(
   email: string,
   password: string,
   organization: string,
+  role?: string,
 ): Promise<{ detail: string }> {
   const res = await fetch(`${BACKEND_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, organization }),
+    body: JSON.stringify({ name, email, password, organization, ...(role ? { role } : {}) }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: "Registration failed" }));

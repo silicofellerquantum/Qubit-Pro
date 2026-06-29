@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import {
@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { bridgeClient } from "@/lib/bridge/client";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import type { DesignDocument } from "@/lib/bridge/types";
-import { useFeatureGate } from "@/lib/hooks/use-feature-gate";
+import { useFeatureGate, type FeatureKey } from "@/lib/hooks/use-feature-gate";
 
 export type CodePanelMode = "generate" | "write";
 
@@ -77,6 +77,45 @@ export function CodeIdePanel({ mode, onClose }: Props) {
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const doc = { placements: activeTab.state.placements, connections: activeTab.state.connections };
   const state = activeTab.state;
+
+  const { data: featureAllowed = { download_code: true, run_code: true } } = useQuery({
+    queryKey: ["feature-usage"],
+    queryFn: async () => {
+      const token = localStorage.getItem("qs_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(
+        /\/$/,
+        "",
+      );
+      
+      const keys: FeatureKey[] = ["download_code", "run_code"];
+      const results = await Promise.all(
+        keys.map(async (key) => {
+          try {
+            const res = await fetch(`${backendUrl}/api/feature-usage/${key}`, { headers });
+            if (res.ok) {
+              const data = await res.json();
+              return { key, allowed: data.allowed };
+            }
+          } catch (e) {
+            console.error(e);
+          }
+          return { key, allowed: true };
+        })
+      );
+      
+      const usageMap: Record<string, boolean> = {};
+      results.forEach((r) => {
+        usageMap[r.key] = r.allowed;
+      });
+      return usageMap;
+    },
+    refetchOnWindowFocus: false,
+    staleTime: 60000,
+  });
 
   const [genCode, setGenCode] = useState("");
   const [genFile, setGenFile] = useState("design.py");
@@ -341,38 +380,69 @@ export function CodeIdePanel({ mode, onClose }: Props) {
       )}
 
       {/* Monaco */}
-      <div className="min-h-0 flex-1">
-        <Editor
-          height="100%"
-          language="python"
-          theme="vs-dark"
-          value={mode === "generate" ? genCode : writeCode}
-          onChange={(val) => {
-            if (mode === "write") {
-              setWriteCode(val ?? "");
-              setRunResult(null);
+      <div className="min-h-0 flex-1 relative">
+        <div className={cn(
+          "h-full w-full transition-all duration-300",
+          ((mode === "generate" && !featureAllowed.download_code) ||
+           (mode === "write" && !featureAllowed.run_code)) && "blur-[5px] pointer-events-none select-none"
+        )}>
+          <Editor
+            height="100%"
+            language="python"
+            theme="vs-dark"
+            value={mode === "generate" ? genCode : writeCode}
+            onChange={(val) => {
+              if (mode === "write") {
+                setWriteCode(val ?? "");
+                setRunResult(null);
+              }
+            }}
+            options={{
+              readOnly: mode === "generate",
+              fontSize: 12,
+              lineNumbers: "on",
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              wordWrap: "on",
+              tabSize: 4,
+              autoIndent: "full",
+              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+              contextmenu: true,
+            }}
+            onMount={onMount}
+            loading={
+              <div className="flex h-full items-center justify-center text-[11px] text-white/40">
+                Loading editor…
+              </div>
             }
-          }}
-          options={{
-            readOnly: mode === "generate",
-            fontSize: 12,
-            lineNumbers: "on",
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            wordWrap: "on",
-            tabSize: 4,
-            autoIndent: "full",
-            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-            contextmenu: true,
-          }}
-          onMount={onMount}
-          loading={
-            <div className="flex h-full items-center justify-center text-[11px] text-white/40">
-              Loading editor…
+          />
+        </div>
+        {((mode === "generate" && !featureAllowed.download_code) ||
+          (mode === "write" && !featureAllowed.run_code)) && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[1px] p-4 text-center z-10">
+            <div className="rounded-2xl border border-white/10 bg-black/60 p-6 shadow-2xl max-w-sm backdrop-blur-md">
+              <h3 className="text-base font-bold bg-gradient-to-r from-fuchsia-400 to-violet-400 bg-clip-text text-transparent">
+                Unlock Python Integration
+              </h3>
+              <p className="text-[11px] text-white/60 mt-2 leading-relaxed">
+                You've used your free single-use preview. Upgrade to Pro for unlimited access to code generation, execution, and downloads.
+              </p>
+              <Button
+                className="mt-4 rounded-full h-8 px-5 bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-500 hover:to-violet-500 text-xs font-semibold text-white border-0 shadow-lg cursor-pointer"
+                onClick={() => {
+                  if (mode === "generate") {
+                    downloadGate.checkAndRun("download_code", () => {});
+                  } else {
+                    runGate.checkAndRun("run_code", () => {});
+                  }
+                }}
+              >
+                Upgrade to Pro
+              </Button>
             </div>
-          }
-        />
+          </div>
+        )}
       </div>
 
       {/* Status bar */}

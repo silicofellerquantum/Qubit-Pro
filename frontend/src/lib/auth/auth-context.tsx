@@ -4,10 +4,8 @@ import {
   registerUser,
   getCurrentUser,
   loginWithGoogle,
-  initiateGithubLogin,
   verifyOTP,
 } from "@/lib/api/backend";
-import { toast } from "sonner";
 
 export type UserRole = "admin" | "org_manager" | "engineer";
 
@@ -51,11 +49,17 @@ export const DEMO_ACCOUNTS = [
 ];
 
 export function canAccess(role: UserRole, resource: string): boolean {
+  // Admin has access to everything
   if (role === "admin") return true;
+  // Only admin can access admin panel
   if (resource === "admin") return false;
-  if (resource === "team" || resource === "billing") {
-    return role === "org_manager";
+  // Team management: admin + org_manager only
+  if (resource === "team") {
+    return role === "admin" || role === "org_manager";
   }
+  // Billing is accessible to ALL authenticated users — everyone has a plan
+  if (resource === "billing") return true;
+  // All authenticated roles can access everything else
   return true;
 }
 
@@ -74,8 +78,6 @@ interface AuthContextType {
   ) => Promise<{ ok: boolean; error?: string }>;
   confirmVerification: (email: string, otp: string) => Promise<{ ok: boolean; error?: string }>;
   signInWithGoogle: (idToken: string) => Promise<{ ok: boolean; error?: string }>;
-  signInWithGitHub: () => void;
-  completeGithubLogin: (token: string, user: User) => void;
   signOut: () => Promise<void>;
 }
 
@@ -157,7 +159,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: backendUser.role as UserRole,
             organization: backendUser.organization,
             initials: backendUser.initials,
-            isPremium: backendUser.isPremium,
+            isPremium: (backendUser as any).isPremium ?? false,
           };
           setUser(restoredUser);
           setStorageItem(USER_KEY, JSON.stringify(restoredUser));
@@ -238,7 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: serverUser.role as UserRole,
             organization: serverUser.organization,
             initials: serverUser.initials,
-            isPremium: serverUser.isPremium,
+            isPremium: serverUser.isPremium ?? false,
           };
           setStorageItem(TOKEN_KEY, data.access_token);
           setStorageItem(USER_KEY, JSON.stringify(loggedInUser));
@@ -274,7 +276,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ): Promise<{ ok: boolean; error?: string }> => {
       setIsLoading(true);
       try {
-        await registerUser(name, email, password, organization);
+        await registerUser(name, email, password, organization, role);
         console.log("[Auth] signUp register success, email OTP sent");
         return { ok: true };
       } catch (err) {
@@ -300,7 +302,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: data.user.role as UserRole,
           organization: data.user.organization,
           initials: data.user.initials,
-          isPremium: data.user.isPremium,
+          isPremium: (data.user as any).isPremium ?? false,
         };
         setStorageItem(TOKEN_KEY, data.access_token);
         setStorageItem(USER_KEY, JSON.stringify(registeredUser));
@@ -337,7 +339,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: data.user.role as UserRole,
           organization: data.user.organization,
           initials: data.user.initials,
-          isPremium: data.user.isPremium,
+          isPremium: (data.user as any).isPremium ?? false,
         };
         setStorageItem(TOKEN_KEY, data.access_token);
         setStorageItem(USER_KEY, JSON.stringify(loggedInUser));
@@ -354,17 +356,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     [],
   );
-
-  const signInWithGitHub = useCallback(() => {
-    initiateGithubLogin();
-  }, []);
-
-  const completeGithubLogin = useCallback((token: string, loggedInUser: User) => {
-    setStorageItem(TOKEN_KEY, token);
-    setStorageItem(USER_KEY, JSON.stringify(loggedInUser));
-    setUser(loggedInUser);
-    console.log("[Auth] GitHub login completed, state updated");
-  }, []);
 
   // Idle timeout of 10 minutes
   useEffect(() => {
@@ -400,21 +391,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider
-      value={
-        {
-          user,
-          hydrated,
-          isLoading,
-          signIn,
-          signInAs,
-          signUp,
-          confirmVerification,
-          signOut,
-          signInWithGoogle,
-          signInWithGitHub,
-          completeGithubLogin,
-        } as any
-      }
+      value={{
+        user,
+        hydrated,
+        isLoading,
+        signIn,
+        signInAs,
+        signUp,
+        confirmVerification,
+        signOut,
+        signInWithGoogle,
+      }}
     >
       {children}
     </AuthContext.Provider>

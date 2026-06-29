@@ -55,6 +55,8 @@ import {
 import { useProject } from "@/lib/project-context";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/auth/auth-context";
+import { useFeatureGate } from "@/lib/hooks/use-feature-gate";
 
 export const Route = createFileRoute("/_app/projects")({
   head: () => ({ meta: [{ title: "Projects — Silicofeller" }] }),
@@ -234,6 +236,8 @@ function CreateModal({
   const [metal, setMetal] = useState("aluminum");
   const [saving, setSaving] = useState(false);
 
+  const { checkAndRun, GateDialog } = useFeatureGate();
+  
   const handleCreate = async () => {
     if (!name.trim()) return;
     setSaving(true);
@@ -259,6 +263,7 @@ function CreateModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
+      <GateDialog />
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 8 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -861,7 +866,9 @@ function ProjectsPage() {
   };
 
   const handleImportClick = () => {
-    fileInputRef.current?.click();
+    checkAndRun("import_json", () => {
+      fileInputRef.current?.click();
+    });
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

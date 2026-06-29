@@ -90,6 +90,18 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
     log.info("Database tables ensured.")
 
+    if not settings.is_sqlite:
+        try:
+            from sqlalchemy import text
+            async with engine.connect() as conn:
+                await conn.execute(text("COMMIT"))
+                await conn.execute(text("ALTER TYPE featurekey ADD VALUE IF NOT EXISTS 'import_json'"))
+                await conn.execute(text("ALTER TYPE featurekey ADD VALUE IF NOT EXISTS 'export_json'"))
+                await conn.commit()
+            log.info("Postgres enum types updated successfully.")
+        except Exception as e:
+            log.warning(f"Could not update Postgres enum types: {e}")
+
     try:
         from app.models import User, UserRole
         from app.auth import hash_password

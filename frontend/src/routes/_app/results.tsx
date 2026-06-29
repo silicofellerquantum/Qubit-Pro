@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useDesign } from "@/lib/design-context";
 import { cn } from "@/lib/utils";
+import { useFeatureGate } from "@/lib/hooks/use-feature-gate";
 
 export const Route = createFileRoute("/_app/results")({
   head: () => ({ meta: [{ title: "Results — Silicofeller" }] }),
@@ -229,6 +230,7 @@ function ResultsPage() {
   const [activeTab, setActiveTab] = useState<ResultTab>("frequencies");
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const { checkAndRun, isChecking } = useFeatureGate();
 
   const displayConv = selectedConvId
     ? conversations.find((c) => c.id === selectedConvId)
@@ -240,12 +242,14 @@ function ResultsPage() {
   const withResults = conversations.filter((c) => c.result);
 
   const exportJSON = () => {
-    if (!result) return;
-    const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${displayConv?.title ?? "results"}.json`;
-    a.click();
+    checkAndRun("export_json", () => {
+      if (!result) return;
+      const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${displayConv?.title ?? "results"}.json`;
+      a.click();
+    });
   };
 
   const copyJSON = () => {
@@ -268,6 +272,7 @@ function ResultsPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-[#F8F9FB]">
+      <GateDialog />
       <div className="mx-auto max-w-6xl px-6 py-6">
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
           <div className="flex items-center justify-between mb-6">
@@ -297,8 +302,11 @@ function ResultsPage() {
                   Copy JSON
                 </Button>
                 <Button
+                  variant="outline"
+                  size="sm"
                   onClick={exportJSON}
-                  className="rounded-xl bg-accent text-white text-xs font-bold h-9"
+                  disabled={isChecking}
+                  className="rounded-full border-slate-200 hover:bg-slate-50 text-slate-600 shadow-sm text-[11px] font-bold h-8 px-4"
                 >
                   <Download className="mr-1.5 h-3.5 w-3.5" /> Export
                 </Button>

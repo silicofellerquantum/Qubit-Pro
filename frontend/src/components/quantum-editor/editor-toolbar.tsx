@@ -1,5 +1,5 @@
 import { type RefObject, useCallback, useState, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Undo2,
   Redo2,
@@ -29,7 +29,7 @@ import {
   ChevronUp,
   Loader2,
 } from "lucide-react";
-import { useFeatureGate } from "@/lib/hooks/use-feature-gate";
+import { useFeatureGate, type FeatureKey } from "@/lib/hooks/use-feature-gate";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -81,6 +81,44 @@ export function EditorToolbar({
   onSave,
 }: Props) {
   const featureGate = useFeatureGate();
+  const { data: featureAllowed = { import_json: true, export_json: true } } = useQuery({
+    queryKey: ["feature-usage"],
+    queryFn: async () => {
+      const token = localStorage.getItem("qs_token");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(
+        /\/$/,
+        "",
+      );
+      
+      const keys: FeatureKey[] = ["import_json", "export_json"];
+      const results = await Promise.all(
+        keys.map(async (key) => {
+          try {
+            const res = await fetch(`${backendUrl}/api/feature-usage/${key}`, { headers });
+            if (res.ok) {
+              const data = await res.json();
+              return { key, allowed: data.allowed };
+            }
+          } catch (e) {
+            console.error(e);
+          }
+          return { key, allowed: true };
+        })
+      );
+      
+      const usageMap: Record<string, boolean> = {};
+      results.forEach((r) => {
+        usageMap[r.key] = r.allowed;
+      });
+      return usageMap;
+    },
+    refetchOnWindowFocus: false,
+    staleTime: 60000,
+  });
   const { activeTab, dispatchActive, saveAll } = useWorkspace();
   const state = activeTab.state;
   const dispatch = dispatchActive;
@@ -463,10 +501,22 @@ export function EditorToolbar({
               >
                 <Download className="h-3.5 w-3.5" /> JPG
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 text-[12px]" onSelect={exportDoc}>
+              <DropdownMenuItem
+                className={cn(
+                  "gap-2 text-[12px] cursor-pointer transition-all duration-200",
+                  !featureAllowed.export_json && "blur-[1.5px] hover:blur-none"
+                )}
+                onSelect={() => featureGate.checkAndRun("export_json", exportDoc)}
+              >
                 <FileJson className="h-3.5 w-3.5" /> Export JSON
               </DropdownMenuItem>
-              <DropdownMenuItem className="gap-2 text-[12px]" onSelect={importDoc}>
+              <DropdownMenuItem
+                className={cn(
+                  "gap-2 text-[12px] cursor-pointer transition-all duration-200",
+                  !featureAllowed.import_json && "blur-[1.5px] hover:blur-none"
+                )}
+                onSelect={() => featureGate.checkAndRun("import_json", importDoc)}
+              >
                 <Upload className="h-3.5 w-3.5" /> Import JSON
               </DropdownMenuItem>
             </DropdownMenuContent>

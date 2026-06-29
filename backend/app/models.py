@@ -319,6 +319,8 @@ class FeatureKey(str, PyEnum):
     download_jpeg = "download_jpeg"
     download_code = "download_code"
     run_code = "run_code"
+    import_json = "import_json"
+    export_json = "export_json"
 
 
 class UserFeatureUsage(Base):

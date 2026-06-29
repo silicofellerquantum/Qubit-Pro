@@ -897,9 +897,14 @@ function BillingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // All authenticated users (including Google Sign-In engineer accounts) can
+  // view billing. Redirect only if not authenticated at all.
   useEffect(() => {
-    if (user && !canAccess(user.role, "billing")) navigate({ to: "/dashboard", replace: true });
+    if (user === null) navigate({ to: "/dashboard", replace: true });
   }, [user, navigate]);
+
+  // Derive whether this user can manage team subscriptions
+  const isManager = user?.role === "admin" || user?.role === "org_manager";
 
   const [billingState, setBillingState] = useState<BillingState>({
     plan: "free",
@@ -946,16 +951,19 @@ function BillingPage() {
       setBillingState(data);
       setAnnual(data.billing_cycle === "annual");
 
-      const subsData = await apiFetch<{ subscriptions: SubscriptionState[] }>(
-        "/api/billing/subscription",
-      );
-      setOwnedSubscriptions(subsData.subscriptions || []);
+      // Only fetch owned subscriptions for admin/org_manager (engineers don't own subs)
+      if (isManager) {
+        const subsData = await apiFetch<{ subscriptions: SubscriptionState[] }>(
+          "/api/billing/subscription",
+        );
+        setOwnedSubscriptions(subsData.subscriptions || []);
+      }
     } catch {
       // Backend not yet configured — fall back to free defaults silently
     } finally {
       setBillingLoading(false);
     }
-  }, []);
+  }, [isManager]);
 
   useEffect(() => {
     async function fetchInvoices() {
@@ -1395,85 +1403,125 @@ function BillingPage() {
 
         {/* ── Payment + Settings ── */}
         <section className="mb-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <Card className="rounded-2xl border-border p-6 shadow-none lg:col-span-2">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-foreground">Payment Method</h2>
-              {currentPlan === "free" ? (
-                <Button
-                  id="add-payment-razorpay-btn"
-                  variant="outline"
-                  size="sm"
-                  className="h-9 rounded-full"
-                  onClick={() => handleUpgrade("basic", annual ? "annual" : "monthly")}
-                >
-                  <Plus className="mr-1 h-4 w-4" /> Upgrade Plan
-                </Button>
-              ) : null}
-            </div>
-
-            {currentPlan === "free" && ownedSubscriptions.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">
-                No payment method added yet.
-                <br />
-                <span className="text-xs">Required when upgrading to a paid plan.</span>
-                <br />
-                <Button
-                  id="razorpay-checkout-prompt"
-                  className="mt-4 h-9 rounded-full bg-[#072654] px-5 text-white hover:bg-[#072654]/90 text-sm"
-                  onClick={() => handleUpgrade("basic", annual ? "annual" : "monthly")}
-                >
-                  <CreditCard className="mr-1.5 h-4 w-4" />
-                  Pay securely with Razorpay
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {ownedSubscriptions.map((sub) => (
-                  <div
-                    key={sub.id}
-                    className="flex items-center gap-4 rounded-xl border border-border bg-muted/20 px-5 py-4"
+          {isManager ? (
+            /* Admin / org_manager: full payment method + owned subscriptions panel */
+            <Card className="rounded-2xl border-border p-6 shadow-none lg:col-span-2">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-foreground">Payment Method</h2>
+                {currentPlan === "free" ? (
+                  <Button
+                    id="add-payment-razorpay-btn"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 rounded-full"
+                    onClick={() => handleUpgrade("basic", annual ? "annual" : "monthly")}
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#072654]">
-                      <CreditCard className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-foreground capitalize">
-                        {sub.plan} Subscription ({sub.quantity} seats)
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {sub.status === "active"
-                          ? "Active — auto-renews each billing cycle"
-                          : sub.status === "halted"
-                            ? "⚠ Halted — please update your payment method in Razorpay"
-                            : (sub.status ?? "Managed by Razorpay")}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        className={cn(
-                          "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-                          sub.status === "active"
-                            ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300"
-                            : "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300",
-                        )}
-                      >
-                        {sub.status ?? "–"}
-                      </Badge>
-                      {currentPlan !== sub.plan && sub.status === "active" && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleSwitchPlan(sub.plan)}
-                        >
-                          Switch to {sub.plan}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                    <Plus className="mr-1 h-4 w-4" /> Upgrade Plan
+                  </Button>
+                ) : null}
               </div>
-            )}
-          </Card>
+
+              {currentPlan === "free" && ownedSubscriptions.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">
+                  No payment method added yet.
+                  <br />
+                  <span className="text-xs">Required when upgrading to a paid plan.</span>
+                  <br />
+                  <Button
+                    id="razorpay-checkout-prompt"
+                    className="mt-4 h-9 rounded-full bg-[#072654] px-5 text-white hover:bg-[#072654]/90 text-sm"
+                    onClick={() => handleUpgrade("basic", annual ? "annual" : "monthly")}
+                  >
+                    <CreditCard className="mr-1.5 h-4 w-4" />
+                    Pay securely with Razorpay
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {ownedSubscriptions.map((sub) => (
+                    <div
+                      key={sub.id}
+                      className="flex items-center gap-4 rounded-xl border border-border bg-muted/20 px-5 py-4"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#072654]">
+                        <CreditCard className="h-5 w-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-foreground capitalize">
+                          {sub.plan} Subscription ({sub.quantity} seats)
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {sub.status === "active"
+                            ? "Active — auto-renews each billing cycle"
+                            : sub.status === "halted"
+                              ? "⚠ Halted — please update your payment method in Razorpay"
+                              : (sub.status ?? "Managed by Razorpay")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          className={cn(
+                            "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                            sub.status === "active"
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300"
+                              : "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300",
+                          )}
+                        >
+                          {sub.status ?? "–"}
+                        </Badge>
+                        {currentPlan !== sub.plan && sub.status === "active" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSwitchPlan(sub.plan)}
+                          >
+                            Switch to {sub.plan}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          ) : (
+            /* Engineer / Google Sign-In user: simple plan info card */
+            <Card className="rounded-2xl border-border p-6 shadow-none lg:col-span-2">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-foreground">Your Plan</h2>
+                {currentPlan === "free" && (
+                  <Button
+                    id="upgrade-plan-btn"
+                    size="sm"
+                    className="h-9 rounded-full bg-violet-600 px-4 text-white hover:bg-violet-700"
+                    onClick={() => handleUpgrade("basic", annual ? "annual" : "monthly")}
+                  >
+                    <Zap className="mr-1 h-4 w-4" /> Upgrade
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-4 rounded-xl border border-border bg-muted/10 px-5 py-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-900/30">
+                  <Sparkles className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-foreground capitalize">
+                    {currentPlan === "free" ? "Free Plan" : `${currentPlan} Plan`}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {currentPlan === "free"
+                      ? "You're on the free tier. Upgrade to unlock advanced features."
+                      : `Active subscription — billed ${annual ? "annually" : "monthly"}.`}
+                  </p>
+                </div>
+              </div>
+              {currentPlan === "free" && (
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Payment is handled securely via Razorpay. Your billing admin manages team-wide subscriptions.
+                </p>
+              )}
+            </Card>
+          )}
 
           <Card className="rounded-2xl border-border p-6 shadow-none">
             <h2 className="text-base font-semibold text-foreground">Billing Settings</h2>
@@ -1487,6 +1535,7 @@ function BillingPage() {
             </div>
           </Card>
         </section>
+
 
         {/* ── Invoices ── */}
         <section>

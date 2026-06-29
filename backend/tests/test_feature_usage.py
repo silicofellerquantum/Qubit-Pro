@@ -153,3 +153,42 @@ async def test_run_code_gating():
         active_user = mock_premium_user
         res = await ac.post("/design/run-code", json={"code": "design.rebuild()"})
         assert res.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_import_export_json_gating():
+    global active_user
+    active_user = mock_free_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        # Test import_json
+        # 1. GET allowed initially
+        res = await ac.get("/api/feature-usage/import_json")
+        assert res.status_code == 200
+        assert res.json() == {"allowed": True, "isPremium": False}
+
+        # 2. Record first usage
+        res = await ac.post("/api/feature-usage/import_json")
+        assert res.status_code == 200
+        assert res.json() == {"allowed": True, "isPremium": False}
+
+        # 3. GET blocked subsequently
+        res = await ac.get("/api/feature-usage/import_json")
+        assert res.status_code == 200
+        assert res.json() == {"allowed": False, "isPremium": False}
+
+        # Test export_json
+        # 1. GET allowed initially
+        res = await ac.get("/api/feature-usage/export_json")
+        assert res.status_code == 200
+        assert res.json() == {"allowed": True, "isPremium": False}
+
+        # 2. Record first usage
+        res = await ac.post("/api/feature-usage/export_json")
+        assert res.status_code == 200
+        assert res.json() == {"allowed": True, "isPremium": False}
+
+        # 3. GET blocked subsequently
+        res = await ac.get("/api/feature-usage/export_json")
+        assert res.status_code == 200
+        assert res.json() == {"allowed": False, "isPremium": False}
