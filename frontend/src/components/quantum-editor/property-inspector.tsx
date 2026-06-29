@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Trash2, Plug, Lock, Unlock, RotateCcw, Box, Zap } from "lucide-react";
+import { Trash2, Plug, Lock, Unlock, RotateCcw, Box } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -21,11 +21,8 @@ import { defaultParamsFromMetadata } from "@/lib/bridge/adapters";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import { getSingleSelection } from "@/lib/editor/design-store";
 import { metadataToFields } from "@/lib/bridge/adapters";
-import {
-  getRouteDefaults,
-  buildInitialRouteOverrides,
-} from "@/lib/editor/route-defaults";
-import type { Placement, Connection, ValidationResult } from "@/lib/bridge/types";
+import { QISKIT_CATALOG } from "./qiskit-metal-catalog";
+import type { Placement, Connection, ValidationResult, ComponentPreview, ComponentPins } from "@/lib/bridge/types";
 
 // ─── Resonator detection & physics ───────────────────────────────────────────
 
@@ -104,15 +101,15 @@ function computeResonatorDiagnostics(
   const lengthMm = parseLengthMm(lengthVal);
 
   const traceWidthMm = parseLengthMm(params.trace_width ?? params.line_width ?? params.readout_cpw_width ?? (isCoil ? "1um" : "5um"));
-  const traceGapMm = parseLengthMm(params.trace_gap ?? params.gap ?? params.readout_cpw_gap ?? (isCoil ? "4um" : "5um"));
-
+  const traceGapMm   = parseLengthMm(params.trace_gap  ?? params.gap ?? params.readout_cpw_gap   ?? (isCoil ? "4um" : "5um"));
+  
   // Meander pitch (controls turn spacing)
   // For ReadoutResFC: pitch = 2 * turnradius
   // For ResonatorCoilRect: pitch = gap
   const pitchMm = parseLengthMm(
     params.meander_pitch ?? params.meander_spacing ?? params.gap ?? (params.fillet ? String(parseLengthMm(params.fillet) * 2) + "mm" : (isCoil ? "4um" : "100um"))
   );
-
+  
   // Fillet
   const filletMm = isCoil ? 0 : parseLengthMm(
     params.fillet ?? params.readout_cpw_turnradius ?? (params.meander_pitch ? String(parseLengthMm(params.meander_pitch) / 2) + "mm" : "50um")
@@ -150,17 +147,15 @@ function computeResonatorDiagnostics(
   }
 
   // λ/2 resonant frequency on silicon substrate
-  const C0 = 299_792_458; // m/s
+  const C0    = 299_792_458; // m/s
   const EPS_EFF = 6.2;        // CPW on silicon, typical value
-  const vPh = C0 / Math.sqrt(EPS_EFF);
+  const vPh   = C0 / Math.sqrt(EPS_EFF);
   const freqGHz = lengthMm > 0
     ? (vPh / (2 * lengthMm * 1e-3)) / 1e9
     : 0;
 
-  return {
-    lengthMm, freqGHz, turnCount, footprintWum, footprintHum,
-    traceWidthMm, traceGapMm, filletMm, leadMm, pitchMm, colWidthMm
-  };
+  return { lengthMm, freqGHz, turnCount, footprintWum, footprintHum,
+           traceWidthMm, traceGapMm, filletMm, leadMm, pitchMm, colWidthMm };
 }
 
 export function PropertyInspector() {
@@ -402,16 +397,6 @@ function PlacementInspector({ placement }: { placement: Placement }) {
         />
       </Section>
 
-      {/* ── Resonator-specific quick controls + diagnostics ─────────────── */}
-      {RESONATOR_CLASS_IDS.has(placement.componentId) && (
-        <>
-          <ResonatorQuickControls placement={placement} updateParam={updateParam} />
-          <Section title="Resonator diagnostics">
-            <ResonatorDiagnosticsPanel placement={placement} />
-          </Section>
-        </>
-      )}
-
       <Section title="Pins">
         {pinsQ.isLoading && <p className="text-muted-foreground">Loading pins…</p>}
         {pinsQ.error && (
@@ -454,203 +439,6 @@ function PlacementInspector({ placement }: { placement: Placement }) {
   );
 }
 
-// ─── Resonator quick controls ─────────────────────────────────────────────────
-
-/**
- * A dedicated section for CPW resonators that surfaces the most physically
- * meaningful parameters with proper labels and instant re-render on commit.
- * Geometry updates automatically: changing a param invalidates the
- * componentPreviewQueryOptions key (staleTime=0), triggering a new SVG fetch.
- */
-function ResonatorQuickControls({
-  placement,
-  updateParam,
-}: {
-  placement: Placement;
-  updateParam: (k: string, v: string) => void;
-}) {
-  const p = placement.params;
-  // Detect which key the component uses for resonator length
-  const lengthKey =
-    p.total_length !== undefined ? "total_length"
-      : p.length !== undefined ? "length"
-        : "length";
-
-  const isCoil = placement.componentId === "ResonatorCoilRect";
-
-  const fields: { key: string; label: string; placeholder: string; hint: string; defaultUnit: "mm" | "um" }[] = [
-    {
-      key: lengthKey,
-      label: "Resonator length",
-      placeholder: "e.g. 7mm",
-      hint: "Electrical length of the CPW coil. Sets resonant frequency.",
-      defaultUnit: "mm",
-    },
-    ...(!isCoil ? [
-      {
-        key: "fillet",
-        label: "Corner fillet",
-        placeholder: "e.g. 99um",
-        hint: "Radius of rounded bends. 0 = sharp 90° corners.",
-        defaultUnit: "um" as const,
-      }
-    ] : []),
-    {
-      key: "trace_width",
-      label: "Trace width",
-      placeholder: "e.g. 10um",
-      hint: isCoil ? "Spiral line width." : "CPW centre conductor width. Affects impedance & footprint.",
-      defaultUnit: "um",
-    },
-    {
-      key: "trace_gap",
-      label: "Trace gap",
-      placeholder: "e.g. 6um",
-      hint: isCoil ? "Spiral gap between lines." : "Gap between centre conductor and ground plane.",
-      defaultUnit: "um",
-    },
-    ...(!isCoil ? [
-      {
-        key: "lead_length",
-        label: "Lead length",
-        placeholder: "e.g. 30um",
-        hint: "Straight lead-in section at each port. Only terminals change.",
-        defaultUnit: "um" as const,
-      }
-    ] : []),
-    {
-      key: "meander_pitch",
-      label: "Meander pitch",
-      placeholder: isCoil ? "e.g. 8um" : "e.g. 100um",
-      hint: isCoil ? "Spiral gap spacing between lines (pitch)." : "Center-to-center spacing between adjacent legs.",
-      defaultUnit: "um",
-    },
-    {
-      key: "resonator_width",
-      label: "Resonator width",
-      placeholder: isCoil ? "e.g. 40um" : "e.g. 0.3mm",
-      hint: isCoil ? "Transverse height of the rectangular spiral." : "Transverse width of the meander column.",
-      defaultUnit: isCoil ? "um" : "mm",
-    },
-  ];
-
-  return (
-    <Section title="Resonator properties">
-      <p className="text-[9px] text-muted-foreground/70 -mt-1 mb-1">
-        Changes trigger immediate geometry regeneration via Qiskit Metal.
-      </p>
-      {fields.map(({ key, label, placeholder, hint, defaultUnit }) => {
-        const currentVal = String(p[key] ?? "");
-        return (
-          <ResonatorParamField
-            key={key}
-            paramKey={key}
-            label={label}
-            placeholder={placeholder}
-            hint={hint}
-            value={currentVal}
-            onCommit={(v) => updateParam(key, v)}
-            defaultUnit={defaultUnit}
-          />
-        );
-      })}
-    </Section>
-  );
-}
-
-function ResonatorParamField({
-  paramKey, label, placeholder, hint, value, onCommit, defaultUnit = "um",
-}: {
-  paramKey: string;
-  label: string;
-  placeholder: string;
-  hint: string;
-  value: string;
-  onCommit: (v: string) => void;
-  defaultUnit?: "mm" | "um";
-}) {
-  const commitWithNormalization = (v: string) => {
-    onCommit(normalizeLengthInput(v, defaultUnit));
-  };
-  const field = useLocalValue(value, commitWithNormalization);
-  return (
-    <Field label={label}>
-      <Input
-        value={field.local}
-        onChange={(e) => field.setLocal(e.target.value)}
-        onBlur={field.commit}
-        onKeyDown={field.onKeyDown}
-        placeholder={placeholder}
-        className="h-7 font-mono text-[11px]"
-      />
-      <span className="text-[9px] text-muted-foreground/70">{hint}</span>
-    </Field>
-  );
-}
-
-// ─── Resonator diagnostics panel ─────────────────────────────────────────────
-
-function ResonatorDiagnosticsPanel({ placement }: { placement: Placement }) {
-  const d = computeResonatorDiagnostics(placement.params, placement.componentId);
-
-  const fmtMm = (mm: number) =>
-    mm === 0 ? "—"
-      : mm < 0.01 ? `${(mm * 1000).toFixed(1)} um`
-        : `${mm.toFixed(3)} mm`;
-
-  const fmtUm = (um: number) =>
-    um === 0 ? "—" : `${Math.round(um)} um`;
-
-  return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-      {/* Frequency — most important → shown first, highlighted */}
-      <span className="text-muted-foreground flex items-center gap-1">
-        <Zap className="h-3 w-3 text-teal-500" /> Est. frequency
-      </span>
-      <span className={`font-mono text-right font-semibold ${d.freqGHz > 0 ? "text-teal-600" : "text-muted-foreground"
-        }`}>
-        {d.freqGHz > 0 ? `${d.freqGHz.toFixed(3)} GHz` : "—"}
-      </span>
-
-      <span className="text-muted-foreground">Target length</span>
-      <span className="font-mono text-right">{fmtMm(d.lengthMm)}</span>
-
-      <span className="text-muted-foreground">Est. turns</span>
-      <span className="font-mono text-right">{d.turnCount}</span>
-
-      <span className="text-muted-foreground">Footprint W</span>
-      <span className="font-mono text-right">{fmtUm(d.footprintWum)}</span>
-
-      <span className="text-muted-foreground">Footprint H</span>
-      <span className="font-mono text-right">{fmtUm(d.footprintHum)}</span>
-
-      <span className="text-muted-foreground">Trace width</span>
-      <span className="font-mono text-right">{fmtMm(d.traceWidthMm)}</span>
-
-      <span className="text-muted-foreground">Trace gap</span>
-      <span className="font-mono text-right">{fmtMm(d.traceGapMm)}</span>
-
-      <span className="text-muted-foreground">Fillet</span>
-      <span className="font-mono text-right">
-        {d.filletMm > 0 ? fmtMm(d.filletMm) : "none"}
-      </span>
-
-      <span className="text-muted-foreground">Lead length</span>
-      <span className="font-mono text-right">{fmtMm(d.leadMm)}</span>
-
-      <span className="text-muted-foreground">Meander pitch</span>
-      <span className="font-mono text-right">{fmtMm(d.pitchMm)}</span>
-
-      <span className="text-muted-foreground">Resonator width</span>
-      <span className="font-mono text-right">{fmtMm(d.colWidthMm)}</span>
-
-      <span className="col-span-2 mt-1 rounded bg-teal-50 dark:bg-teal-950/30 px-2 py-1 text-[9px] text-teal-700 dark:text-teal-400">
-        λ/2 CPW on silicon · ε_eff = 6.2 · estimates only
-      </span>
-    </div>
-  );
-}
-
 function ParamFields({ fields, placement, updateParam }: {
   fields: ReturnType<typeof metadataToFields>;
   placement: Placement;
@@ -673,13 +461,7 @@ function ParamFields({ fields, placement, updateParam }: {
   }, [fields, placement.params]);
 
   const commit = (name: string) => {
-    const fieldObj = fields.find((f) => f.name === name);
-    let val = localVals[name] ?? "";
-    if (fieldObj?.unit === "um" || fieldObj?.unit === "mm") {
-      val = normalizeLengthInput(val, fieldObj.unit);
-      setLocalVals((prev) => ({ ...prev, [name]: val }));
-    }
-    updateParam(name, val);
+    updateParam(name, localVals[name] ?? "");
   };
 
   const setVal = (name: string, val: string) => {
@@ -752,154 +534,6 @@ function ParamFields({ fields, placement, updateParam }: {
   );
 }
 
-// ─── Route defaults — imported from @/lib/editor/route-defaults ──────────────
-// ROUTE_COMPONENT_DEFAULTS, getRouteDefaults, buildInitialRouteOverrides
-// are imported at the top of this file.
-
-function RouteMetricsPanel({ connection }: { connection: Connection }) {
-  const svg = connection.cachedSvg ?? "";
-  const overrides = connection.routeOverrides ?? {};
-  const routeId = connection.routeComponentId ?? "RouteMeander";
-  // Use live defaults for whatever route component is selected
-  const defaults = getRouteDefaults(routeId);
-
-  // Show the stored override value; if absent (user cleared it), show the
-  // component default tagged with "· dflt".
-  const showVal = (key: string, fallback: string) => {
-    const v = overrides[key];
-    if (v !== undefined && v !== "") return String(v);
-    if (defaults[key]) return `${defaults[key]} \u00b7 dflt`;
-    return fallback;
-  };
-
-  const targetLength = showVal("total_length", "—");
-  const filletRadius = showVal("fillet", "dflt");
-  const leadLength = showVal("lead_length", "dflt");
-  const traceWidth = showVal("trace_width", "dflt");
-  const traceGap = showVal("trace_gap", "dflt");
-
-  // Parse actual rendered path length from SVG data-attributes if the backend embeds them
-  const actualLength = (() => {
-    if (!svg) return "—";
-    const match = svg.match(/data-actual-length="([^"]+)"/);
-    return match ? match[1] : "rendered ✓";
-  })();
-
-  const hasGeometry = !!connection.cachedSvg;
-
-  return (
-    <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px]">
-      <span className="text-muted-foreground">Target length</span>
-      <span className="font-mono text-right">{targetLength}</span>
-      <span className="text-muted-foreground">Actual length</span>
-      <span className="font-mono text-right">{actualLength}</span>
-      <span className="text-muted-foreground">Fillet radius</span>
-      <span className={`font-mono text-right ${overrides.fillet ? "" : "text-muted-foreground/70"}`}>{filletRadius}</span>
-      <span className="text-muted-foreground">Lead length</span>
-      <span className={`font-mono text-right ${overrides.lead_length ? "" : "text-muted-foreground/70"}`}>{leadLength}</span>
-      <span className="text-muted-foreground">Trace width</span>
-      <span className={`font-mono text-right ${overrides.trace_width ? "" : "text-muted-foreground/70"}`}>{traceWidth}</span>
-      <span className="text-muted-foreground">Trace gap</span>
-      <span className={`font-mono text-right ${overrides.trace_gap ? "" : "text-muted-foreground/70"}`}>{traceGap}</span>
-      <span className="text-muted-foreground">Geometry</span>
-      <span className={`font-mono text-right ${hasGeometry ? "text-green-600" : "text-amber-500"}`}>
-        {hasGeometry ? "cached" : "pending…"}
-      </span>
-      {connection.locked && (
-        <>
-          <span className="text-muted-foreground">Lock</span>
-          <span className="font-mono text-right text-primary">locked</span>
-        </>
-      )}
-      <span className="col-span-2 mt-0.5 text-[9px] text-muted-foreground/60 italic">
-        · dflt = Qiskit Metal default (field is blank)
-      </span>
-    </div>
-  );
-}
-
-function FilletField({
-  connection,
-  dispatch,
-  defaultValue = "99um",
-}: {
-  connection: Connection;
-  dispatch: (a: any) => void;
-  defaultValue?: string;
-}) {
-  // Show the stored override if present, else fall back to the component default
-  const storedVal = connection.routeOverrides?.fillet;
-  const rawValue = storedVal !== undefined ? String(storedVal) : defaultValue;
-  const isDefault = storedVal === undefined;
-
-  const [local, setLocal] = useState(rawValue);
-  useEffect(() => setLocal(rawValue), [rawValue]);
-
-  // Check if value is a negative number (bare or with unit)
-  const isNegative = (() => {
-    const num = parseFloat(local.replace(/[^0-9.\-]/g, ""));
-    return !isNaN(num) && num < 0;
-  })();
-
-  const commit = () => {
-    let val = local.trim();
-    // If the user cleared the field entirely → remove the override (revert to default)
-    if (!val) {
-      updateRouteOverride(connection.id, "fillet", "", dispatch, connection.routeOverrides);
-      setLocal(defaultValue);
-      return;
-    }
-    if (isNegative) {
-      // Replace negative with absolute value + original unit suffix
-      const unitMatch = local.match(/[a-zA-Z]+/);
-      const absVal = Math.abs(parseFloat(local));
-      val = unitMatch ? `${absVal}${unitMatch[0]}` : String(absVal);
-    }
-    const normalized = normalizeLengthInput(val, "um");
-    setLocal(normalized);
-    updateRouteOverride(connection.id, "fillet", normalized, dispatch, connection.routeOverrides);
-  };
-
-  return (
-    <Field label="Fillet">
-      <div className="flex items-center gap-1">
-        <Input
-          value={local}
-          onChange={(e) => setLocal(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
-          placeholder={`e.g. ${defaultValue}`}
-          className={`h-7 flex-1 font-mono text-[11px] ${isNegative ? "border-destructive ring-1 ring-destructive" : isDefault ? "text-muted-foreground" : ""}`}
-          title={isDefault ? `Qiskit Metal default: ${defaultValue}` : undefined}
-        />
-        {!isDefault && (
-          <button
-            onClick={() => {
-              setLocal(defaultValue);
-              updateRouteOverride(connection.id, "fillet", "", dispatch, connection.routeOverrides);
-            }}
-            title={`Reset to default (${defaultValue})`}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Reset fillet to default"
-          >
-            <RotateCcw className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-      {isNegative && (
-        <span className="text-[10px] text-destructive">
-          Fillet radius must be ≥ 0. Will be corrected on commit.
-        </span>
-      )}
-      {isDefault && (
-        <span className="text-[9px] text-muted-foreground/60 italic">
-          Qiskit Metal default — edit to override
-        </span>
-      )}
-    </Field>
-  );
-}
-
 function ConnectionInspector({ connection }: { connection: Connection }) {
   const { activeTab, dispatchActive: dispatch } = useWorkspace(); const state = activeTab.state;
   const fromP = state.placements.find((p) => p.id === connection.from.placementId);
@@ -907,23 +541,6 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
   // Pull supported route components from the originating placement's metadata.
   const metaQ = useQuery(componentMetadataQueryOptions(fromP?.componentId ?? ""));
   const routeOptions = metaQ.data?.supportedRouteComponents ?? [];
-
-  // Resolved defaults for the currently selected route component
-  const activeRouteId = connection.routeComponentId ?? "RouteMeander";
-  const currentDefaults = getRouteDefaults(activeRouteId);
-
-  // Descriptive hint built from the live defaults object
-  const defaultsHint = [
-    `length ${currentDefaults.total_length}`,
-    `fillet ${currentDefaults.fillet}`,
-    `lead ${currentDefaults.lead_length}`,
-    `width ${currentDefaults.trace_width}`,
-    `gap ${currentDefaults.trace_gap}`,
-  ].join(" · ");
-
-  // Helper: read override value, falling back to the component's default
-  const overrideVal = (key: string): string =>
-    String(connection.routeOverrides?.[key] ?? currentDefaults[key] ?? "");
 
   return (
     <div className="flex flex-col gap-3 text-xs min-w-[190px]">
@@ -951,22 +568,6 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() =>
-              dispatch({
-                type: "UPDATE_CONNECTION",
-                id: connection.id,
-                patch: { cachedGeometryHash: undefined, cachedSvg: undefined } as any,
-              })
-            }
-            className="h-7 gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-            title="Force re-render this route"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Re-render
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
             onClick={() => {
               dispatch({ type: "DELETE_CONNECTION", id: connection.id });
               dispatch({ type: "SELECT", selection: [] });
@@ -983,47 +584,26 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
         {routeOptions.length === 0 ? (
           <Input
             value={connection.routeComponentId ?? ""}
-            onChange={(e) => {
-              const newId = e.target.value || undefined;
-              // Pre-populate defaults for the newly typed component ID on blur
+            onChange={(e) =>
               dispatch({
                 type: "UPDATE_CONNECTION",
                 id: connection.id,
-                patch: { routeComponentId: newId },
-              });
-            }}
-            onBlur={(e) => {
-              const newId = e.target.value.trim() || undefined;
-              const newDefaults = buildInitialRouteOverrides(newId, connection.routeOverrides);
-              dispatch({
-                type: "UPDATE_CONNECTION",
-                id: connection.id,
-                patch: {
-                  routeComponentId: newId,
-                  routeOverrides: newDefaults,
-                },
-              });
-            }}
+                patch: { routeComponentId: e.target.value || undefined },
+              })
+            }
             placeholder="e.g. RouteMeander"
             className="h-7 font-mono text-[11px]"
           />
         ) : (
           <Select
             value={connection.routeComponentId ?? ""}
-            onValueChange={(v) => {
-              // When route component changes: keep user-edited overrides but
-              // fill in any keys that are still at the old defaults (or blank)
-              // with the new component's defaults.
-              const newDefaults = buildInitialRouteOverrides(v, connection.routeOverrides);
+            onValueChange={(v) =>
               dispatch({
                 type: "UPDATE_CONNECTION",
                 id: connection.id,
-                patch: {
-                  routeComponentId: v,
-                  routeOverrides: newDefaults,
-                },
-              });
-            }}
+                patch: { routeComponentId: v },
+              })
+            }
           >
             <SelectTrigger className="h-7 text-[11px]">
               <SelectValue placeholder="Choose route component" />
@@ -1043,50 +623,36 @@ function ConnectionInspector({ connection }: { connection: Connection }) {
       </Section>
 
       <Section title="Route overrides">
-        <p className="text-[9px] text-muted-foreground/70 -mt-1 mb-0.5">
-          Pre-filled with {activeRouteId} defaults. Clear a field to reset to Qiskit Metal default. Defaults: {defaultsHint}
-        </p>
         <RouteOverrideField
           label="Total length"
-          placeholder={`e.g. ${currentDefaults.total_length}`}
-          value={overrideVal("total_length")}
+          placeholder="e.g. 7mm"
+          value={String(connection.routeOverrides?.total_length ?? "")}
           onCommit={(v) => updateRouteOverride(connection.id, "total_length", v, dispatch, connection.routeOverrides)}
-          defaultUnit="mm"
-          isDefault={!connection.routeOverrides?.total_length}
-          defaultValue={currentDefaults.total_length}
         />
-        <FilletField connection={connection} dispatch={dispatch} defaultValue={currentDefaults.fillet} />
+        <RouteOverrideField
+          label="Fillet"
+          placeholder="e.g. 99um"
+          value={String(connection.routeOverrides?.fillet ?? "")}
+          onCommit={(v) => updateRouteOverride(connection.id, "fillet", v, dispatch, connection.routeOverrides)}
+        />
         <RouteOverrideField
           label="Lead length"
-          placeholder={`e.g. ${currentDefaults.lead_length}`}
-          value={overrideVal("lead_length")}
-          onCommit={(v) => updateRouteOverride(connection.id, "lead_length", v, dispatch, connection.routeOverrides)}
-          defaultUnit="um"
-          isDefault={!connection.routeOverrides?.lead_length}
-          defaultValue={currentDefaults.lead_length}
+          placeholder="e.g. 50um"
+          value={String(connection.routeOverrides?.lead ?? "")}
+          onCommit={(v) => updateRouteOverride(connection.id, "lead", v, dispatch, connection.routeOverrides)}
         />
         <RouteOverrideField
           label="Trace width"
-          placeholder={`e.g. ${currentDefaults.trace_width}`}
-          value={overrideVal("trace_width")}
+          placeholder="e.g. 10um"
+          value={String(connection.routeOverrides?.trace_width ?? "")}
           onCommit={(v) => updateRouteOverride(connection.id, "trace_width", v, dispatch, connection.routeOverrides)}
-          defaultUnit="um"
-          isDefault={!connection.routeOverrides?.trace_width}
-          defaultValue={currentDefaults.trace_width}
         />
         <RouteOverrideField
           label="Trace gap"
-          placeholder={`e.g. ${currentDefaults.trace_gap}`}
-          value={overrideVal("trace_gap")}
+          placeholder="e.g. 6um"
+          value={String(connection.routeOverrides?.trace_gap ?? "")}
           onCommit={(v) => updateRouteOverride(connection.id, "trace_gap", v, dispatch, connection.routeOverrides)}
-          defaultUnit="um"
-          isDefault={!connection.routeOverrides?.trace_gap}
-          defaultValue={currentDefaults.trace_gap}
         />
-      </Section>
-
-      <Section title="Route diagnostics">
-        <RouteMetricsPanel connection={connection} />
       </Section>
     </div>
   );
@@ -1195,7 +761,11 @@ function MultiPlacementInspector({ placements }: { placements: Placement[] }) {
             variant="ghost"
             size="sm"
             onClick={() => {
-              const defaults = defaultParamsFromMetadata(metaQ.data!);
+              const baseDefaults = defaultParamsFromMetadata(metaQ.data!);
+              const catalogEntry = QISKIT_CATALOG.find(c => c.className === activeTab.state.placements.find(p => p.id === ids[0])?.componentId);
+              const defaults = catalogEntry?.defaultParams 
+                ? { ...baseDefaults, ...catalogEntry.defaultParams }
+                : baseDefaults;
               ids.forEach((id) => dispatch({ type: "UPDATE_PLACEMENT", id, patch: { params: defaults } }));
             }}
             className="h-7 gap-1 px-2 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -1339,55 +909,23 @@ function RouteOverrideField({
   placeholder,
   value,
   onCommit,
-  defaultUnit = "um",
-  isDefault = false,
-  defaultValue,
 }: {
   label: string;
   placeholder: string;
   value: string;
   onCommit: (v: string) => void;
-  defaultUnit?: "mm" | "um";
-  /** True when the value currently shown is the component default (not a user override) */
-  isDefault?: boolean;
-  /** The component's default value, shown in the reset button tooltip */
-  defaultValue?: string;
 }) {
-  const commitWithNormalization = (v: string) => {
-    onCommit(normalizeLengthInput(v, defaultUnit));
-  };
-  const field = useLocalValue(value, commitWithNormalization);
+  const field = useLocalValue(value, onCommit);
   return (
     <Field label={label}>
-      <div className="flex items-center gap-1">
-        <Input
-          value={field.local}
-          onChange={(e) => field.setLocal(e.target.value)}
-          onBlur={field.commit}
-          onKeyDown={field.onKeyDown}
-          placeholder={placeholder}
-          className={`h-7 flex-1 font-mono text-[11px] ${isDefault ? "text-muted-foreground" : ""}`}
-          title={isDefault ? `Qiskit Metal default: ${defaultValue}` : undefined}
-        />
-        {!isDefault && defaultValue && (
-          <button
-            onClick={() => {
-              field.setLocal(defaultValue);
-              onCommit(defaultValue);
-            }}
-            title={`Reset to default (${defaultValue})`}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={`Reset ${label} to default`}
-          >
-            <RotateCcw className="h-3 w-3" />
-          </button>
-        )}
-      </div>
-      {isDefault && defaultValue && (
-        <span className="text-[9px] text-muted-foreground/60 italic">
-          Qiskit Metal default — edit to override
-        </span>
-      )}
+      <Input
+        value={field.local}
+        onChange={(e) => field.setLocal(e.target.value)}
+        onBlur={field.commit}
+        onKeyDown={field.onKeyDown}
+        placeholder={placeholder}
+        className="h-7 font-mono text-[11px]"
+      />
     </Field>
   );
 }

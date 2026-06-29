@@ -180,7 +180,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   const { routeQueries, routeSvg } = useRouteRendering(state, doc, drag, dispatch);
 
   // ── Drop handling hook ───────────────────────────────────────────────────────
-  const { dropPrev, onDrop, onDragOver, onDragLeave } = useDropHandling(dispatch, (state.chipW ?? CHIP_W_MM) / 2, (state.chipH ?? CHIP_H_MM) / 2);
+  const { dropPrev, onDrop, onDragOver, onDragLeave } = useDropHandling(dispatch);
 
   const pinQueries = useQueries({
     queries: state.placements.map((p) => componentPinsQueryOptions(p.componentId, p.params)),
@@ -279,8 +279,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         snap = state.snap;
       const snapX = parseFloat((Math.round(w.x / snap) * snap).toFixed(3));
       const snapY = parseFloat((Math.round(w.y / snap) * snap).toFixed(3));
-      const constrainedX = Math.max(-state.chipW / 2, Math.min(state.chipW / 2, snapX));
-      const constrainedY = Math.max(-state.chipH / 2, Math.min(state.chipH / 2, snapY));
+      const constrainedX = Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, snapX));
+      const constrainedY = Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, snapY));
       dispatch({ type: "MOVE_PLACEMENT", id: drag.id, x: constrainedX, y: constrainedY, transient: true });
     }
   };
@@ -1038,8 +1038,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         cx={cx}
         cy={cy}
         scale={scale}
-        chipW={state.chipW ?? CHIP_W_MM}
-        chipH={state.chipH ?? CHIP_H_MM}
         visible={state.showMiniMap}
         onPan={(x, y) => dispatch({ type: "PAN", x, y })}
         onClose={() => dispatch({ type: "TOGGLE_MINIMAP" })}
@@ -1168,7 +1166,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           </div>
           <div className="flex items-center gap-1.5 border-l border-border pl-3">
             <span className="text-[11px] font-semibold text-muted-foreground">Chip:</span>
-            <span className="text-[11px] font-bold text-foreground">{state.chipW} × {state.chipH} mm</span>
+            <span className="text-[11px] font-bold text-foreground">{CHIP_W_MM} × {CHIP_H_MM} mm</span>
           </div>
           <div className="flex items-center gap-1.5 border-l border-border pl-3">
             <button
@@ -1864,8 +1862,6 @@ function MiniMap({
   cx,
   cy,
   scale,
-  chipW,
-  chipH,
   visible,
   onPan,
   onClose,
@@ -1877,8 +1873,6 @@ function MiniMap({
   cx: number;
   cy: number;
   scale: number;
-  chipW: number;
-  chipH: number;
   visible: boolean;
   onPan: (x: number, y: number) => void;
   onClose: () => void;
@@ -1886,11 +1880,9 @@ function MiniMap({
   const W = 160;
   const H = 100;
   const PAD = 4;
-  const mapScale = Math.min((W - PAD * 2) / chipW, (H - PAD * 2) / chipH);
-  const ox = (W - chipW * mapScale) / 2;
-  const oy = (H - chipH * mapScale) / 2;
-  const halfW = chipW / 2;
-  const halfH = chipH / 2;
+  const mapScale = Math.min((W - PAD * 2) / CHIP_W_MM, (H - PAD * 2) / CHIP_H_MM);
+  const ox = (W - CHIP_W_MM * mapScale) / 2;
+  const oy = (H - CHIP_H_MM * mapScale) / 2;
 
   // Draggable panel position
   const panelRef = useRef<HTMLDivElement>(null);
@@ -1898,8 +1890,8 @@ function MiniMap({
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   const w2m = (wx: number, wy: number) => ({
-    mx: ox + (wx + halfW) * mapScale,
-    my: H - (oy + (wy + halfH) * mapScale),
+    mx: ox + (wx + CHIP_HALF_W) * mapScale,
+    my: H - (oy + (wy + CHIP_HALF_H) * mapScale),
   });
 
   // Visible world bounds
@@ -1916,8 +1908,8 @@ function MiniMap({
     const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
-    const wx = (sx - ox) / mapScale - halfW;
-    const wy = -(sy - H + oy) / mapScale - halfH;
+    const wx = (sx - ox) / mapScale - CHIP_HALF_W;
+    const wy = -(sy - H + oy) / mapScale - CHIP_HALF_H;
     onPan(-wx * MM_TO_PX * scale + size.w / 2, -wy * MM_TO_PX * scale + size.h / 2);
   };
 
@@ -2015,7 +2007,7 @@ function MiniMap({
           {/* Chip bounds */}
           <rect
             x={ox} y={oy}
-            width={chipW * mapScale} height={chipH * mapScale}
+            width={CHIP_W_MM * mapScale} height={CHIP_H_MM * mapScale}
             fill="var(--muted)" stroke="var(--border)" strokeWidth={1} rx={2}
           />
           {/* Connections */}

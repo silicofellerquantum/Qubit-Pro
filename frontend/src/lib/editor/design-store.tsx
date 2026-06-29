@@ -14,21 +14,13 @@ import type {
   Placement,
 } from "@/lib/bridge/types";
 import { loadDesign, saveDesign, clearDesign } from "./persistence";
-import { buildInitialRouteOverrides } from "./route-defaults";
 
 export { clearDesign };
 
-// Default chip dimensions — overridden at runtime by SET_CHIP_SIZE
-export const DEFAULT_CHIP_W_MM = 40.0;
-export const DEFAULT_CHIP_H_MM = 40.0;
-
-// Preset chip sizes offered in the toolbar dropdown
-export const CHIP_SIZE_PRESETS = [
-  { label: "5 × 5 mm", w: 5, h: 5 },
-  { label: "10 × 10 mm", w: 10, h: 10 },
-  { label: "20 × 20 mm", w: 20, h: 20 },
-  { label: "40 × 40 mm", w: 40, h: 40 },
-] as const;
+const CHIP_W_MM = 9.0;
+const CHIP_H_MM = 6.0;
+const CHIP_HALF_W = CHIP_W_MM / 2;
+const CHIP_HALF_H = CHIP_H_MM / 2;
 
 
 // ---------- State ----------
@@ -72,9 +64,6 @@ export interface EditorState {
   showComponentIds: boolean;
   showHUD: boolean;
   showMiniMap: boolean;
-  /** Chip physical dimensions in mm — changed by SET_CHIP_SIZE */
-  chipW: number;
-  chipH: number;
   past: Snapshot[];
   future: Snapshot[];
   rev: number;
@@ -167,9 +156,7 @@ export type EditorAction =
   | { type: "UNDO" }
   | { type: "REDO" }
   | { type: "LOAD"; doc: DesignDocument }
-  | { type: "AUTO_ALIGN"; layout?: AlignLayout }
-  | { type: "SET_CHIP_SIZE"; w: number; h: number }
-  | { type: "PLACE_N_QUBITS"; n: number; componentId?: string };
+  | { type: "AUTO_ALIGN"; layout?: AlignLayout };
 
 export type AlignLayout =
   | "grid"        // balanced rows × cols (default)
@@ -218,8 +205,6 @@ export const initialEditorState: EditorState = {
       return saved === null ? false : saved === "true";
     } catch { return false; }
   })(),
-  chipW: DEFAULT_CHIP_W_MM,
-  chipH: DEFAULT_CHIP_H_MM,
   past: [],
   future: [],
   rev: 0,
@@ -240,14 +225,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!src) return state;
       const copyId = `pl_${src.componentId}_${Date.now()}`;
       const copyName = `${src.name}_copy`;
-      const halfW = state.chipW / 2;
-      const halfH = state.chipH / 2;
       const copy: Placement = {
         ...src,
         id: copyId,
         name: copyName,
-        x: Math.max(-halfW, Math.min(halfW, src.x + 0.2)),
-        y: Math.max(-halfH, Math.min(halfH, src.y - 0.2)),
+        x: Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, src.x + 0.2)),
+        y: Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, src.y - 0.2)),
         params: { ...src.params }
       };
       return {
@@ -260,14 +243,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "PASTE_PLACEMENTS": {
       if (action.placements.length === 0) return state;
       const offset = 0.2;
-      const halfW = state.chipW / 2;
-      const halfH = state.chipH / 2;
       const pasted: Placement[] = action.placements.map((p) => ({
         ...p,
         id: `pl_${p.componentId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         name: `${p.name}_copy`,
-        x: Math.max(-halfW, Math.min(halfW, p.x + offset)),
-        y: Math.max(-halfH, Math.min(halfH, p.y - offset)),
+        x: Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, p.x + offset)),
+        y: Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, p.y - offset)),
         params: { ...p.params },
       }));
       return {
@@ -420,9 +401,6 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         from: { placementId: state.pendingPin.placementId, pinName: state.pendingPin.pinName },
         to: { placementId: action.placementId, pinName: action.pinName },
         routeComponentId: action.defaultRouteComponentId,
-        // Pre-populate route override fields with Qiskit Metal defaults so the
-        // inspector shows real values immediately rather than blank placeholders.
-        routeOverrides: buildInitialRouteOverrides(action.defaultRouteComponentId),
       };
       return {
         ...state,
@@ -535,18 +513,18 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       // Resonator-clearance guarantee: pitch ≥ pocket(1mm) + 2×clearance(1.5mm)
       // = 4mm so each qubit has a 1.5mm exclusive zone for its meander route.
       // ────────────────────────────────────────────────────────────────────
-      const QUBIT_RE = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
+      const QUBIT_RE  = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
       const POCKET_MM = 1.0;
       const CLEARANCE = 1.5;
       const MIN_PITCH = 2.5;
-      const PITCH = Math.max(MIN_PITCH, POCKET_MM + 2 * CLEARANCE); // 4.0 mm
+      const PITCH     = Math.max(MIN_PITCH, POCKET_MM + 2 * CLEARANCE); // 4.0 mm
 
       const qubits = state.placements.filter(
         (p) => !p.locked && QUBIT_RE.test(p.componentId),
       );
       if (qubits.length === 0) return state;
 
-      const N = qubits.length;
+      const N      = qubits.length;
       const layout = action.layout ?? "grid";
 
       // Cluster centroid — keep layout on-screen
@@ -592,7 +570,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         for (let i = k - 1; i >= 1; i--) rowSizes.push(i);
         let filled = 0;
         for (let ri = 0; ri < rowSizes.length && filled < N; ri++) {
-          const w = rowSizes[ri];
+          const w    = rowSizes[ri];
           const rowY = cy + (ri - (rowSizes.length - 1) / 2) * V;
           for (let ci = 0; ci < w && filled < N; ci++) {
             const rowX = cx + (ci - (w - 1) / 2) * D;
@@ -603,12 +581,12 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       // ── U-SHAPE ──────────────────────────────────────────────────────
       else if (layout === "u-shape") {
-        const side = Math.max(2, Math.ceil(N / 3));
-        const topW = N - 2 * (side - 1);
+        const side   = Math.max(2, Math.ceil(N / 3));
+        const topW   = N - 2 * (side - 1);
         const totalH = (side - 1) * PITCH;
         const totalW = Math.max(topW - 1, 1) * PITCH;
-        const ox = cx - totalW / 2;
-        const oy = cy - totalH / 2;
+        const ox     = cx - totalW / 2;
+        const oy     = cy - totalH / 2;
         for (let i = side - 1; i >= 0 && slots.length < N; i--)
           slots.push({ x: ox, y: oy + i * PITCH });
         for (let i = 1; i < topW - 1 && slots.length < N; i++)
@@ -619,7 +597,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       // ── CIRCLE ───────────────────────────────────────────────────────
       else if (layout === "circle") {
         const minR = N > 1 ? PITCH / (2 * Math.sin(Math.PI / N)) : 0;
-        const R = Math.max(minR, PITCH);
+        const R    = Math.max(minR, PITCH);
         for (let i = 0; i < N; i++) {
           const angle = (2 * Math.PI * i) / N - Math.PI / 2;
           slots.push({ x: cx + R * Math.cos(angle), y: cy + R * Math.sin(angle) });
@@ -627,11 +605,11 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       // ── H-SHAPE (two staggered rows, IBM heavy-hex style) ────────────
       else if (layout === "h-shape") {
-        const topN = Math.ceil(N / 2);
-        const botN = N - topN;
-        const rowY = PITCH / 2;
+        const topN   = Math.ceil(N / 2);
+        const botN   = N - topN;
+        const rowY   = PITCH / 2;
         const stagger = PITCH / 2;
-        const topOx = cx - ((topN - 1) * PITCH) / 2;
+        const topOx  = cx - ((topN - 1) * PITCH) / 2;
         for (let i = 0; i < topN; i++)
           slots.push({ x: topOx + i * PITCH, y: cy - rowY });
         const botOx = cx - ((botN - 1) * PITCH) / 2 + stagger;
@@ -696,100 +674,6 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           (s.kind === "connection" && next.connections.some((c) => c.id === s.id)),
       );
       return nextState;
-    }
-    case "SET_CHIP_SIZE": {
-      const newW = Math.max(1, action.w);
-      const newH = Math.max(1, action.h);
-      const halfW = newW / 2;
-      const halfH = newH / 2;
-      // Re-clamp all existing placements to the new boundary
-      const clampedPlacements = state.placements.map((p) => ({
-        ...p,
-        x: Math.max(-halfW, Math.min(halfW, p.x)),
-        y: Math.max(-halfH, Math.min(halfH, p.y)),
-      }));
-      return {
-        ...state,
-        ...bump(state),
-        chipW: newW,
-        chipH: newH,
-        placements: clampedPlacements,
-        // Re-layout unlocked qubits to respect new boundary
-      };
-    }
-    case "PLACE_N_QUBITS": {
-      const N = Math.max(0, Math.min(200, Math.round(action.n)));
-      if (N === 0) return state;
-      const DEFAULT_QUBIT_COMPONENT = action.componentId ?? "TransmonPocket";
-      const QUBIT_RE = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
-
-      // Remove all existing unlocked qubit placements
-      const nonQubits = state.placements.filter(
-        (p) => !QUBIT_RE.test(p.componentId) || p.locked,
-      );
-
-      // Compute grid layout that fits within the current chip bounds
-      const chipHalfW = state.chipW / 2;
-      const chipHalfH = state.chipH / 2;
-      const POCKET_MM = 0.5;
-      const CLEARANCE = 0.6;
-      const MIN_PITCH = 1.2;
-      // Scale pitch so all N qubits fit within the chip
-      const cols = Math.ceil(Math.sqrt(N));
-      const rows = Math.ceil(N / cols);
-      const maxPitchByW = cols > 1 ? (state.chipW * 0.85) / (cols - 1) : state.chipW;
-      const maxPitchByH = rows > 1 ? (state.chipH * 0.85) / (rows - 1) : state.chipH;
-      const PITCH = Math.max(MIN_PITCH, Math.min(
-        maxPitchByW,
-        maxPitchByH,
-        POCKET_MM + 2 * CLEARANCE,
-      ));
-
-      const gridW = (cols - 1) * PITCH;
-      const gridH = (rows - 1) * PITCH;
-      const ox = -gridW / 2;
-      const oy = -gridH / 2;
-
-      const newPlacements: Placement[] = [];
-      const takenNames = new Set([...nonQubits.map((p) => p.name)]);
-
-      let placed = 0;
-      for (let r = 0; r < rows && placed < N; r++) {
-        for (let c = 0; c < cols && placed < N; c++) {
-          const x = parseFloat((ox + c * PITCH).toFixed(3));
-          const y = parseFloat((oy + r * PITCH).toFixed(3));
-          // Clamp to chip bounds
-          const cx = Math.max(-chipHalfW, Math.min(chipHalfW, x));
-          const cy = Math.max(-chipHalfH, Math.min(chipHalfH, y));
-
-          let nameIdx = placed;
-          let name = `Q${nameIdx}`;
-          while (takenNames.has(name)) { nameIdx++; name = `Q${nameIdx}`; }
-          takenNames.add(name);
-
-          newPlacements.push({
-            id: `pl_${DEFAULT_QUBIT_COMPONENT}_${Date.now()}_${placed}`,
-            componentId: DEFAULT_QUBIT_COMPONENT,
-            name,
-            x: cx,
-            y: cy,
-            rotation: 0,
-            params: { pad_gap: "30um", pad_width: "455um", pad_height: "90um" },
-          });
-          placed++;
-        }
-      }
-
-      return {
-        ...state,
-        ...bump(state),
-        placements: [...nonQubits, ...newPlacements],
-        connections: state.connections.filter((c) =>
-          [...nonQubits].some((p) => p.id === c.from.placementId) &&
-          [...nonQubits].some((p) => p.id === c.to.placementId),
-        ),
-        selection: newPlacements.map((p) => ({ kind: "placement" as const, id: p.id })),
-      };
     }
     case "LOAD": {
       const sel = state.selection;
