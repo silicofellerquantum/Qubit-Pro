@@ -41,6 +41,7 @@ import { Route as AppComponentLibraryRouteImport } from './routes/_app/component
 import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppArchitectureExplorerRouteImport } from './routes/_app/architecture-explorer'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
+import { Route as AppAcceptInviteRouteImport } from './routes/_app/accept-invite'
 import { Route as AppAboutRouteImport } from './routes/_app/about'
 
 const OurTeamRoute = OurTeamRouteImport.update({
@@ -201,6 +202,11 @@ const AppAdminRoute = AppAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAcceptInviteRoute = AppAcceptInviteRouteImport.update({
+  id: '/accept-invite',
+  path: '/accept-invite',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAboutRoute = AppAboutRouteImport.update({
   id: '/about',
   path: '/about',
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/documentation': typeof DocumentationRoute
   '/our-team': typeof OurTeamRoute
   '/about': typeof AppAboutRoute
+  '/accept-invite': typeof AppAcceptInviteRoute
   '/admin': typeof AppAdminRoute
   '/architecture-explorer': typeof AppArchitectureExplorerRoute
   '/billing': typeof AppBillingRoute
@@ -246,6 +253,7 @@ export interface FileRoutesByTo {
   '/documentation': typeof DocumentationRoute
   '/our-team': typeof OurTeamRoute
   '/about': typeof AppAboutRoute
+  '/accept-invite': typeof AppAcceptInviteRoute
   '/admin': typeof AppAdminRoute
   '/architecture-explorer': typeof AppArchitectureExplorerRoute
   '/billing': typeof AppBillingRoute
@@ -282,6 +290,7 @@ export interface FileRoutesById {
   '/documentation': typeof DocumentationRoute
   '/our-team': typeof OurTeamRoute
   '/_app/about': typeof AppAboutRoute
+  '/_app/accept-invite': typeof AppAcceptInviteRoute
   '/_app/admin': typeof AppAdminRoute
   '/_app/architecture-explorer': typeof AppArchitectureExplorerRoute
   '/_app/billing': typeof AppBillingRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/documentation'
     | '/our-team'
     | '/about'
+    | '/accept-invite'
     | '/admin'
     | '/architecture-explorer'
     | '/billing'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/documentation'
     | '/our-team'
     | '/about'
+    | '/accept-invite'
     | '/admin'
     | '/architecture-explorer'
     | '/billing'
@@ -384,6 +395,7 @@ export interface FileRouteTypes {
     | '/documentation'
     | '/our-team'
     | '/_app/about'
+    | '/_app/accept-invite'
     | '/_app/admin'
     | '/_app/architecture-explorer'
     | '/_app/billing'
@@ -647,6 +659,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/accept-invite': {
+      id: '/_app/accept-invite'
+      path: '/accept-invite'
+      fullPath: '/accept-invite'
+      preLoaderRoute: typeof AppAcceptInviteRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/about': {
       id: '/_app/about'
       path: '/about'
@@ -659,6 +678,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAboutRoute: typeof AppAboutRoute
+  AppAcceptInviteRoute: typeof AppAcceptInviteRoute
   AppAdminRoute: typeof AppAdminRoute
   AppArchitectureExplorerRoute: typeof AppArchitectureExplorerRoute
   AppBillingRoute: typeof AppBillingRoute
@@ -683,6 +703,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAboutRoute: AppAboutRoute,
+  AppAcceptInviteRoute: AppAcceptInviteRoute,
   AppAdminRoute: AppAdminRoute,
   AppArchitectureExplorerRoute: AppArchitectureExplorerRoute,
   AppBillingRoute: AppBillingRoute,

@@ -41,9 +41,6 @@ class Settings(BaseSettings):
     razorpay_key_secret: str = ""       # RAZORPAY_KEY_SECRET
     razorpay_webhook_secret: str = ""   # RAZORPAY_WEBHOOK_SECRET (set in Razorpay dashboard)
 
-    razorpay_key_id: str = ""           # RAZORPAY_KEY_ID
-    razorpay_key_secret: str = ""       # RAZORPAY_KEY_SECRET
-    razorpay_webhook_secret: str = ""   # RAZORPAY_WEBHOOK_SECRET (set in Razorpay dashboard)
 
     # Physics grounding (SQuADDS). Always-on by design — no per-request toggle.
     # squadds_dataset_dir: path to the locally mirrored SQuADDS dataset.

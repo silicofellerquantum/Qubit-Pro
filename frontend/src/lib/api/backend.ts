@@ -32,6 +32,8 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export const apiFetch = api;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DRCReport {
