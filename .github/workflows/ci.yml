@@ -27,6 +27,7 @@ jobs:
         run: |
           python -m ensurepip --upgrade
           python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --no-build-isolation pyaedt==0.6.46
           python -m pip install -r requirements.txt
 
       - name: Run tests
