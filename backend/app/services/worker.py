@@ -603,6 +603,13 @@ def handle_full_design(job: dict) -> dict:
 
     route_id_map: dict[str, int] = {}
     route_errors: dict[str, str] = {}
+
+    # Canonical fabrication defaults — single source of truth for RouteMeander.
+    # These MUST match what Qiskit Metal expects and what codegen_service.py emits.
+    _DEFAULT_FILLET    = "50um"   # bend radius
+    _DEFAULT_LEAD      = "100um"  # start_straight and end_straight
+    _DEFAULT_MEANDER_SPACING = "200um"
+
     for conn in graph["connections"]:
         route_cls = _CLASS_MAP.get(conn["routeComponentId"])
         if route_cls is None:
@@ -637,20 +644,99 @@ def handle_full_design(job: dict) -> dict:
             log.warning("Route %s: pin '%s' not on '%s' (available: %s)", conn["id"], tgt_pin, tgt_name, available)
             route_errors[conn["id"]] = f"Pin '{tgt_pin}' not on '{tgt_name}' (available: {available})"
             continue
+
+        # ── Build route options — Qiskit Metal parity ────────────────────────
+        # Start from routeOverrides as passed in from the frontend.
         opts = dict(conn.get("routeOverrides", {}))
-        lead_len = opts.pop("lead_length", None)
-        if lead_len is not None:
+
+        # ── 1. Handle legacy lead_length scalar (backward compat) ─────────────
+        # If the frontend sent a bare 'lead_length' key, promote it into the
+        # nested lead dict.  This must happen before the lead injection below.
+        legacy_lead_len = opts.pop("lead_length", None)
+        if legacy_lead_len is not None and "lead" not in opts:
             opts["lead"] = {
-                "start_straight": lead_len,
-                "end_straight": lead_len
+                "start_straight": str(legacy_lead_len),
+                "end_straight":   str(legacy_lead_len),
             }
-        if "prevent_short_edges" not in opts:
-            if hasattr(route_cls, "default_options") and "prevent_short_edges" in route_cls.default_options:
-                opts["prevent_short_edges"] = False
+
+        # ── 2. Normalise the lead dict ────────────────────────────────────────
+        # The frontend may store lead as a JSON string (e.g. '{"start_straight": "100um"}')
+        # or as a native Python dict.  Qiskit Metal requires a plain dict with
+        # string values for start_straight and end_straight.
+        # If no lead is set at all, inject the canonical default so the route
+        # starts and ends with a proper straight exit segment from the pin.
+        import json as _json
+        lead_val = opts.get("lead")
+        if lead_val is None:
+            # No lead specified — use canonical defaults on both sides.
+            opts["lead"] = {
+                "start_straight": _DEFAULT_LEAD,
+                "end_straight":   _DEFAULT_LEAD,
+            }
+        elif isinstance(lead_val, str):
+            # May be a JSON object string or a plain value.
+            try:
+                parsed_lead = _json.loads(lead_val)
+                if isinstance(parsed_lead, dict):
+                    lead_dict = {k: str(v) for k, v in parsed_lead.items()}
+                    # Ensure both sides are present.
+                    lead_dict.setdefault("start_straight", _DEFAULT_LEAD)
+                    lead_dict.setdefault("end_straight",   _DEFAULT_LEAD)
+                    opts["lead"] = lead_dict
+                else:
+                    # Scalar string — treat as both start and end straight.
+                    opts["lead"] = {"start_straight": lead_val, "end_straight": lead_val}
+            except Exception:
+                # Not parseable as JSON — treat as a raw length string for both sides.
+                opts["lead"] = {"start_straight": lead_val, "end_straight": lead_val}
+        elif isinstance(lead_val, dict):
+            lead_dict = {k: str(v) for k, v in lead_val.items()}
+            lead_dict.setdefault("start_straight", _DEFAULT_LEAD)
+            lead_dict.setdefault("end_straight",   _DEFAULT_LEAD)
+            opts["lead"] = lead_dict
+        # If lead_val is any other type, leave it unchanged and let Metal handle it.
+
+        # ── 3. Inject fillet (bend radius) ────────────────────────────────────
+        # Qiskit Metal defaults fillet to '0' (sharp corners).  We MUST always
+        # pass the canonical fillet value so the arc-length correction in
+        # length_excess_corner_rounding() operates correctly and the geometry
+        # matches the Qiskit Metal reference output exactly.
+        if "fillet" not in opts or not opts["fillet"] or opts["fillet"] == "0":
+            opts["fillet"] = _DEFAULT_FILLET
+
+        # ── 4. prevent_short_edges — preserve Qiskit Metal default ('true') ──
+        # Do NOT override this.  The Qiskit Metal default is 'true'; forcing it
+        # to False disables the short-edge elimination pass that removes dogleg
+        # artefacts at the first/last bend, causing visible geometry divergence.
+        # We simply remove any accidental False override injected previously.
+        opts.pop("prevent_short_edges", None)
+
+        # ── 5. snap — preserve Qiskit Metal default ('true') ─────────────────
+        # Snap aligns the meander to the axis-aligned grid, which is required
+        # for the geometry to match Qiskit Metal's output when the pins point
+        # along cardinal directions (the overwhelmingly common case).
+        if "snap" not in opts:
+            opts["snap"] = "true"
+
+        # ── 6. Inject pin_inputs (must always be set) ─────────────────────────
         opts["pin_inputs"] = {
             "start_pin": {"component": src_name, "pin": src_pin},
             "end_pin":   {"component": tgt_name, "pin": tgt_pin},
         }
+
+        # ── Pre-route diagnostic log (P0 requirement) ─────────────────────────
+        log.info(
+            "[RouteMeander PRE-ROUTE] conn=%s  component=%s  %s.%s → %s.%s  "
+            "total_length=%s  fillet=%s  lead=%s  meander=%s  snap=%s",
+            conn["id"], conn["routeComponentId"],
+            src_name, src_pin, tgt_name, tgt_pin,
+            opts.get("total_length", "(not set)"),
+            opts.get("fillet"),
+            opts.get("lead"),
+            opts.get("meander", "(default)"),
+            opts.get("snap"),
+        )
+
         rname = f"route_{conn['id'][:8]}"
         try:
             ri = route_cls(design, rname, options=opts)
@@ -703,7 +789,7 @@ def handle_full_design(job: dict) -> dict:
 
     # ── Extract resolved RouteMeander options AND path points after rebuild ───
     # These are the authoritative values that produced the SVG geometry.
-    # Path points are the exact (x, y, tangent) vertices Qiskit Metal computed;
+    # Path points are the exact (x, y) vertices Qiskit Metal computed in metres;
     # the frontend must render these directly without any rounding, snapping,
     # or re-computation of fillets/arcs.
     resolved_route_options: dict[str, dict] = {}
@@ -743,18 +829,23 @@ def handle_full_design(job: dict) -> dict:
                                 extracted[key] = val
                         except Exception:
                             extracted[key] = str(val)
+                # Also capture _actual_length set by make_elements() — this is
+                # the authoritative post-build electrical path length.
+                actual_len = opts.get("_actual_length")
+                if actual_len is not None:
+                    extracted["_actual_length"] = str(actual_len)
                 if extracted:
                     resolved_route_options[conn_id] = extracted
 
-            # ── 2. Extract resolved path points (x, y, tangent) ──────────────
-            # QRoute stores the computed path in .get_points() or .intermediate_pts
-            # Use high precision (1e-9 m → round to 9 decimal places in mm units).
-            # Priority: get_points() → intermediate_pts → head_pts/tail_pts
+            # ── 2. Extract resolved path points (x, y) ───────────────────────
+            # QRoute.get_points() returns a numpy array in Qiskit Metal internal
+            # units (metres for the DesignPlanar coordinate system).
+            # We store raw metre values to maximum precision so the frontend
+            # can verify exact pin alignment without floating-point degradation.
             pts: list = []
             try:
                 if hasattr(route_inst, "get_points"):
                     raw_pts = route_inst.get_points()
-                    # get_points() returns numpy array of shape (N,2) in metres
                     import numpy as np
                     if raw_pts is not None and hasattr(raw_pts, "__len__") and len(raw_pts) > 0:
                         arr = np.asarray(raw_pts, dtype=float)
@@ -766,7 +857,8 @@ def handle_full_design(job: dict) -> dict:
             except Exception as exc:
                 log.debug("get_points() failed for %s: %s", conn_id, exc)
 
-            # Fallback: extract from QGeometry path table as LineString coords
+            # Fallback: extract from QGeometry path table as LineString coords.
+            # Coordinates in the path table are also in metres.
             if not pts:
                 try:
                     path_tbl = design.qgeometry.tables.get("path")
@@ -776,7 +868,6 @@ def handle_full_design(job: dict) -> dict:
                             g = row.get("geometry")
                             if g is not None and not g.is_empty:
                                 coords = list(g.coords)
-                                # coords are in metres from Qiskit Metal
                                 pts = [
                                     {"x": round(float(c[0]), 9), "y": round(float(c[1]), 9)}
                                     for c in coords
@@ -785,14 +876,14 @@ def handle_full_design(job: dict) -> dict:
                 except Exception as exc:
                     log.debug("Path table extraction failed for %s: %s", conn_id, exc)
 
-            # Also extract port connection points from the start/end pins
-            # so the frontend can verify port anchor alignment exactly
+            if pts:
+                resolved_path_points[conn_id] = pts
+
+            # ── 3. Extract port pin anchors ───────────────────────────────────
+            # Read the actual resolved pin positions (metres) from the placed
+            # components so the frontend can verify exact alignment.
             try:
                 port_anchors: dict = {}
-                if hasattr(route_inst, "qroute_part1") and hasattr(route_inst, "qroute_part2"):
-                    # QRoute stores head/tail pin data
-                    pass
-                # Read from pin_inputs options to get the actual resolved pin positions
                 if opts is not None:
                     pin_inputs = opts.get("pin_inputs", {})
                     for side, key in [("start", "start_pin"), ("end", "end_pin")]:
@@ -822,8 +913,66 @@ def handle_full_design(job: dict) -> dict:
             except Exception as exc:
                 log.debug("Port anchor extraction failed for %s: %s", conn_id, exc)
 
-            if pts:
-                resolved_path_points[conn_id] = pts
+            # ── 4. P0 Instrumentation: post-build diagnostic log ──────────────
+            # Log all 10 required fields for every RouteMeander route so that
+            # values can be compared directly against Qiskit Metal reference output.
+            try:
+                _resolved = resolved_route_options.get(conn_id, {})
+                _lead_dict = _resolved.get("lead", {})
+                if isinstance(_lead_dict, str):
+                    try: _lead_dict = _json.loads(_lead_dict)
+                    except Exception: _lead_dict = {}
+                _meander_dict = _resolved.get("meander", {})
+                if isinstance(_meander_dict, str):
+                    try: _meander_dict = _json.loads(_meander_dict)
+                    except Exception: _meander_dict = {}
+
+                # Bounding box from geometry table (metres → mm)
+                _bb = None
+                try:
+                    path_tbl2 = design.qgeometry.tables.get("path")
+                    if path_tbl2 is not None and len(path_tbl2) > 0:
+                        rows2 = path_tbl2[path_tbl2["component"] == inst_id]
+                        if len(rows2) > 0:
+                            from shapely.ops import unary_union
+                            geoms2 = [r.geometry for _, r in rows2.iterrows() if r.geometry is not None and not r.geometry.is_empty]
+                            if geoms2:
+                                merged = unary_union(geoms2)
+                                bx = merged.bounds  # (minx, miny, maxx, maxy) in metres
+                                _bb = {
+                                    "xmin_mm": round(bx[0]*1000, 6), "ymin_mm": round(bx[1]*1000, 6),
+                                    "xmax_mm": round(bx[2]*1000, 6), "ymax_mm": round(bx[3]*1000, 6),
+                                    "w_mm": round((bx[2]-bx[0])*1000, 6), "h_mm": round((bx[3]-bx[1])*1000, 6),
+                                }
+                except Exception:
+                    pass
+
+                log.info(
+                    "[RouteMeander POST-BUILD] conn=%s\n"
+                    "  requested_total_length : %s\n"
+                    "  actual_path_length     : %s\n"
+                    "  start_lead_straight    : %s\n"
+                    "  end_lead_straight      : %s\n"
+                    "  fillet_radius          : %s\n"
+                    "  meander_spacing        : %s\n"
+                    "  meander_asymmetry      : %s\n"
+                    "  meander_num_pts        : %s  (≈turns)\n"
+                    "  snap                   : %s\n"
+                    "  bounding_box           : %s",
+                    conn_id,
+                    _resolved.get("total_length", "(not set)"),
+                    _resolved.get("_actual_length", "(not extracted)"),
+                    _lead_dict.get("start_straight", "(not set)"),
+                    _lead_dict.get("end_straight", "(not set)"),
+                    _resolved.get("fillet", "(not set)"),
+                    _meander_dict.get("spacing", "(default 200um)"),
+                    _meander_dict.get("asymmetry", "(default 0um)"),
+                    len(pts) if pts else 0,
+                    _resolved.get("snap", "(not set)"),
+                    _bb if _bb else "(unavailable)",
+                )
+            except Exception as exc:
+                log.debug("Post-build diagnostic log failed for %s: %s", conn_id, exc)
 
         except Exception as exc:
             log.debug("Could not extract resolved data for route %s: %s", conn_id, exc)

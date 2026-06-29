@@ -254,7 +254,7 @@ class MetalCodeGenerator:
                         start_pin=Dict(component='{tee_name}', pin='second_end'),
                         end_pin=Dict(component='{qubit_id}', pin='readout'),
                     ),
-                    lead=Dict(start_straight='100um'),
+                    lead=Dict(start_straight='100um', end_straight='100um'),
                 ),
             )''')
         return [tee, meander]
@@ -289,7 +289,7 @@ class MetalCodeGenerator:
                         start_pin=Dict(component='{src_qubit}', pin='{src_pad}'),
                         end_pin=Dict(component='{tgt_qubit}', pin='{tgt_pad}'),
                     ),
-                    lead=Dict(start_straight='100um'),
+                    lead=Dict(start_straight='100um', end_straight='100um'),
                 ),
             )''')
 
@@ -323,7 +323,7 @@ class MetalCodeGenerator:
                         start_pin=Dict(component='{lp_name}', pin='tie'),
                         end_pin=Dict(component='{tee_name}', pin='prime_end'),
                     ),
-                    lead=Dict(start_straight='100um'),
+                    lead=Dict(start_straight='100um', end_straight='100um'),
                 ),
             )''')
         return [lp, feedline]
