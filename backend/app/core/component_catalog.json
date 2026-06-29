@@ -2643,6 +2643,15 @@
           "hint": {
             "x": 0.0,
             "y": 0.0,
+            "angle": 180.0
+          }
+        },
+        {
+          "name": "readout_end",
+          "direction": "io",
+          "hint": {
+            "x": 60.0,
+            "y": 240.0,
             "angle": 0.0
           }
         }
