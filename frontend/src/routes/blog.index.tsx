@@ -23,12 +23,14 @@ const TAG_COLORS: Record<string, string> = {
   "Industry & Milestones": "#A855F7", // Purple
 };
 
+const basePath = import.meta.env.BASE_URL;
+
 // Map post slug to specific preview image paths
 const POST_IMAGES: Record<string, string> = {
-  "hfss-complete-guide": "/images/hfss_main_ui.png",
-  "hfss-quantum-parameters": "/images/hfss_params_new.png",
-  "q3d-analysis-parameters": "/images/q3d_params_real.png",
-  "epr-analysis-parameters": "/images/hfss_guide_real.png",
+  "hfss-complete-guide": `${basePath}images/hfss_main_ui.png`,
+  "hfss-quantum-parameters": `${basePath}images/hfss_params_new.png`,
+  "q3d-analysis-parameters": `${basePath}images/q3d_params_real.png`,
+  "epr-analysis-parameters": `${basePath}images/hfss_guide_real.png`,
 };
 
 function BlogIndexPage() {
