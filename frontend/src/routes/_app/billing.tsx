@@ -355,7 +355,7 @@ function loadRazorpayScript(): Promise<boolean> {
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:5000";
+const API_BASE = ((import.meta.env.VITE_BACKEND_URL as string | undefined) ?? "http://localhost:5000").replace(/\/$/, "");
 
 async function apiFetch<T>(
   path: string,
@@ -908,9 +908,11 @@ function BillingPage() {
   // ── Invoices ───────────────────────────────────────────────────────────────
   const [invoices, setInvoices] = useState<Array<{
     id: string;
-    date?: string;
-    amount?: number;
-    currency?: string;
+    date?: string;          // legacy fallback
+    paid_at?: number;       // Razorpay Unix timestamp (seconds)
+    issued_at?: number;     // Razorpay Unix timestamp (seconds)
+    amount?: number;        // in smallest currency unit (paise/cents)
+    currency?: string;      // "INR" | "USD" etc.
     status?: string;
     short_url?: string;
   }>>([]);
@@ -1447,7 +1449,11 @@ function BillingPage() {
                     <TableRow key={inv.id}>
                       <TableCell className="font-medium text-foreground">{inv.id}</TableCell>
                       <TableCell className="text-muted-foreground">
-                        {inv.date ? new Date(typeof inv.date === 'number' ? inv.date * 1000 : inv.date).toLocaleDateString() : "—"}
+                        {inv.paid_at
+                          ? new Date(inv.paid_at * 1000).toLocaleDateString()
+                          : inv.date
+                          ? new Date(inv.date).toLocaleDateString()
+                          : "—"}
                       </TableCell>
                       <TableCell className="text-foreground">
                         {inv.amount != null

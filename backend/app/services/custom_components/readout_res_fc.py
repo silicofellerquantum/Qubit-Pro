@@ -118,16 +118,18 @@ class ReadoutResFC(QComponent):
         gap_poly  = trench.difference(conductor)
 
         # ── Pin points in local coords ────────────────────────────────────────
-        # Coupling port at origin; route approaches from -x side.
-        # [outer_pt, inner_pt] with input_as_norm=True →
-        #   outer = where the route terminates (external)
-        #   inner = entry into the component
-        # Normal (outward) direction will be: outer → inner normalised → reversed = inner→outer.
-        # We want the outward normal pointing AWAY from the component, i.e. in -x direction.
+        # Pin 1 — "readout": coupling port at local origin (0,0), faces -x outward.
+        # Pin 2 — "terminate": termination end at the final point of the meander,
+        #          faces outward in the final travel direction (dx, dy after last arm).
         pin_inner = np.array([0.0,  0.0])   # at component origin
         pin_outer = np.array([-w,   0.0])   # one width back in -x
 
-        # ── Apply orientation rotation + pos transla ──────────────────────
+        # Termination pin: outer point is one width beyond the meander end
+        # in the current travel direction; inner is at the meander end itself.
+        term_inner = np.array([cur[0],             cur[1]])
+        term_outer = np.array([cur[0] + dx * w,    cur[1] + dy * w])
+
+        # ── Apply orientation rotation + pos translation ───────────────────────
         # This is the standard Qiskit Metal pattern (see transmon_pocket.py):
         #   1. draw.rotate(shapes, angle, origin=(0,0))
         #   2. draw.translate(shapes, pos_x, pos_y)
@@ -145,15 +147,17 @@ class ReadoutResFC(QComponent):
             return np.array([x * cos_a - y * sin_a + p.pos_x,
                               x * sin_a + y * cos_a + p.pos_y])
 
-        pin_inner_w = _rot_pt(pin_inner)
-        pin_outer_w = _rot_pt(pin_outer)
+        pin_inner_w  = _rot_pt(pin_inner)
+        pin_outer_w  = _rot_pt(pin_outer)
+        term_inner_w = _rot_pt(term_inner)
+        term_outer_w = _rot_pt(term_outer)
 
         log.debug(
-            "ReadoutResFC '%s' pin 'readout' (world): "
-            "outer=(%.4f,%.4f) mm  inner=(%.4f,%.4f) mm  orientation=%.1f°",
+            "ReadoutResFC '%s' readout pin (world): outer=(%.4f,%.4f) inner=(%.4f,%.4f) "
+            "  terminate pin: outer=(%.4f,%.4f) inner=(%.4f,%.4f)  orientation=%.1f°",
             self.name,
-            pin_outer_w[0], pin_outer_w[1],
-            pin_inner_w[0], pin_inner_w[1],
+            pin_outer_w[0], pin_outer_w[1], pin_inner_w[0], pin_inner_w[1],
+            term_outer_w[0], term_outer_w[1], term_inner_w[0], term_inner_w[1],
             float(p.orientation),
         )
 
@@ -163,10 +167,16 @@ class ReadoutResFC(QComponent):
         self.add_qgeometry("poly", {"gap": gap_poly},
                            layer=int(p.layer), subtract=True)
 
-        # ── Register pin ──────────────────────────────────────────────────────
+        # ── Register pins ─────────────────────────────────────────────────────
         self.add_pin(
             "readout",
             points=np.array([pin_outer_w, pin_inner_w]),
+            width=w,
+            input_as_norm=True,
+        )
+        self.add_pin(
+            "readout_end",
+            points=np.array([term_outer_w, term_inner_w]),
             width=w,
             input_as_norm=True,
         )
