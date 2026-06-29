@@ -59,7 +59,9 @@ class PinService:
         return ComponentPins(id=component_id, pins=pins_list)
 
     def get_pins(self, component_id: str) -> ComponentPins:
-        return registry_cache.get_or_set(self._cache_key(component_id), lambda: self.extract_pins(component_id))
+        # Always read fresh from catalog — pins are fast and must reflect
+        # the latest catalog state without requiring a cache flush.
+        return self.extract_pins(component_id)
 
 
 pin_service = PinService()

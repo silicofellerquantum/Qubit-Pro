@@ -72,11 +72,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 # Warm up worker subprocess
                 warmup_worker()
                 
-                # Pre-warm metadata and pins
+                # Pre-warm metadata only (pins are fast enough to read on-demand)
                 for c in components:
                     metadata_service.get_metadata(c.id)
-                    pin_service.get_pins(c.id)
-                log.info("Metadata and pin caches populated.")
+                log.info("Metadata cache populated.")
                 
                 # Asynchronously pre-warm component previews to not block startup thread
                 def _warm_previews():

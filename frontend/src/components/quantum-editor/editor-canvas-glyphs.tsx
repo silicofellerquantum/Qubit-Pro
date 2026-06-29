@@ -61,14 +61,10 @@ export function PlacementPreview({
   }
   const sc = scale * MM_TO_PX * (p.units === "um" ? UM_TO_MM : 1) * uiScale;
   const vb = p.viewBox;
-  // Correct: sc = target_px / max_svg_dim. SVG coords are raw (um or mm),
-  // not pixels — no MM_TO_PX factor needed in the denominator.
-  const maxDim = Math.max(vb.w, vb.h);
-  const normSc = maxDim > 0 ? (40 * scale * uiScale) / maxDim : sc;
   return (
     <g transform={`translate(${px} ${py}) rotate(${-placement.rotation}) scale(${mx} 1)`}>
       <g
-        transform={`scale(${normSc} ${-normSc}) translate(${-(vb.x + vb.w / 2)} ${-(vb.y + vb.h / 2)})`}
+        transform={`scale(${sc} ${-sc})`}
         dangerouslySetInnerHTML={{ __html: p.svg }}
         style={{ transition: "transform 0.12s ease" }}
       />
@@ -282,8 +278,10 @@ export function PlacementGlyph({
         </g>
       )}
       {pins.map((pin) => {
-        const cx = pin.hint.x * UM_TO_MM * MM_TO_PX * scale;
-        const cy = -pin.hint.y * UM_TO_MM * MM_TO_PX * scale;
+        // Physical scale — no vbCentre offset. Matches route SVG transform exactly.
+        const physSc = scale * MM_TO_PX * UM_TO_MM * uiScale;
+        const cx = pin.hint.x * physSc;
+        const cy = -pin.hint.y * physSc;
         const iP = isPO && pendingPin === pin.name;
         return (
           <g key={pin.name}>
