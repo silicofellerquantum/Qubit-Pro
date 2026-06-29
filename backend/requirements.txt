@@ -22,12 +22,17 @@ httpx==0.28.1
 aiofiles==24.1.0
 python-dotenv==1.0.1
 
+razorpay==1.4.1
+
 # ── Physics / ML ──────────────────────────────────────────────────────────────
 networkx==3.2.1
 # torch>=2.0.0             # Optional — large dep, not installed in CI; code falls back to regex intent
 
 # ── AI Assistant ──────────────────────────────────────────────────────────────
 anthropic==0.39.0          # Optional — falls back to rule-based responses if no API key; 0.40+ requires Python>=3.10
+
+# ── Payments ───────────────────────────────────────────────────────────────────
+razorpay==1.4.1
 
 # ── Testing ────────────────────────────────────────────────────────────────────
 pytest==8.3.4
