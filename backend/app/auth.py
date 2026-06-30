@@ -22,6 +22,8 @@ from app.models import User
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 
 
+from werkzeug.security import check_password_hash
+
 # ── Password helpers ───────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
@@ -30,6 +32,8 @@ def hash_password(plain: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
+        if hashed.startswith(("pbkdf2:", "scrypt:", "sha256:")):
+            return check_password_hash(hashed, plain)
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False

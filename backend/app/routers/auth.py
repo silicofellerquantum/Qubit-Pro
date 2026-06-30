@@ -380,6 +380,10 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = 
             detail="Please verify your email address.",
         )
 
+    if settings.demo_mode and user.email == settings.demo_admin_email:
+        import logging
+        logging.getLogger(__name__).info(f"[AUDIT] Demo admin user {user.email} logged in at {datetime.utcnow()}")
+
     token = create_access_token({"sub": user.id}, timedelta(minutes=settings.access_token_expire_minutes))
     return TokenResponse(access_token=token, user=_user_to_dict(user))
 

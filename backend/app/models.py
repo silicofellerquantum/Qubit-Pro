@@ -91,9 +91,18 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.engineer)
     organization: Mapped[str] = mapped_column(String(120), default="Independent")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_premium: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    @property
+    def password_hash(self) -> str:
+        return self.hashed_password
+
+    @password_hash.setter
+    def password_hash(self, value: str) -> None:
+        self.hashed_password = value
 
     # ── Billing / Subscription ────────────────────────────────────────────────
     # plan: "free" | "basic" | "pro"

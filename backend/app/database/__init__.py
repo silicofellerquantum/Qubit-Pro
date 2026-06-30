@@ -146,4 +146,3 @@ async def init_db() -> None:
                 log.info("Demo users seeded successfully.")
     except Exception as e:
         log.warning(f"Seeding skipped or failed: {e}")
-

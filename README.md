@@ -34,22 +34,23 @@ python setup.py       # Windows (CMD / PowerShell)
 # or
 python3 setup.py      # macOS / Linux
 
-# Create your local environment settings file
-cp .env.example .env    # macOS / Linux / Git Bash
-# or
-copy .env.example .env  # Windows CMD / PowerShell
+# Initialize local SQLite database and seed the admin user:
+python ../scripts/init_db.py
 
 # Start the development backend server
 .venv\Scripts\python run.py   # Windows (CMD / PowerShell)
 # or
 .venv/bin/python run.py       # macOS / Linux
 ```
+
 * **API Address:** `http://localhost:5000`
 * **Interactive Swagger UI:** `http://localhost:5000/docs`
 * **Alternative ReDoc UI:** `http://localhost:5000/redoc`
 
 > [!NOTE]
-> By default, the development server uses a zero-setup local SQLite database (`dev.db`), which is created and migrated automatically upon first start. No database administration is needed locally.
+> By default, the development server uses a zero-setup local SQLite database (`dev.db`). Predefined admin login credentials work out-of-the-box:
+> * **Email:** `admin@silicofeller.dev`
+> * **Password:** `AdminDev123!`
 
 ---
 

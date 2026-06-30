@@ -17,6 +17,8 @@ export interface User {
   organization: string;
   initials: string;
   isPremium?: boolean;
+  isAdmin?: boolean;
+  isActive?: boolean;
 }
 
 export const ROLE_LABEL: Record<UserRole, string> = {
@@ -80,6 +82,10 @@ interface AuthContextType {
   signInWithGoogle: (idToken: string) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
   completeGithubLogin: (token: string, user: User) => void;
+  isAuthenticated: boolean;
+  isDemoMode: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -161,6 +167,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             organization: backendUser.organization,
             initials: backendUser.initials,
             isPremium: (backendUser as any).isPremium ?? false,
+            isAdmin: backendUser.role === "admin",
+            isActive: true,
           };
           setUser(restoredUser);
           setStorageItem(USER_KEY, JSON.stringify(restoredUser));
@@ -198,6 +206,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       organization: demo.organization,
       initials: _makeInitials(demo.name),
       isPremium: demo.role === "admin" || demo.role === "org_manager",
+      isAdmin: demo.role === "admin",
+      isActive: true,
     };
     setUser(newUser);
     setStorageItem(USER_KEY, JSON.stringify(newUser));
@@ -215,6 +225,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       organization: demo.organization,
       initials: _makeInitials(demo.name),
       isPremium: demo.role === "admin" || demo.role === "org_manager",
+      isAdmin: demo.role === "admin",
+      isActive: true,
     };
     setUser(newUser);
     setStorageItem(USER_KEY, JSON.stringify(newUser));
@@ -242,6 +254,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             organization: serverUser.organization,
             initials: serverUser.initials,
             isPremium: serverUser.isPremium ?? false,
+            isAdmin: serverUser.role === "admin",
+            isActive: true,
           };
           setStorageItem(TOKEN_KEY, data.access_token);
           setStorageItem(USER_KEY, JSON.stringify(loggedInUser));
@@ -304,6 +318,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           organization: data.user.organization,
           initials: data.user.initials,
           isPremium: (data.user as any).isPremium ?? false,
+          isAdmin: data.user.role === "admin",
+          isActive: true,
         };
         setStorageItem(TOKEN_KEY, data.access_token);
         setStorageItem(USER_KEY, JSON.stringify(registeredUser));
@@ -341,6 +357,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           organization: data.user.organization,
           initials: data.user.initials,
           isPremium: (data.user as any).isPremium ?? false,
+          isAdmin: data.user.role === "admin",
+          isActive: true,
         };
         setStorageItem(TOKEN_KEY, data.access_token);
         setStorageItem(USER_KEY, JSON.stringify(loggedInUser));
@@ -359,9 +377,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const completeGithubLogin = useCallback((token: string, user: User) => {
+    const mappedUser: User = {
+      ...user,
+      isAdmin: user.role === "admin",
+      isActive: true,
+    };
     setStorageItem(TOKEN_KEY, token);
-    setStorageItem(USER_KEY, JSON.stringify(user));
-    setUser(user);
+    setStorageItem(USER_KEY, JSON.stringify(mappedUser));
+    setUser(mappedUser);
     console.log("[Auth] GitHub completeGithubLogin success, token stored");
   }, []);
 
@@ -397,6 +420,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [user, signOut]);
 
+  const isDemoMode =
+    import.meta.env.VITE_DEMO_MODE === "false" || process.env.REACT_APP_DEMO_MODE === "false"
+      ? false
+      : true;
+
+  const login = useCallback(
+    async (email: string, password: string): Promise<void> => {
+      const res = await signIn(email, password);
+      if (!res.ok) {
+        throw new Error(res.error ?? "Login failed");
+      }
+    },
+    [signIn],
+  );
+
+  const logout = useCallback((): void => {
+    signOut();
+  }, [signOut]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -410,6 +452,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         signInWithGoogle,
         completeGithubLogin,
+        isAuthenticated: !!user,
+        isDemoMode,
+        login,
+        logout,
       }}
     >
       {children}

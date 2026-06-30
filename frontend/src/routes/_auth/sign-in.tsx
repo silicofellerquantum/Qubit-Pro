@@ -12,6 +12,7 @@ import { SocialButton } from "@/components/auth/social-button";
 import { QuantumHero } from "@/components/auth/quantum-hero";
 import { useAuth } from "@/lib/auth/auth-context";
 import { GoogleLogin } from "@react-oauth/google";
+import { AdminLoginBanner } from "@/components/AdminLoginBanner";
 
 export const Route = createFileRoute("/_auth/sign-in")({
   head: () => ({
@@ -31,13 +32,45 @@ export const Route = createFileRoute("/_auth/sign-in")({
   component: SignInPage,
 });
 
+interface LoginFormState {
+  email: string;
+  password: string;
+  isLoading: boolean;
+  error: string | null;
+}
+
 function SignInPage() {
   const navigate = useNavigate();
-  const { signIn, signInWithGoogle } = useAuth();
-  const [email, setEmail] = useState("");
+  const { signIn, signInWithGoogle, isDemoMode } = useAuth();
+  const [email, setEmail] = useState(isDemoMode ? "admin@silicofeller.dev" : "");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
+
+  const handleLogin = async (emailStr: string, passwordStr: string): Promise<void> => {
+    const res = await signIn(emailStr, passwordStr);
+    if (!res.ok) {
+      throw new Error(res.error ?? "Login failed");
+    }
+  };
+
+  const handleQuickAdminLogin = async () => {
+    setEmail("admin@silicofeller.dev");
+    setPassword("AdminDev123!");
+    setLoading(true);
+    try {
+      await handleLogin("admin@silicofeller.dev", "AdminDev123!");
+      toast.success("Signed in as Admin!");
+      navigate({ to: "/dashboard" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Quick admin login failed";
+      toast.error(msg);
+      setErrors({ password: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +121,10 @@ function SignInPage() {
 
       <section className="flex items-center justify-center py-6 lg:py-12">
         <div className="w-full max-w-[440px] space-y-5">
+          <AdminLoginBanner
+            isDismissed={isBannerDismissed}
+            onDismiss={() => setIsBannerDismissed(true)}
+          />
           <AuthCard
             title="Welcome back"
             subtitle="Sign in to continue designing quantum hardware."
@@ -143,6 +180,18 @@ function SignInPage() {
               >
                 {loading ? "Signing in…" : "Sign in"}
               </Button>
+
+              {isDemoMode && (
+                <Button
+                  type="button"
+                  onClick={handleQuickAdminLogin}
+                  disabled={loading}
+                  variant="outline"
+                  className="w-full h-11 rounded-full text-sm font-semibold border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all duration-300"
+                >
+                  Quick Admin Login
+                </Button>
+              )}
             </form>
 
             <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wider text-muted-foreground">

@@ -42,8 +42,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         await init_db()
         log.info("Database ready.")
+        if settings.demo_mode:
+            from app.database.seed import seed_admin_user
+            from app.database import AsyncSessionLocal
+            async with AsyncSessionLocal() as session:
+                admin_user = await seed_admin_user(session)
+                log.info(f"✓ Admin user ready: {admin_user.email}")
     except Exception as e:
-        log.warning(f"Database init skipped (will run without persistence): {e}")
+        log.warning(f"Database init or seeding skipped: {e}")
 
     # Prewarm component registry, metadata, pins, and previews
     # Invalidate all caches on startup so catalog changes always take effect

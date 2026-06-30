@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     app_env: str = "development"
     max_qubits: int = 256
 
+    # Demo Mode
+    demo_mode: bool = True
+    demo_admin_email: str = "admin@silicofeller.dev"
+    demo_admin_password: str = "AdminDev123!"
+
     # Database — defaults to SQLite for zero-setup local dev
     database_url: str = "sqlite+aiosqlite:///./dev.db"
     sync_database_url: str = "sqlite:///./dev.db"
