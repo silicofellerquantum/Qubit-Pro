@@ -42,7 +42,7 @@ interface LoginFormState {
 function SignInPage() {
   const navigate = useNavigate();
   const { signIn, signInWithGoogle, isDemoMode } = useAuth();
-  const [email, setEmail] = useState(isDemoMode ? "admin@silicofeller.dev" : "");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
@@ -52,23 +52,6 @@ function SignInPage() {
     const res = await signIn(emailStr, passwordStr);
     if (!res.ok) {
       throw new Error(res.error ?? "Login failed");
-    }
-  };
-
-  const handleQuickAdminLogin = async () => {
-    setEmail("admin@silicofeller.dev");
-    setPassword("AdminDev123!");
-    setLoading(true);
-    try {
-      await handleLogin("admin@silicofeller.dev", "AdminDev123!");
-      toast.success("Signed in as Admin!");
-      navigate({ to: "/dashboard" });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Quick admin login failed";
-      toast.error(msg);
-      setErrors({ password: msg });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -142,7 +125,7 @@ function SignInPage() {
                 <Input
                   id="email"
                   type="email"
-                  autoComplete="email"
+                  autoComplete="off"
                   placeholder="you@company.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -152,7 +135,7 @@ function SignInPage() {
               <FormField label="Password" htmlFor="password" error={errors.password}>
                 <PasswordInput
                   id="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -180,18 +163,6 @@ function SignInPage() {
               >
                 {loading ? "Signing in…" : "Sign in"}
               </Button>
-
-              {isDemoMode && (
-                <Button
-                  type="button"
-                  onClick={handleQuickAdminLogin}
-                  disabled={loading}
-                  variant="outline"
-                  className="w-full h-11 rounded-full text-sm font-semibold border-blue-200 dark:border-blue-900/50 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-all duration-300"
-                >
-                  Quick Admin Login
-                </Button>
-              )}
             </form>
 
             <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wider text-muted-foreground">
