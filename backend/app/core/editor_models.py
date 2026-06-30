@@ -18,6 +18,7 @@ ComponentCategory = Literal[
     "launchpads",
     "ground",
     "terminations",
+    "feedlines",
     "other",
 ]
 
@@ -99,6 +100,36 @@ class PinRef(BaseModel):
     pinName: str
 
 
+# ── Feedline — native transmission-line abstraction ───────────────────────────
+
+class FeedlineAttachment(BaseModel):
+    """Position where a resonator taps into a feedline (continuous geometry model)."""
+    resonatorId: str
+    segmentIndex: int = 0
+    t: float = 0.5                    # normalised position [0–1] along segment
+    couplingGap: float = 10.0         # µm
+    orientation: str = "down"         # "up" | "down" | "left" | "right"
+
+
+class FeedlineModel(BaseModel):
+    """
+    Editor-level feedline object.
+    Expands to LaunchpadWirebond → RouteStraight → LaunchpadWirebond on export.
+    Reconstructed from that pattern on import (round-trip parity).
+    """
+    id: str
+    name: str
+    x1: float                         # start LaunchPad centre (mm)
+    y1: float
+    x2: float                         # end LaunchPad centre (mm)
+    y2: float
+    traceWidth: float = 10.0          # CPW trace width µm
+    traceGap: float = 6.0             # CPW gap µm
+    launchpadType: str = "LaunchpadWirebond"
+    attachedResonators: List[FeedlineAttachment] = Field(default_factory=list)
+    totalLength: Optional[float] = None   # mm, derived
+
+
 class Connection(BaseModel):
     id: str
     from_: PinRef = Field(alias="from")
@@ -115,6 +146,7 @@ class Connection(BaseModel):
 class DesignDocument(BaseModel):
     placements: List[Placement] = Field(default_factory=list)
     connections: List[Connection] = Field(default_factory=list)
+    feedlines: List[FeedlineModel] = Field(default_factory=list)
 
 
 # ── Response Schemas ──────────────────────────────────────────────────────────

@@ -23,6 +23,10 @@ export function loadDesign(): DesignDocument | null {
       cachedSvg: undefined,
       cachedGeometryHash: undefined,
     }));
+    // Ensure feedlines array always exists (backward compat with old saves)
+    if (!Array.isArray(parsed.feedlines)) {
+      parsed.feedlines = [];
+    }
     return parsed;
   } catch {
     return null;

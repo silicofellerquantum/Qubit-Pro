@@ -19,6 +19,7 @@ const QISKIT_TO_BRIDGE: Record<QiskitCategory, ComponentCategory> = {
   terminations: "terminations",
   lumped: "other",
   "sample shapes": "other",
+  feedlines: "feedlines",
 };
 
 // Convert the static catalog to ComponentSummary format for fallback
@@ -33,6 +34,7 @@ const STATIC_COMPONENTS: ComponentSummary[] = QISKIT_CATALOG.map((c) => ({
 // All ordered categories for display
 const DISPLAY_CATEGORY_ORDER: ComponentCategory[] = [
   "qubits",
+  "feedlines",      // ← Feedline appears second, prominently above resonators/routes
   "resonators",
   "couplers",
   "routes",
@@ -41,6 +43,19 @@ const DISPLAY_CATEGORY_ORDER: ComponentCategory[] = [
   "terminations",
   "other",
 ];
+
+// Human-readable labels for each panel section
+const CATEGORY_LABEL: Partial<Record<ComponentCategory, string>> = {
+  qubits: "Qubits",
+  feedlines: "Feedlines",
+  resonators: "Resonators",
+  couplers: "Couplers",
+  routes: "Routes",
+  launchpads: "Launchpads",
+  ground: "Ground",
+  terminations: "Terminations",
+  other: "Other",
+};
 
 const RECENT_KEY = "sf_recent_components";
 
@@ -68,6 +83,7 @@ function LibraryContent() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState<Partial<Record<ComponentCategory, boolean>>>({
     qubits: true,
+    feedlines: true,   // Feedline section open by default — it's the primary new feature
     routes: true,
   });
 
@@ -88,16 +104,31 @@ function LibraryContent() {
     retry: 1,
   });
 
-  // Use bridge data if available, otherwise fall back to static catalog
+  // Feedline is an editor-only native component — always inject it regardless
+  // of whether we have bridge data. The backend doesn't know about it.
+  const FEEDLINE_ENTRY: ComponentSummary = {
+    id: "Feedline",
+    name: "Feedline",
+    module: "app.components.feedline",
+    category: "feedlines",
+    description:
+      "Native CPW transmission line. Drag to place LaunchPad A → CPW → LaunchPad B as one object. Exports as standard Qiskit Metal LaunchpadWirebond + RouteStraight.",
+  };
+
+  // Use bridge data when available, fall back to static catalog.
+  // Always inject the native Feedline entry at the top of the list.
   const components: ComponentSummary[] = useMemo(() => {
-    if (bridgeData && bridgeData.length > 0) return bridgeData;
-    return STATIC_COMPONENTS;
+    const base = bridgeData && bridgeData.length > 0 ? bridgeData : STATIC_COMPONENTS;
+    // Deduplicate — remove any stale "Feedline" that might have slipped in
+    const withoutFeedline = base.filter((c) => c.id !== "Feedline");
+    return [FEEDLINE_ENTRY, ...withoutFeedline];
   }, [bridgeData]);
 
   const usingFallback = !isLoading && (isError || !bridgeData || bridgeData.length === 0);
 
   const grouped: Record<ComponentCategory, ComponentSummary[]> = {
     qubits: [],
+    feedlines: [],
     resonators: [],
     couplers: [],
     routes: [],
@@ -180,14 +211,33 @@ function LibraryContent() {
             const items = grouped[cat];
             if (items.length === 0) return null;
             const isOpen = open[cat] ?? false;
+            const isFeedlines = cat === "feedlines";
             return (
-              <div key={cat} className="overflow-hidden rounded-md border border-border bg-card">
+              <div
+                key={cat}
+                className={cn(
+                  "overflow-hidden rounded-md border bg-card",
+                  isFeedlines
+                    ? "border-blue-300/60 ring-1 ring-blue-300/20"
+                    : "border-border",
+                )}
+              >
                 <button
                   type="button"
                   onClick={() => setOpen((s) => ({ ...s, [cat]: !isOpen }))}
-                  className="flex w-full items-center justify-between border-b border-border bg-muted/40 px-2 py-1.5 text-left text-[11px] font-semibold text-foreground hover:bg-muted"
+                  className={cn(
+                    "flex w-full items-center justify-between border-b px-2 py-1.5 text-left text-[11px] font-semibold hover:bg-muted",
+                    isFeedlines
+                      ? "border-blue-200/60 bg-blue-50/60 text-blue-800 hover:bg-blue-100"
+                      : "border-border bg-muted/40 text-foreground",
+                  )}
                 >
-                  <span className="capitalize">{cat}</span>
+                  <span className="flex items-center gap-1.5">
+                    {isFeedlines && (
+                      <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+                    )}
+                    {CATEGORY_LABEL[cat] ?? cat}
+                  </span>
                   <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                     {items.length}
                     {isOpen ? (
@@ -223,7 +273,11 @@ function LibraryItem({ component }: { component: ComponentSummary }) {
     [component.id],
   );
 
+  const isFeedline = component.id === "Feedline";
+
   const handlePrefetch = () => {
+    // Feedline is editor-only — no bridge metadata to prefetch
+    if (isFeedline) return;
     qc.prefetchQuery(componentMetadataQueryOptions(component.id));
     qc.prefetchQuery(componentPreviewQueryOptions(component.id));
   };
@@ -245,19 +299,41 @@ function LibraryItem({ component }: { component: ComponentSummary }) {
       }}
       onDragEnd={() => setDragging(false)}
       className={cn(
-        "group flex cursor-grab flex-col items-center gap-1 rounded-md border border-border bg-background p-1.5 transition-all hover:border-primary hover:shadow-sm active:cursor-grabbing",
+        "group flex cursor-grab flex-col items-center gap-1 rounded-md border p-1.5 transition-all hover:shadow-sm active:cursor-grabbing",
+        isFeedline
+          ? "border-blue-300/70 bg-blue-50/60 hover:border-blue-400 hover:bg-blue-50"
+          : "border-border bg-background hover:border-primary",
       )}
       title={`${component.name} — ${component.description ?? component.category}`}
     >
-      {/* Preview thumbnail — use CDN image from static catalog if available */}
-      <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded bg-muted/40">
-        {catalogEntry?.image ? (
+      {/* Preview thumbnail */}
+      <div className={cn(
+        "flex h-12 w-12 items-center justify-center overflow-hidden rounded",
+        isFeedline ? "bg-blue-100/60" : "bg-muted/40",
+      )}>
+        {isFeedline ? (
+          /* CPW feedline icon — matches actual editor component appearance:
+             arrow-shaped LaunchPads + straight transmission line */
+          <svg viewBox="0 0 48 24" className="h-10 w-10">
+            {/* CPW ground plane bar */}
+            <rect x="8" y="9" width="32" height="6" rx="1" fill="#bae6fd" />
+            {/* Centre conductor */}
+            <line x1="8" y1="12" x2="40" y2="12" stroke="#5B9BD5" strokeWidth="2" strokeLinecap="round" />
+            {/* Mid-line tick to suggest the arrow direction */}
+            <polygon points="22,9.5 26,12 22,14.5" fill="#5B9BD5" opacity="0.5" />
+            {/* LaunchPad A — triangle arrow pointing right (inward) */}
+            <polygon points="2,7 9,12 2,17" fill="#5B9BD5" stroke="#2563eb" strokeWidth="0.5" />
+            <circle cx="2" cy="12" r="2" fill="#bfdbfe" stroke="#5B9BD5" strokeWidth="0.8" />
+            {/* LaunchPad B — triangle arrow pointing left (inward) */}
+            <polygon points="46,7 39,12 46,17" fill="#5B9BD5" stroke="#2563eb" strokeWidth="0.5" />
+            <circle cx="46" cy="12" r="2" fill="#bfdbfe" stroke="#5B9BD5" strokeWidth="0.8" />
+          </svg>
+        ) : catalogEntry?.image ? (
           <img
             src={catalogEntry.image}
             alt={component.name}
             className="h-full w-full object-contain"
             onError={(e) => {
-              // If CDN image fails, fall back to icon
               (e.currentTarget as HTMLImageElement).style.display = "none";
               const parent = e.currentTarget.parentElement;
               if (parent) {
@@ -271,13 +347,23 @@ function LibraryItem({ component }: { component: ComponentSummary }) {
         )}
       </div>
 
-      {/* Name — truncated with full name on hover via title */}
+      {/* Name */}
       <span
-        className="w-full truncate text-center text-[10px] font-semibold leading-tight text-foreground"
+        className={cn(
+          "w-full truncate text-center text-[10px] font-semibold leading-tight",
+          isFeedline ? "text-blue-800" : "text-foreground",
+        )}
         title={component.name}
       >
         {component.name}
       </span>
+
+      {/* "Native" badge for Feedline */}
+      {isFeedline && (
+        <span className="rounded bg-blue-500/15 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-blue-700">
+          Native
+        </span>
+      )}
     </motion.div>
   );
 }

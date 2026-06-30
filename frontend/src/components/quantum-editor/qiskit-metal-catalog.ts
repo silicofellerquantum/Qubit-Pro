@@ -9,7 +9,8 @@ export type QiskitCategory =
   | "resonators"
   | "terminations"
   | "lumped"
-  | "sample shapes";
+  | "sample shapes"
+  | "feedlines";
 
 export interface QiskitComponent {
   /** Python class name as exported by qiskit_metal */
@@ -553,6 +554,26 @@ export const QISKIT_CATALOG: QiskitComponent[] = [
     pins: [],
     tags: ["shape", "test", "fun"],
   },
+
+  // ───────────── Feedlines ─────────────
+  {
+    className: "Feedline",
+    label: "Feedline",
+    category: "feedlines",
+    modulePath: "app.components.feedline",  // editor-only abstraction — expands on export
+    description:
+      "Native transmission-line component. Drag to place a complete feedline (LaunchPad A → CPW → LaunchPad B) as a single logical object. Resonators can connect anywhere along its length. Exports as standard Qiskit Metal LaunchpadWirebond + RouteStraight.",
+    image: IMG("RouteStraight1.png"),
+    defaultParams: {
+      trace_width: "10um",
+      trace_gap: "6um",
+      total_length: "8mm",
+      launchpad_type: "LaunchpadWirebond",
+      orientation: "0",
+    },
+    pins: ["start", "end"],
+    tags: ["feedline", "cpw", "transmission-line", "launchpad", "route", "straight"],
+  },
 ];
 
 export const QISKIT_CATEGORY_ORDER: QiskitCategory[] = [
@@ -561,6 +582,7 @@ export const QISKIT_CATEGORY_ORDER: QiskitCategory[] = [
   "tlines",
   "resonators",
   "terminations",
+  "feedlines",
   "lumped",
   "sample shapes",
 ];
@@ -573,6 +595,7 @@ export const QISKIT_CATEGORY_LABEL: Record<QiskitCategory, string> = {
   terminations: "Terminations",
   lumped: "Lumped Elements",
   "sample shapes": "Sample Shapes",
+  feedlines: "Feedlines",
 };
 
 export function pythonSnippet(c: QiskitComponent): string {

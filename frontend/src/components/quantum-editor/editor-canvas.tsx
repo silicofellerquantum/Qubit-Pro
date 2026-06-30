@@ -40,6 +40,7 @@ import {
 } from "./use-canvas-viewport";
 import { useRouteRendering } from "./use-route-rendering";
 import { useDropHandling } from "./use-drop-handling";
+import { FeedlineGlyph } from "./feedline-canvas";
 // PlacementPreview, DropGhost, PlacementGlyph, MiniMap are defined locally below
 
 export { CHIP_W_MM, CHIP_H_MM, CHIP_HALF_W, CHIP_HALF_H } from "./use-canvas-viewport"; // re-export for consumers
@@ -102,7 +103,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
   const { activeTab, dispatchActive } = useWorkspace();
   const state = activeTab.state;
   const dispatch = dispatchActive;
-  const doc = { placements: state.placements, connections: state.connections };
+  const doc = { placements: state.placements, connections: state.connections, feedlines: state.feedlines };
 
   const uniqueName = useCallback(
     (prefix: string) => {
@@ -161,11 +162,21 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             ? "other"
             : c.category === "sample shapes"
               ? "other"
-              : c.category) as any,
+              : c.category === "feedlines"
+                ? "feedlines"
+                : c.category) as any,
         description: c.description,
       }),
     );
     (compsQ.data ?? []).forEach((c) => m.set(c.id, c));
+    // Always inject the native Feedline — backend never returns it
+    m.set("Feedline", {
+      id: "Feedline",
+      name: "Feedline",
+      module: "app.components.feedline",
+      category: "feedlines",
+      description: "Native CPW feedline (LaunchPad A → RouteStraight → LaunchPad B)",
+    });
     return m;
   }, [compsQ.data]);
 
@@ -389,13 +400,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         setDragStartPos({ id: p.id, x: p.x, y: p.y });
         (e.currentTarget as Element).setPointerCapture(e.pointerId);
       },
-      onPinClick: (pin: string) =>
+      onPinClick: (pin: string) => {
         dispatch({
           type: "PIN_CLICK",
           placementId: p.id,
           pinName: pin,
           defaultRouteComponentId: "RouteMeander",
-        }),
+        });
+      },
       onRename: (name: string) => dispatch({ type: "UPDATE_PLACEMENT", id: p.id, patch: { name } }),
       onContextMenu: (e: React.MouseEvent) => {
         e.preventDefault();
@@ -452,7 +464,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
               },
             },
             {
-              label: multi ? "Delete selected" : "Delete",
+              label: multi
+                ? "Delete selected"
+                : (() => {
+                  const _TEE = new Set(["CoupledLineTee", "LineTee", "CapNInterdigitalTee"]);
+                  return _TEE.has(p.componentId)
+                    ? "Remove Tee (heal feedline)"
+                    : "Delete";
+                })(),
               action: () => {
                 const targets = multi ? [...selIds] : [p.id];
                 targets.forEach((id) => dispatch({ type: "DELETE_PLACEMENT", id }));
@@ -482,28 +501,118 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
         e.preventDefault();
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;
+
+        // Detect if this is a feedline segment (RouteStraight between any feedline components)
+        // This covers: LaunchPad↔LaunchPad, LaunchPad↔Tee, Tee↔Tee, Tee↔LaunchPad
+        const fromPl = state.placements.find((p) => p.id === c.from.placementId);
+        const toPl = state.placements.find((p) => p.id === c.to.placementId);
+
+        const _isFeedlineComp = (cid: string | undefined) =>
+          cid === "LaunchpadWirebond" ||
+          cid === "LaunchpadWirebondCoupled" ||
+          cid === "LaunchpadWirebondDriven" ||
+          cid === "CoupledLineTee" ||
+          cid === "LineTee" ||
+          cid === "CapNInterdigitalTee";
+
+        const isFeedlineBody =
+          c.routeComponentId === "RouteStraight" &&
+          fromPl && toPl &&
+          _isFeedlineComp(fromPl.componentId) &&
+          _isFeedlineComp(toPl.componentId);
+
+        // Compute click position in world coords for tee placement
+        const clickWorld = s2w(e.clientX - rect.left, e.clientY - rect.top);
+
+        const baseItems = [
+          {
+            label: c.locked ? "Unlock route" : "Lock route",
+            action: () =>
+              dispatch({ type: c.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION", id: c.id }),
+          },
+          {
+            label: "Delete",
+            action: () => dispatch({ type: "DELETE_CONNECTION", id: c.id }),
+            destructive: true,
+          },
+        ];
+
+        // Feedline-specific: insert a CoupledLineTee at the right-click position
+        const feedlineItems = isFeedlineBody
+          ? [
+            {
+              label: "Insert CoupledLineTee here",
+              action: () => {
+                if (!fromPl || !toPl) return;
+
+                const ts = Date.now();
+                const snap = state.snap;
+                // Place the tee at the right-click x, aligned to feedline y
+                const teeX = parseFloat((Math.round(clickWorld.x / snap) * snap).toFixed(3));
+                const teeY = parseFloat(
+                  (Math.round(((fromPl.y + toPl.y) / 2) / snap) * snap).toFixed(3),
+                );
+
+                const teeCount = state.placements.filter((p) => p.componentId === "CoupledLineTee").length;
+                const teeName = `Tee${teeCount}`;
+                const teeId = `pl_CoupledLineTee_${teeName}_${ts}`;
+
+                const teePlacement: Placement = {
+                  id: teeId,
+                  componentId: "CoupledLineTee",
+                  name: teeName,
+                  x: teeX,
+                  y: teeY,
+                  rotation: 0,
+                  params: {
+                    prime_width: "10um",
+                    prime_gap: "6um",
+                    second_width: "10um",
+                    second_gap: "6um",
+                    coupling_space: "3um",
+                    coupling_length: "100um",
+                    down_length: "100um",
+                    fillet: "25um",
+                  },
+                };
+
+                // Left segment: fromPl.tie → Tee.prime_start
+                const connA: Connection = {
+                  id: `conn_fl_A_${ts}`,
+                  from: { placementId: c.from.placementId, pinName: c.from.pinName },
+                  to: { placementId: teeId, pinName: "prime_start" },
+                  routeComponentId: "RouteStraight",
+                  routeOverrides: { trace_width: "10um", trace_gap: "6um" },
+                };
+
+                // Right segment: Tee.prime_end → toPl.tie
+                const connB: Connection = {
+                  id: `conn_fl_B_${ts + 1}`,
+                  from: { placementId: teeId, pinName: "prime_end" },
+                  to: { placementId: c.to.placementId, pinName: c.to.pinName },
+                  routeComponentId: "RouteStraight",
+                  routeOverrides: { trace_width: "10um", trace_gap: "6um" },
+                };
+
+                // Execute: delete old segment → add tee placement → add two new segments
+                dispatch({ type: "DELETE_CONNECTION", id: c.id });
+                dispatch({ type: "ADD_PLACEMENT", placement: teePlacement });
+                dispatch({ type: "ADD_CONNECTION", connection: connA });
+                dispatch({ type: "ADD_CONNECTION", connection: connB });
+                dispatch({ type: "SELECT", selection: [{ kind: "placement", id: teeId }] });
+              },
+            },
+          ]
+          : [];
+
         setContextMenu({
           x: e.clientX - rect.left,
           y: e.clientY - rect.top,
-          items: [
-            {
-              label: c.locked ? "Unlock route" : "Lock route",
-              action: () =>
-                dispatch({
-                  type: c.locked ? "UNLOCK_CONNECTION" : "LOCK_CONNECTION",
-                  id: c.id,
-                }),
-            },
-            {
-              label: "Delete",
-              action: () => dispatch({ type: "DELETE_CONNECTION", id: c.id }),
-              destructive: true,
-            },
-          ],
+          items: [...feedlineItems, ...baseItems],
         });
       },
     }),
-    [dispatch],
+    [dispatch, state.placements, state.snap, s2w],
   );
 
   return (
@@ -645,7 +754,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           {/* ── Z-ORDER LAYERING FOR SELECTION ──────────────────────────────
               1. Visual glyphs (labels, pin dots, lock icons) — no big hit areas
               2. Route visuals + a MODEST route hit-rect
-              3. Component hit-areas (large, generous) — always on TOP so a
+              3. Feedline glyphs (rendered above routes, below components)
+              4. Component hit-areas (large, generous) — always on TOP so a
                  click anywhere near a component wins over nearby wires/grid.
              ─────────────────────────────────────────────────────────────── */}
 
@@ -826,7 +936,24 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
             );
           })}
 
-          {/* 3. Component hit-areas — rendered LAST so they sit on top of
+          {/* 3. Feedline glyphs — above routes, below component hit-areas */}
+          {state.feedlines.map((fl) => (
+            <FeedlineGlyph
+              key={fl.id}
+              feedline={fl}
+              isSelected={isSelected(state.selection, "placement", fl.id)}
+              w2s={w2s}
+              scale={scale}
+              onSelect={(id) => dispatch({ type: "SELECT", selection: [{ kind: "placement", id }] })}
+              onMoveStart={(id, x1, y1) => dispatch({ type: "MOVE_FEEDLINE_START", id, x1, y1 })}
+              onMoveEnd={(id, x2, y2) => dispatch({ type: "MOVE_FEEDLINE_END", id, x2, y2 })}
+              onMove={(id, dx, dy) => dispatch({ type: "MOVE_FEEDLINE", id, dx, dy })}
+              onCommitStart={(id, x1, y1) => dispatch({ type: "UPDATE_FEEDLINE", id, patch: { x1, y1 } })}
+              onCommitEnd={(id, x2, y2) => dispatch({ type: "UPDATE_FEEDLINE", id, patch: { x2, y2 } })}
+            />
+          ))}
+
+          {/* 4. Component hit-areas — rendered LAST so they sit on top of
                  route hit-rects and the grid, guaranteeing components win
                  selection priority. Large, generous padding (HIT_PAD/MIN_HIT). */}
           {state.placements.map((p, i) => {
@@ -1164,7 +1291,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, object>(function Edit
           </div>
           <div className="flex items-center gap-1.5 border-l border-border pl-3">
             <span className="text-[11px] font-semibold text-muted-foreground">Objects:</span>
-            <span className="text-[11px] font-bold text-foreground">{state.placements.length}P · {state.connections.length}C</span>
+            <span className="text-[11px] font-bold text-foreground">{state.placements.length}P · {state.connections.length}C · {state.feedlines.length}FL</span>
           </div>
           <div className="flex items-center gap-1.5 border-l border-border pl-3">
             <span className="text-[11px] font-semibold text-muted-foreground">Chip:</span>
@@ -1502,6 +1629,56 @@ function DropGhost({
   w2s: (x: number, y: number) => { px: number; py: number };
   scale: number;
 }) {
+  // ── Feedline ghost — show a mini feedline preview while dragging ───────────
+  if (componentId === "Feedline") {
+    const HALF_LEN_MM = 4.0;
+    const aScreen = w2s(x - HALF_LEN_MM, y);
+    const bScreen = w2s(x + HALF_LEN_MM, y);
+    const ax = aScreen.px, ay = aScreen.py;
+    const bx = bScreen.px, by = bScreen.py;
+    const midX = (ax + bx) / 2;
+    const railH = 8;
+    const railPts = `${ax},${ay - railH} ${bx},${by - railH} ${bx},${by + railH} ${ax},${ay + railH}`;
+    return (
+      <g className="pointer-events-none" opacity={0.75}>
+        {/* CPW ground plane — light blue matching qiskit component style */}
+        <polygon points={railPts} fill="#bae6fd" />
+        {/* Centre conductor — matching route blue */}
+        <line x1={ax} y1={ay} x2={bx} y2={by}
+          stroke="#5B9BD5" strokeWidth={3} strokeLinecap="round" />
+        {/* Direction arrow mid-line */}
+        <polygon
+          points={`${midX - 4},${ay - 3} ${midX + 5},${ay} ${midX - 4},${ay + 3}`}
+          fill="#5B9BD5" opacity={0.7}
+        />
+        {/* LaunchPad A — triangle arrow pointing right */}
+        <polygon
+          points={`${ax - 8},${ay - 8} ${ax + 4},${ay} ${ax - 8},${ay + 8}`}
+          fill="#5B9BD5" stroke="#2563eb" strokeWidth={0.8}
+        />
+        <circle cx={ax - 8} cy={ay} r={3} fill="#bfdbfe" stroke="#5B9BD5" strokeWidth={1} />
+        {/* LaunchPad B — triangle arrow pointing left */}
+        <polygon
+          points={`${bx + 8},${ay - 8} ${bx - 4},${ay} ${bx + 8},${ay + 8}`}
+          fill="#5B9BD5" stroke="#2563eb" strokeWidth={0.8}
+        />
+        <circle cx={bx + 8} cy={ay} r={3} fill="#bfdbfe" stroke="#5B9BD5" strokeWidth={1} />
+        {/* Dashed outline bounding box */}
+        <polygon
+          points={`${ax - 10},${ay - railH - 4} ${bx + 10},${by - railH - 4} ${bx + 10},${by + railH + 4} ${ax - 10},${ay + railH + 4}`}
+          fill="none" stroke="#5B9BD5" strokeWidth={1.5} strokeDasharray="5 3" strokeOpacity={0.5}
+        />
+        {/* Label */}
+        <text x={midX} y={ay - railH - 7} textAnchor="middle"
+          fontSize={11} fontFamily="monospace" fontWeight="bold"
+          fill="#1e3a5f" stroke="rgba(255,255,255,0.9)" strokeWidth={3} paintOrder="stroke">
+          Feedline
+        </text>
+      </g>
+    );
+  }
+
+  // ── Regular component ghost ────────────────────────────────────────────────
   const q = useQuery(componentPreviewQueryOptions(componentId));
   const p = q.data;
   const { px, py } = w2s(x, y);
@@ -1828,7 +2005,7 @@ function PlacementHitArea({
           cy = -pin.hint.y * sc;
         return (
           <g key={pin.name}>
-            {/* Larger invisible pin hit target so pins are easy to click too */}
+            {/* Larger invisible pin hit target so pins are easy to click */}
             <circle
               cx={cx}
               cy={cy}

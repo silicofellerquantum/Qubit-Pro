@@ -31,6 +31,7 @@ const CAT_ICON: Record<QiskitCategory, React.ComponentType<{ className?: string 
   terminations: Plug,
   lumped: Layers,
   "sample shapes": Hexagon,
+  feedlines: Cable,
 };
 
 const CAT_TINT: Record<QiskitCategory, string> = {
@@ -41,6 +42,7 @@ const CAT_TINT: Record<QiskitCategory, string> = {
   terminations: "text-slate-600 bg-slate-100 border-slate-200",
   lumped: "text-rose-600 bg-rose-50 border-rose-200",
   "sample shapes": "text-cyan-600 bg-cyan-50 border-cyan-200",
+  feedlines: "text-blue-700 bg-blue-50 border-blue-300",
 };
 
 function ComponentLibraryPage() {
@@ -338,7 +340,7 @@ function DetailPanel({ c, onClose }: { c: QiskitComponent; onClose: () => void }
             </button>
           </div>
           <pre className="text-[10px] bg-slate-900 text-slate-200 rounded-xl p-3 overflow-x-auto font-mono leading-relaxed whitespace-pre">
-{snippet}
+            {snippet}
           </pre>
         </section>
 
