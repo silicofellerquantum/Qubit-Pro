@@ -11,10 +11,15 @@ log = logging.getLogger(__name__)
 
 
 def _make_default_connection_pads(cls: type) -> dict:
-    default_opts = getattr(cls, "default_options", {})
-    if "_default_connection_pads" not in default_opts:
+    """Build default connection_pads by walking MRO to find _default_connection_pads."""
+    base = None
+    for klass in cls.__mro__:
+        default_opts = getattr(klass, "default_options", {})
+        if "_default_connection_pads" in default_opts:
+            base = dict(default_opts["_default_connection_pads"])
+            break
+    if base is None:
         return {}
-    base = dict(default_opts["_default_connection_pads"])
     if "connector_location" in base:
         base.pop("connector_location", None)
         return {

@@ -23,6 +23,7 @@ import {
   GitBranch,
   FileText,
   Plug,
+  Lock,
 } from "lucide-react";
 import {
   Sidebar,
@@ -55,6 +56,7 @@ type NavItem = {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: string;
+  locked?: boolean;
 };
 
 const NAV: { label: string | null; items: NavItem[] }[] = [
@@ -66,36 +68,36 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
     label: "Design",
     items: [
       { title: "Projects", url: "/projects", icon: FolderKanban },
-      { title: "Design Copilot", url: "/designer", icon: Sparkles },
-      { title: "Architecture Explorer", url: "/architecture-explorer", icon: Network },
+      { title: "Design Copilot", url: "/designer", icon: Sparkles, locked: true },
+      { title: "Architecture Explorer", url: "/architecture-explorer", icon: Network, locked: true },
       { title: "Schematic Editor", url: "/schematic-editor", icon: PenSquare },
-      { title: "Layout Viewer", url: "/layout-viewer", icon: LayoutTemplate },
+      { title: "Layout Viewer", url: "/layout-viewer", icon: LayoutTemplate, locked: true },
       { title: "Component Library", url: "/component-library", icon: Library },
     ],
   },
   {
     label: "Simulation & Analysis",
     items: [
-      { title: "Verification", url: "/verification", icon: CheckCircle2 },
-      { title: "Simulations", url: "/simulations", icon: PlayCircle },
-      { title: "Physics Analysis", url: "/physics-analysis", icon: Atom },
-      { title: "Fault Tolerance Studio", url: "/fault-tolerance", icon: Shield },
+      { title: "Verification", url: "/verification", icon: CheckCircle2, locked: true },
+      { title: "Simulations", url: "/simulations", icon: PlayCircle, locked: true },
+      { title: "Physics Analysis", url: "/physics-analysis", icon: Atom, locked: true },
+      { title: "Fault Tolerance Studio", url: "/fault-tolerance", icon: Shield, locked: true },
       
     ],
   },
   {
     label: "Data & Management",
     items: [
-      { title: "Results", url: "/results", icon: BarChart3 },
-      { title: "Version Control", url: "/version-control", icon: GitBranch },
-      { title: "Reports", url: "/reports", icon: FileText },
+      { title: "Results", url: "/results", icon: BarChart3, locked: true },
+      { title: "Version Control", url: "/version-control", icon: GitBranch, locked: true },
+      { title: "Reports", url: "/reports", icon: FileText, locked: true },
     ],
   },
   {
     label: "Settings",
     items: [
-      { title: "Users & Teams", url: "/team", icon: Users },
-      { title: "Integrations", url: "/integrations", icon: Plug },
+      { title: "Users & Teams", url: "/team", icon: Users, locked: true },
+      { title: "Integrations", url: "/integrations", icon: Plug, locked: true },
       { title: "Billing", url: "/billing", icon: CreditCard },
       { title: "Settings", url: "/settings", icon: Settings },
     ],
@@ -143,6 +145,32 @@ export function AppSidebar() {
               <SidebarMenu className="space-y-0.5 px-2">
                 {group.items.map((item) => {
                   const isActive = pathname === item.url;
+
+                  // ── Locked items: not navigable, dimmed, shows a "coming soon" notice ──
+                  if (item.locked) {
+                    return (
+                      <SidebarMenuItem key={item.url}>
+                        <SidebarMenuButton
+                          tooltip={`${item.title} (coming soon)`}
+                          onClick={() => alert("🚧 Coming soon!")}
+                          className="h-9 rounded-lg text-sidebar-foreground/50 opacity-50 cursor-not-allowed hover:bg-transparent font-medium"
+                        >
+                          <div className="flex items-center gap-3 w-full">
+                            <item.icon className="h-4 w-4 shrink-0 text-sidebar-foreground/50" />
+                            {!collapsed && (
+                              <>
+                                <span className="text-[13px] leading-none flex-1 truncate">
+                                  {item.title}
+                                </span>
+                                <Lock className="h-3 w-3 shrink-0 text-sidebar-foreground/50" />
+                              </>
+                            )}
+                          </div>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  }
+
                   return (
                     <SidebarMenuItem key={item.url}>
                       <SidebarMenuButton

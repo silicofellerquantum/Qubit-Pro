@@ -71,6 +71,21 @@ const SIDEBAR_STRUCTURE: SidebarGroup[] = [
       { id: "simulation-dashboard", label: "Simulation Dashboard" },
       { id: "results-reports", label: "Results and Reports" },
       {
+        id: "fault-tolerant-quantum-computing",
+        label: "Fault-Tolerant Quantum Computing",
+        children: [
+          { id: "fault-introduction", label: "Introduction" },
+          { id: "fault-physical-logical", label: "Physical vs Logical Qubits" },
+          { id: "fault-qec-basics", label: "Quantum Error Correction" },
+          { id: "fault-error-types", label: "Common Error Types" },
+          { id: "fault-metrics", label: "Fault Tolerance Metrics" },
+          { id: "fault-code-strategies", label: "QEC Code Strategies" },
+          { id: "fault-code-comparison", label: "Code Comparison" },
+          { id: "fault-industry-roadmap", label: "Industry Roadmap" },
+          { id: "fault-key-takeaways", label: "Key Takeaways" },
+        ],
+      },
+      {
         id: "hfss-results-analysis",
         label: "HFSS Results Analysis",
         children: [
@@ -126,15 +141,14 @@ interface DocumentationSidebarProps {
 }
 
 export function DocumentationSidebar({ activeHash, onNavigate }: DocumentationSidebarProps) {
-  // Map panel IDs to check their expand state
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     "superconducting-materials": false,
+    "fault-tolerant-quantum-computing": false,
     "hfss-results-analysis": false,
     "q3d-results-analysis": false,
     "epr-results-analysis": false,
   });
 
-  // Keep parent folders open when activeHash matches a child
   useEffect(() => {
     if (!activeHash) return;
     const cleanHash = activeHash.replace("#", "");
@@ -154,11 +168,10 @@ export function DocumentationSidebar({ activeHash, onNavigate }: DocumentationSi
   const toggleTree = (treeId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     const isNowOpen = !expanded[treeId];
     setExpanded((prev) => ({ ...prev, [treeId]: isNowOpen }));
 
-    // Navigate to the parent section if it is opened
     if (isNowOpen) {
       onNavigate(`#${treeId}`);
     }
@@ -200,7 +213,7 @@ export function DocumentationSidebar({ activeHash, onNavigate }: DocumentationSi
                         )}
                       />
                     </a>
-                    
+
                     {isExpanded && (
                       <div className="side-children grid gap-1.5 mt-1">
                         {item.children?.map((child) => {

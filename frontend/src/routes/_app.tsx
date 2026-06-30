@@ -19,7 +19,7 @@ function AppHeader({ getPageTitle }: { getPageTitle: () => string }) {
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/50 bg-white/70 px-4 backdrop-blur-md shadow-[0_1px_2px_0_rgba(0,0,0,0.01)] select-none">
       {/* Left Group */}
       <div className="flex items-center gap-3">
-        <SidebarTrigger className="h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm active:scale-95 flex items-center justify-center" />
+        <SidebarTrigger className="h-10 w-10 min-h-[44px] min-w-[44px] rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all cursor-pointer shadow-sm active:scale-95 flex items-center justify-center" />
         <span className="h-4 w-px bg-slate-200" />
         <h1 className="text-sm font-black text-slate-900 tracking-tight font-display">
           {getPageTitle()}

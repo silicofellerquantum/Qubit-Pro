@@ -72,9 +72,11 @@ export function QuantumBurst() {
   const [t, setT] = useState(0);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
-  const nodes = useMemo(() => makeNodes(64), []);
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const nodes = useMemo(() => makeNodes(isMobile ? 28 : 64), [isMobile]);
 
   useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
     const start = performance.now();
     const loop = (now: number) => {
@@ -148,7 +150,7 @@ export function QuantumBurst() {
   return (
     <div
       ref={wrapRef}
-      className="relative mx-auto w-full max-w-[640px]"
+      className="relative mx-auto w-full max-w-[640px] quantum-burst-wrapper"
       style={{ aspectRatio: "1 / 1", perspective: "1200px" }}
     >
       <motion.div

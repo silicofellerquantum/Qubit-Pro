@@ -32,6 +32,8 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export const apiFetch = api;
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DRCReport {
@@ -270,6 +272,10 @@ export async function fetchMaterials(): Promise<{
 
 export async function fetchProjects(): Promise<Project[]> {
   return api<Project[]>("/api/projects");
+}
+
+export async function fetchProject(id: string): Promise<Project> {
+  return api<Project>(`/api/projects/${id}`);
 }
 
 export async function createProject(data: {

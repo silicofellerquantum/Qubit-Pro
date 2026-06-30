@@ -14,13 +14,21 @@ import type {
   Placement,
 } from "@/lib/bridge/types";
 import { loadDesign, saveDesign, clearDesign } from "./persistence";
+import { buildInitialRouteOverrides } from "./route-defaults";
 
 export { clearDesign };
 
-const CHIP_W_MM = 9.0;
-const CHIP_H_MM = 6.0;
-const CHIP_HALF_W = CHIP_W_MM / 2;
-const CHIP_HALF_H = CHIP_H_MM / 2;
+// Default chip dimensions — overridden at runtime by SET_CHIP_SIZE
+export const DEFAULT_CHIP_W_MM = 40.0;
+export const DEFAULT_CHIP_H_MM = 40.0;
+
+// Preset chip sizes offered in the toolbar dropdown
+export const CHIP_SIZE_PRESETS = [
+  { label: "5 × 5 mm", w: 5, h: 5 },
+  { label: "10 × 10 mm", w: 10, h: 10 },
+  { label: "20 × 20 mm", w: 20, h: 20 },
+  { label: "40 × 40 mm", w: 40, h: 40 },
+] as const;
 
 
 // ---------- State ----------
@@ -63,9 +71,60 @@ export interface EditorState {
   showRulers: boolean;
   showComponentIds: boolean;
   showHUD: boolean;
+  showMiniMap: boolean;
+  /** Chip physical dimensions in mm — changed by SET_CHIP_SIZE */
+  chipW: number;
+  chipH: number;
   past: Snapshot[];
   future: Snapshot[];
   rev: number;
+  /**
+   * Set whenever a connection attempt is blocked by validation.
+   * Consumers (e.g. the canvas) watch this field and show the
+   * appropriate user feedback. Reset to null on the next successful
+   * action or on CANCEL_PIN.
+   */
+  lastBlockReason: string | null;
+}
+
+// ---------- Pin capacity helpers ----------
+
+/**
+ * Default maximum connections per pin.
+ * A single physical pin can carry exactly one signal in quantum hardware.
+ * This constant is the fallback until per-pin metadata is available.
+ */
+export const DEFAULT_MAX_CONNECTIONS_PER_PIN = 1;
+
+/**
+ * Count how many connections are currently attached to a specific pin.
+ * Counts both ends (from + to) so directionality does not matter.
+ */
+export function pinOccupancy(
+  connections: Connection[],
+  placementId: string,
+  pinName: string,
+): number {
+  return connections.filter(
+    (c) =>
+      (c.from.placementId === placementId && c.from.pinName === pinName) ||
+      (c.to.placementId === placementId && c.to.pinName === pinName),
+  ).length;
+}
+
+/**
+ * Return the maximum number of connections allowed on a pin.
+ * Reads PinSpec metadata when available; falls back to the global default.
+ * This is the single extension point: once PinSpec gains `maxConnections`,
+ * update this function and all validation automatically benefits.
+ */
+export function maxConnectionsForPin(
+  // Reserved for future PinSpec metadata lookup
+  _placementId: string,
+  _pinName: string,
+): number {
+  // Future: look up PinSpec.maxConnections from a pin catalog / metadata store.
+  return DEFAULT_MAX_CONNECTIONS_PER_PIN;
 }
 
 interface Snapshot {
@@ -91,6 +150,7 @@ export type EditorAction =
   | { type: "UPDATE_CONNECTION"; id: string; patch: Partial<Connection> }
   | { type: "LOCK_CONNECTION"; id: string }
   | { type: "UNLOCK_CONNECTION"; id: string }
+  | { type: "CLEAR_ROUTE_CACHE" }
   | { type: "SET_CONNECTION_GEOMETRY"; id: string; svg: string; hash: string }
   | { type: "SELECT"; selection: Selection }
   | { type: "TOGGLE_SELECT"; item: SelectionItem }
@@ -103,9 +163,22 @@ export type EditorAction =
   | { type: "TOGGLE_RULERS" }
   | { type: "TOGGLE_COMPONENT_IDS" }
   | { type: "TOGGLE_HUD" }
+  | { type: "TOGGLE_MINIMAP" }
   | { type: "UNDO" }
   | { type: "REDO" }
-  | { type: "LOAD"; doc: DesignDocument };
+  | { type: "LOAD"; doc: DesignDocument }
+  | { type: "AUTO_ALIGN"; layout?: AlignLayout }
+  | { type: "SET_CHIP_SIZE"; w: number; h: number }
+  | { type: "PLACE_N_QUBITS"; n: number; componentId?: string };
+
+export type AlignLayout =
+  | "grid"        // balanced rows × cols (default)
+  | "horizontal"  // single row
+  | "vertical"    // single column
+  | "rhombus"     // diamond / rhombus pattern
+  | "u-shape"     // three sides of a rectangle (U)
+  | "circle"      // qubits on a circle
+  | "h-shape";    // two parallel rows with gap in between (H / IBM heavy-hex style)
 
 function snapshot(s: EditorState): Snapshot {
   return {
@@ -130,7 +203,7 @@ export const initialEditorState: EditorState = {
   connections: [],
   selection: [],
   pendingPin: null,
-  zoom: 1,
+  zoom: 0.5,
   pan: { x: 0, y: 0 },
   tool: "select",
   snap: 0.05,
@@ -139,9 +212,18 @@ export const initialEditorState: EditorState = {
   showRulers: true,
   showComponentIds: false,
   showHUD: true,
+  showMiniMap: (() => {
+    try {
+      const saved = localStorage.getItem("editor_minimap_visible");
+      return saved === null ? false : saved === "true";
+    } catch { return false; }
+  })(),
+  chipW: DEFAULT_CHIP_W_MM,
+  chipH: DEFAULT_CHIP_H_MM,
   past: [],
   future: [],
   rev: 0,
+  lastBlockReason: null,
 };
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -158,12 +240,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!src) return state;
       const copyId = `pl_${src.componentId}_${Date.now()}`;
       const copyName = `${src.name}_copy`;
+      const halfW = state.chipW / 2;
+      const halfH = state.chipH / 2;
       const copy: Placement = {
         ...src,
         id: copyId,
         name: copyName,
-        x: Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, src.x + 0.2)),
-        y: Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, src.y - 0.2)),
+        x: Math.max(-halfW, Math.min(halfW, src.x + 0.2)),
+        y: Math.max(-halfH, Math.min(halfH, src.y - 0.2)),
         params: { ...src.params }
       };
       return {
@@ -176,12 +260,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "PASTE_PLACEMENTS": {
       if (action.placements.length === 0) return state;
       const offset = 0.2;
+      const halfW = state.chipW / 2;
+      const halfH = state.chipH / 2;
       const pasted: Placement[] = action.placements.map((p) => ({
         ...p,
         id: `pl_${p.componentId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         name: `${p.name}_copy`,
-        x: Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, p.x + offset)),
-        y: Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, p.y - offset)),
+        x: Math.max(-halfW, Math.min(halfW, p.x + offset)),
+        y: Math.max(-halfH, Math.min(halfH, p.y - offset)),
         params: { ...p.params },
       }));
       return {
@@ -220,11 +306,25 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "MOVE_PLACEMENT": {
       const target = state.placements.find((p) => p.id === action.id);
       if (target?.locked) return state;
+      // Invalidate cached geometry for all routes touching this placement
+      // so locked routes don't show stale SVG after a component is moved.
+      const connections = action.transient
+        ? state.connections
+        : state.connections.map((c) => {
+          const touches =
+            c.from.placementId === action.id || c.to.placementId === action.id;
+          if (!touches) return c;
+          return { ...c, cachedGeometryHash: undefined };
+        });
       const next = {
         ...state,
+        // Clear any stale validation error — moving a component is a geometry
+        // operation only and must never replay a previous connection block.
+        lastBlockReason: null,
         placements: state.placements.map((p) =>
           p.id === action.id ? { ...p, x: action.x, y: action.y } : p,
         ),
+        connections,
       };
       return action.transient ? next : { ...next, ...bump(state) };
     }
@@ -256,47 +356,85 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       if (!state.pendingPin) {
         return {
           ...state,
+          lastBlockReason: null,
           pendingPin: { placementId: action.placementId, pinName: action.pinName },
         };
       }
+      // Same pin clicked again → cancel
       if (
         state.pendingPin.placementId === action.placementId &&
         state.pendingPin.pinName === action.pinName
       ) {
-        return { ...state, pendingPin: null };
+        return { ...state, pendingPin: null, lastBlockReason: null };
       }
-      // Prevent self-loops
+      // Prevent self-loops (same placement, different pin)
       if (state.pendingPin.placementId === action.placementId) {
-        return { ...state, pendingPin: null };
+        return { ...state, pendingPin: null, lastBlockReason: null };
       }
-      // Prevent duplicate connections between same pins (either direction)
+      // ── Prevent duplicate connections (either direction) ──────────────────
       const alreadyExists = state.connections.some((c) => {
-        const a = c.from.placementId === state.pendingPin!.placementId && c.from.pinName === state.pendingPin!.pinName;
-        const b = c.to.placementId === action.placementId && c.to.pinName === action.pinName;
-        const c2 = c.from.placementId === action.placementId && c.from.pinName === action.pinName;
-        const d = c.to.placementId === state.pendingPin!.placementId && c.to.pinName === state.pendingPin!.pinName;
-        return (a && b) || (c2 && d);
+        const fwd =
+          c.from.placementId === state.pendingPin!.placementId &&
+          c.from.pinName === state.pendingPin!.pinName &&
+          c.to.placementId === action.placementId &&
+          c.to.pinName === action.pinName;
+        const rev =
+          c.from.placementId === action.placementId &&
+          c.from.pinName === action.pinName &&
+          c.to.placementId === state.pendingPin!.placementId &&
+          c.to.pinName === state.pendingPin!.pinName;
+        return fwd || rev;
       });
       if (alreadyExists) {
-        return { ...state, pendingPin: null };
+        return {
+          ...state,
+          pendingPin: null,
+          lastBlockReason: `Pin "${state.pendingPin.pinName}" is already connected to pin "${action.pinName}". Duplicate connections are not allowed.`,
+        };
       }
+      // ── Single-connection-per-pin capacity check ─────────────────────────
+      // Check the "from" pin (the first pin the user clicked, i.e. pendingPin)
+      const fromMax = maxConnectionsForPin(state.pendingPin.placementId, state.pendingPin.pinName);
+      const fromCount = pinOccupancy(state.connections, state.pendingPin.placementId, state.pendingPin.pinName);
+      if (fromCount >= fromMax) {
+        return {
+          ...state,
+          pendingPin: null,
+          lastBlockReason: `Pin "${state.pendingPin.pinName}" already has a connection. Maximum allowed: ${fromMax}.`,
+        };
+      }
+      // Check the "to" pin (the second pin the user clicked)
+      const toMax = maxConnectionsForPin(action.placementId, action.pinName);
+      const toCount = pinOccupancy(state.connections, action.placementId, action.pinName);
+      if (toCount >= toMax) {
+        return {
+          ...state,
+          pendingPin: null,
+          lastBlockReason: `Pin "${action.pinName}" already has a connection. Maximum allowed: ${toMax}.`,
+        };
+      }
+      // ── All checks passed — commit the connection ─────────────────────────
       const id = `conn_${state.pendingPin.placementId}_${state.pendingPin.pinName}__${action.placementId}_${action.pinName}_${Date.now()}`;
       const conn: Connection = {
         id,
         from: { placementId: state.pendingPin.placementId, pinName: state.pendingPin.pinName },
         to: { placementId: action.placementId, pinName: action.pinName },
         routeComponentId: action.defaultRouteComponentId,
+        // Pre-populate route override fields with Qiskit Metal defaults so the
+        // inspector shows real values immediately rather than blank placeholders.
+        routeOverrides: buildInitialRouteOverrides(action.defaultRouteComponentId),
       };
       return {
         ...state,
         ...bump(state),
         pendingPin: null,
+        lastBlockReason: null,
         connections: [...state.connections, conn],
         selection: [{ kind: "connection", id }],
       };
     }
     case "CANCEL_PIN":
-      return { ...state, pendingPin: null };
+      return { ...state, pendingPin: null, lastBlockReason: null };
     case "DELETE_CONNECTION":
       return {
         ...state,
@@ -330,6 +468,14 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           c.id === action.id ? { ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined } : c,
         ),
       };
+    case "CLEAR_ROUTE_CACHE":
+      return {
+        ...state,
+        ...bump(state),
+        connections: state.connections.map((c) => ({
+          ...c, locked: false, cachedSvg: undefined, cachedGeometryHash: undefined,
+        })),
+      };
     case "SET_CONNECTION_GEOMETRY":
       return {
         ...state,
@@ -348,16 +494,20 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         selection: exists
           ? sel.filter(
-              (s) => !(s.kind === action.item.kind && s.id === action.item.id),
-            )
+            (s) => !(s.kind === action.item.kind && s.id === action.item.id),
+          )
           : [...sel, action.item],
         pendingPin: null,
       };
     }
     case "SET_TOOL":
       return { ...state, tool: action.tool };
-    case "ZOOM":
-      return { ...state, zoom: Math.max(0.25, Math.min(8, action.zoom)) };
+    case "ZOOM": {
+      // Guard against NaN/Infinity before clamping — any non-finite value
+      // falls back to the minimum zoom so the canvas remains navigable.
+      const rawZoom = Number.isFinite(action.zoom) ? action.zoom : 0.25;
+      return { ...state, zoom: Math.max(0.25, Math.min(8, rawZoom)) };
+    }
     case "PAN":
       return { ...state, pan: { x: action.x, y: action.y } };
     case "SET_SNAP":
@@ -372,6 +522,139 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, showComponentIds: !state.showComponentIds };
     case "TOGGLE_HUD":
       return { ...state, showHUD: !state.showHUD };
+    case "TOGGLE_MINIMAP": {
+      const next = !state.showMiniMap;
+      try { localStorage.setItem("editor_minimap_visible", String(next)); } catch { /* ignore */ }
+      return { ...state, showMiniMap: next };
+    }
+    case "AUTO_ALIGN": {
+      // ── Multi-layout Qubit Auto-Align ───────────────────────────────────
+      // Supported layouts: grid | horizontal | vertical | rhombus |
+      //                    u-shape | circle | h-shape
+      //
+      // Resonator-clearance guarantee: pitch ≥ pocket(1mm) + 2×clearance(1.5mm)
+      // = 4mm so each qubit has a 1.5mm exclusive zone for its meander route.
+      // ────────────────────────────────────────────────────────────────────
+      const QUBIT_RE = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
+      const POCKET_MM = 1.0;
+      const CLEARANCE = 1.5;
+      const MIN_PITCH = 2.5;
+      const PITCH = Math.max(MIN_PITCH, POCKET_MM + 2 * CLEARANCE); // 4.0 mm
+
+      const qubits = state.placements.filter(
+        (p) => !p.locked && QUBIT_RE.test(p.componentId),
+      );
+      if (qubits.length === 0) return state;
+
+      const N = qubits.length;
+      const layout = action.layout ?? "grid";
+
+      // Cluster centroid — keep layout on-screen
+      const cx = qubits.reduce((s, p) => s + p.x, 0) / N;
+      const cy = qubits.reduce((s, p) => s + p.y, 0) / N;
+
+      // Sort qubits by (y, x) to preserve reading order
+      const sorted = [...qubits].sort((a, b) =>
+        a.y !== b.y ? a.y - b.y : a.x - b.x,
+      );
+
+      let slots: Array<{ x: number; y: number }> = [];
+
+      // ── GRID (balanced rows × cols) ──────────────────────────────────
+      if (layout === "grid") {
+        const cols = Math.ceil(Math.sqrt(N));
+        const rows = Math.ceil(N / cols);
+        const ox = cx - ((cols - 1) * PITCH) / 2;
+        const oy = cy - ((rows - 1) * PITCH) / 2;
+        for (let r = 0; r < rows; r++)
+          for (let c = 0; c < cols && slots.length < N; c++)
+            slots.push({ x: ox + c * PITCH, y: oy + r * PITCH });
+      }
+      // ── HORIZONTAL (single row) ──────────────────────────────────────
+      else if (layout === "horizontal") {
+        const ox = cx - ((N - 1) * PITCH) / 2;
+        for (let i = 0; i < N; i++)
+          slots.push({ x: ox + i * PITCH, y: cy });
+      }
+      // ── VERTICAL (single column) ─────────────────────────────────────
+      else if (layout === "vertical") {
+        const oy = cy - ((N - 1) * PITCH) / 2;
+        for (let i = 0; i < N; i++)
+          slots.push({ x: cx, y: oy + i * PITCH });
+      }
+      // ── RHOMBUS / DIAMOND ────────────────────────────────────────────
+      else if (layout === "rhombus") {
+        const D = PITCH;
+        const V = PITCH * Math.sin(Math.PI / 4);
+        const k = Math.ceil(Math.sqrt(N));
+        const rowSizes: number[] = [];
+        for (let i = 1; i <= k; i++) rowSizes.push(i);
+        for (let i = k - 1; i >= 1; i--) rowSizes.push(i);
+        let filled = 0;
+        for (let ri = 0; ri < rowSizes.length && filled < N; ri++) {
+          const w = rowSizes[ri];
+          const rowY = cy + (ri - (rowSizes.length - 1) / 2) * V;
+          for (let ci = 0; ci < w && filled < N; ci++) {
+            const rowX = cx + (ci - (w - 1) / 2) * D;
+            slots.push({ x: rowX, y: rowY });
+            filled++;
+          }
+        }
+      }
+      // ── U-SHAPE ──────────────────────────────────────────────────────
+      else if (layout === "u-shape") {
+        const side = Math.max(2, Math.ceil(N / 3));
+        const topW = N - 2 * (side - 1);
+        const totalH = (side - 1) * PITCH;
+        const totalW = Math.max(topW - 1, 1) * PITCH;
+        const ox = cx - totalW / 2;
+        const oy = cy - totalH / 2;
+        for (let i = side - 1; i >= 0 && slots.length < N; i--)
+          slots.push({ x: ox, y: oy + i * PITCH });
+        for (let i = 1; i < topW - 1 && slots.length < N; i++)
+          slots.push({ x: ox + i * PITCH, y: oy });
+        for (let i = 0; i < side && slots.length < N; i++)
+          slots.push({ x: ox + (topW - 1) * PITCH, y: oy + i * PITCH });
+      }
+      // ── CIRCLE ───────────────────────────────────────────────────────
+      else if (layout === "circle") {
+        const minR = N > 1 ? PITCH / (2 * Math.sin(Math.PI / N)) : 0;
+        const R = Math.max(minR, PITCH);
+        for (let i = 0; i < N; i++) {
+          const angle = (2 * Math.PI * i) / N - Math.PI / 2;
+          slots.push({ x: cx + R * Math.cos(angle), y: cy + R * Math.sin(angle) });
+        }
+      }
+      // ── H-SHAPE (two staggered rows, IBM heavy-hex style) ────────────
+      else if (layout === "h-shape") {
+        const topN = Math.ceil(N / 2);
+        const botN = N - topN;
+        const rowY = PITCH / 2;
+        const stagger = PITCH / 2;
+        const topOx = cx - ((topN - 1) * PITCH) / 2;
+        for (let i = 0; i < topN; i++)
+          slots.push({ x: topOx + i * PITCH, y: cy - rowY });
+        const botOx = cx - ((botN - 1) * PITCH) / 2 + stagger;
+        for (let i = 0; i < botN; i++)
+          slots.push({ x: botOx + i * PITCH, y: cy + rowY });
+      }
+
+      // Apply new positions
+      const movedIds = new Set(sorted.map((q) => q.id));
+      return {
+        ...state,
+        ...bump(state),
+        placements: state.placements.map((p) => {
+          if (!movedIds.has(p.id)) return p;
+          const idx = sorted.findIndex((q) => q.id === p.id);
+          return { ...p, x: slots[idx].x, y: slots[idx].y };
+        }),
+        connections: state.connections.map((c) => ({
+          ...c,
+          cachedGeometryHash: undefined,
+        })),
+      };
+    }
     case "UNDO": {
       if (state.past.length === 0) return state;
       const prev = state.past[state.past.length - 1];
@@ -413,6 +696,100 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
           (s.kind === "connection" && next.connections.some((c) => c.id === s.id)),
       );
       return nextState;
+    }
+    case "SET_CHIP_SIZE": {
+      const newW = Math.max(1, action.w);
+      const newH = Math.max(1, action.h);
+      const halfW = newW / 2;
+      const halfH = newH / 2;
+      // Re-clamp all existing placements to the new boundary
+      const clampedPlacements = state.placements.map((p) => ({
+        ...p,
+        x: Math.max(-halfW, Math.min(halfW, p.x)),
+        y: Math.max(-halfH, Math.min(halfH, p.y)),
+      }));
+      return {
+        ...state,
+        ...bump(state),
+        chipW: newW,
+        chipH: newH,
+        placements: clampedPlacements,
+        // Re-layout unlocked qubits to respect new boundary
+      };
+    }
+    case "PLACE_N_QUBITS": {
+      const N = Math.max(0, Math.min(200, Math.round(action.n)));
+      if (N === 0) return state;
+      const DEFAULT_QUBIT_COMPONENT = action.componentId ?? "TransmonPocket";
+      const QUBIT_RE = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
+
+      // Remove all existing unlocked qubit placements
+      const nonQubits = state.placements.filter(
+        (p) => !QUBIT_RE.test(p.componentId) || p.locked,
+      );
+
+      // Compute grid layout that fits within the current chip bounds
+      const chipHalfW = state.chipW / 2;
+      const chipHalfH = state.chipH / 2;
+      const POCKET_MM = 0.5;
+      const CLEARANCE = 0.6;
+      const MIN_PITCH = 1.2;
+      // Scale pitch so all N qubits fit within the chip
+      const cols = Math.ceil(Math.sqrt(N));
+      const rows = Math.ceil(N / cols);
+      const maxPitchByW = cols > 1 ? (state.chipW * 0.85) / (cols - 1) : state.chipW;
+      const maxPitchByH = rows > 1 ? (state.chipH * 0.85) / (rows - 1) : state.chipH;
+      const PITCH = Math.max(MIN_PITCH, Math.min(
+        maxPitchByW,
+        maxPitchByH,
+        POCKET_MM + 2 * CLEARANCE,
+      ));
+
+      const gridW = (cols - 1) * PITCH;
+      const gridH = (rows - 1) * PITCH;
+      const ox = -gridW / 2;
+      const oy = -gridH / 2;
+
+      const newPlacements: Placement[] = [];
+      const takenNames = new Set([...nonQubits.map((p) => p.name)]);
+
+      let placed = 0;
+      for (let r = 0; r < rows && placed < N; r++) {
+        for (let c = 0; c < cols && placed < N; c++) {
+          const x = parseFloat((ox + c * PITCH).toFixed(3));
+          const y = parseFloat((oy + r * PITCH).toFixed(3));
+          // Clamp to chip bounds
+          const cx = Math.max(-chipHalfW, Math.min(chipHalfW, x));
+          const cy = Math.max(-chipHalfH, Math.min(chipHalfH, y));
+
+          let nameIdx = placed;
+          let name = `Q${nameIdx}`;
+          while (takenNames.has(name)) { nameIdx++; name = `Q${nameIdx}`; }
+          takenNames.add(name);
+
+          newPlacements.push({
+            id: `pl_${DEFAULT_QUBIT_COMPONENT}_${Date.now()}_${placed}`,
+            componentId: DEFAULT_QUBIT_COMPONENT,
+            name,
+            x: cx,
+            y: cy,
+            rotation: 0,
+            params: { pad_gap: "30um", pad_width: "455um", pad_height: "90um" },
+          });
+          placed++;
+        }
+      }
+
+      return {
+        ...state,
+        ...bump(state),
+        placements: [...nonQubits, ...newPlacements],
+        connections: state.connections.filter((c) =>
+          [...nonQubits].some((p) => p.id === c.from.placementId) &&
+          [...nonQubits].some((p) => p.id === c.to.placementId),
+        ),
+        selection: newPlacements.map((p) => ({ kind: "placement" as const, id: p.id })),
+      };
     }
     case "LOAD": {
       const sel = state.selection;
@@ -458,7 +835,11 @@ export function DesignStoreProvider({ children }: { children: ReactNode }) {
     if (loadedRef.current) return;
     loadedRef.current = true;
     const saved = loadDesign();
-    if (saved) dispatch({ type: "LOAD", doc: saved });
+    if (saved) {
+      dispatch({ type: "LOAD", doc: saved });
+      // Clear any stale route geometry so connections re-render with the current backend
+      dispatch({ type: "CLEAR_ROUTE_CACHE" });
+    }
   }, []);
 
   // Auto-save whenever placements/connections change.

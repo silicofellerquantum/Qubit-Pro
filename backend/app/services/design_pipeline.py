@@ -418,6 +418,58 @@ def _build_qiskit_metal_code(graph, placement_dict: dict, metal: str) -> str:
     return generate_qiskit_code(chip, placement_dict, metal)
 
 
+def _best_resonator_angle(
+    qx: float,
+    qy: float,
+    neighbor_positions: list[tuple[float, float]],
+    count: int,
+) -> float:
+    """
+    Choose the best angle for placing a resonator offset from a qubit at (qx, qy).
+
+    Strategy:
+    - Sample 8 candidate angles (0°, 45°, 90°, … 315°).
+    - Score each by the minimum distance to any neighbouring qubit centre
+      (projected onto the offset direction).  Prefer directions that point
+      away from all neighbours — i.e. maximise the minimum neighbour distance.
+    - If there are no neighbours, fall back to 90° + count×45° increments
+      (preserves the old behaviour for isolated qubits).
+    - The `count` parameter handles multiple resonators on the same qubit:
+      on the second call the best direction is excluded so the two resonators
+      spread to opposite sides.
+    """
+    N_CANDIDATES = 8
+    candidates = [math.pi * 2 * i / N_CANDIDATES for i in range(N_CANDIDATES)]
+
+    if not neighbor_positions:
+        # No neighbours → classic 90° + 45°·count fallback.
+        return math.pi / 2 + count * (math.pi / 4)
+
+    def score(angle: float) -> float:
+        # Direction vector for this candidate angle.
+        dx = math.cos(angle)
+        dy = math.sin(angle)
+        # For each neighbour, compute the dot product of the neighbour
+        # direction onto this candidate direction.  A large positive value
+        # means the resonator would point straight at that neighbour → bad.
+        # We want to minimise the maximum dot product (i.e. avoid neighbours).
+        min_score = float("inf")
+        for nx_, ny_ in neighbor_positions:
+            nd_x = nx_ - qx
+            nd_y = ny_ - qy
+            nd_len = math.sqrt(nd_x * nd_x + nd_y * nd_y) or 1.0
+            dot = (dx * nd_x + dy * nd_y) / nd_len   # cosine similarity
+            min_score = min(min_score, -dot)          # negate: high = pointing away
+        return min_score
+
+    # Sort candidates by score descending (best = most away from neighbours).
+    ranked = sorted(candidates, key=score, reverse=True)
+
+    # The `count`-th best direction handles multiple resonators per qubit.
+    idx = count % len(ranked)
+    return ranked[idx]
+
+
 def _assign_secondary_coords(graph: Any, constraints: Any) -> None:
     """
     Derive (x_mm, y_mm) for nodes that are not placed by the qubit solver:
@@ -454,14 +506,15 @@ def _assign_secondary_coords(graph: Any, constraints: Any) -> None:
                 bx, by = q_coords[qb_id]
                 mx = round((ax + bx) / 2, 4)
                 my = round((ay + by) / 2, 4)
-                # Jitter coupler 15% of the edge length perpendicular to it,
+                # Jitter coupler 8% of the edge length perpendicular to it,
                 # so overlapping couplers (diagonal pairs on a grid) separate.
+                # Keep jitter small (was 15%) to avoid pushing into pocket bodies.
                 edge_dx = bx - ax
                 edge_dy = by - ay
                 edge_len = max(math.sqrt(edge_dx**2 + edge_dy**2), 0.001)
                 perp_x = -edge_dy / edge_len
                 perp_y =  edge_dx / edge_len
-                jitter = edge_len * 0.15
+                jitter = edge_len * 0.08
                 node.x_mm = round(mx + perp_x * jitter, 4)
                 node.y_mm = round(my + perp_y * jitter, 4)
             elif q_coords:
@@ -475,11 +528,16 @@ def _assign_secondary_coords(graph: Any, constraints: Any) -> None:
             target_id = getattr(node, "target_qubit_id", None)
             if target_id and target_id in q_coords:
                 qx, qy = q_coords[target_id]
-                # Offset resonator perpendicular to the nearest chip edge.
-                # Rotate through 45° increments for multiple resonators on same qubit.
                 count = ro_count.get(target_id, 0)
                 ro_count[target_id] = count + 1
-                angle = math.pi / 2 + count * (math.pi / 4)
+
+                # Build a list of all other qubit positions (neighbours) to
+                # avoid when choosing the resonator direction.
+                other_positions = [
+                    v for k, v in q_coords.items() if k != target_id
+                ]
+
+                angle = _best_resonator_angle(qx, qy, other_positions, count)
                 offset = 0.55  # mm from qubit centre
                 node.x_mm = round(qx + offset * math.cos(angle), 4)
                 node.y_mm = round(qy + offset * math.sin(angle), 4)

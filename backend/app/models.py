@@ -94,8 +94,59 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
+    # ── Billing / Subscription ────────────────────────────────────────────────
+    # plan: "free" | "basic" | "pro"
+    plan: Mapped[str] = mapped_column(String(20), default="free")
+    # billing_cycle: "monthly" | "annual"
+    billing_cycle: Mapped[str] = mapped_column(String(10), default="monthly")
+    # subscription_status mirrors Razorpay: created | authenticated | active | halted | cancelled | expired
+    subscription_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    # Razorpay IDs — set after customer/subscription creation
+    razorpay_customer_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    razorpay_subscription_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+
+    # ── Teams / Licensing ─────────────────────────────────────────────────────
+    licenses_purchased: Mapped[int] = mapped_column(Integer, default=1)
+    team_owner_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
     projects: Mapped[list["Project"]] = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
     chat_history: Mapped[list["ChatHistory"]] = relationship("ChatHistory", back_populates="user", cascade="all, delete-orphan")
+    team_members: Mapped[list["User"]] = relationship("User", back_populates="team_owner", cascade="all", remote_side="[User.id]")
+    team_owner: Mapped[Optional["User"]] = relationship("User", back_populates="team_members", remote_side="[User.team_owner_id]")
+    team_invites_sent: Mapped[list["TeamInvite"]] = relationship("TeamInvite", back_populates="owner", cascade="all, delete-orphan")
+    subscriptions: Mapped[list["Subscription"]] = relationship("Subscription", back_populates="owner", cascade="all, delete-orphan")
+
+# ── Subscription ────────────────────────────────────────────────────────────
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    razorpay_subscription_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    plan: Mapped[str] = mapped_column(String(20)) # basic, pro, test_usd, etc.
+    billing_cycle: Mapped[str] = mapped_column(String(10)) # monthly, annual
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(30)) # active, cancelled, etc.
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    owner: Mapped["User"] = relationship("User", back_populates="subscriptions")
+
+# ── Team Invite ─────────────────────────────────────────────────────────────
+
+class TeamInvite(Base):
+    __tablename__ = "team_invites"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(254), index=True)
+    token: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    plan: Mapped[str] = mapped_column(String(20), default="basic")
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, accepted, expired, revoked
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    owner: Mapped["User"] = relationship("User", back_populates="team_invites_sent")
 
 
 # ── Project ─────────────────────────────────────────────────────────────────

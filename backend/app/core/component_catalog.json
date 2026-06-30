@@ -2030,7 +2030,7 @@
           "hint": {
             "x": 281.0,
             "y": 0.0,
-            "angle": -0.0
+            "angle": 0.0
           }
         },
         {
@@ -2368,6 +2368,42 @@
       ],
       "pins": [
         {
+          "name": "a",
+          "direction": "io",
+          "hint": {
+            "x": 425.0,
+            "y": 195.0,
+            "angle": 0.0
+          }
+        },
+        {
+          "name": "b",
+          "direction": "io",
+          "hint": {
+            "x": -425.0,
+            "y": 195.0,
+            "angle": 180.0
+          }
+        },
+        {
+          "name": "c",
+          "direction": "io",
+          "hint": {
+            "x": 425.0,
+            "y": -195.0,
+            "angle": 0.0
+          }
+        },
+        {
+          "name": "d",
+          "direction": "io",
+          "hint": {
+            "x": -425.0,
+            "y": -195.0,
+            "angle": 180.0
+          }
+        },
+        {
           "name": "Charge_Line",
           "direction": "io",
           "hint": {
@@ -2521,7 +2557,7 @@
         "name": "Readout Res FC",
         "module": "qiskit_metal.qlibrary.resonators.readoutres_fc",
         "category": "resonators",
-        "description": "QComponent"
+        "description": "Folded CPW readout resonator (custom)"
       },
       "parameters": [
         {
@@ -2537,64 +2573,52 @@
           "default": "0"
         },
         {
-          "name": "readout_radius",
-          "type": "length",
-          "unit": "um",
-          "default": "50"
-        },
-        {
           "name": "readout_cpw_width",
           "type": "length",
           "unit": "um",
-          "default": "5"
+          "default": "10"
         },
         {
           "name": "readout_cpw_gap",
           "type": "length",
           "unit": "um",
-          "default": "5"
+          "default": "6"
         },
         {
           "name": "readout_cpw_turnradius",
           "type": "length",
           "unit": "um",
-          "default": "50"
+          "default": "30"
         },
         {
           "name": "readout_l1",
           "type": "length",
           "unit": "um",
-          "default": "400"
+          "default": "90"
         },
         {
           "name": "readout_l2",
           "type": "length",
           "unit": "um",
-          "default": "400"
+          "default": "120"
         },
         {
           "name": "readout_l3",
           "type": "length",
           "unit": "um",
-          "default": "400"
+          "default": "120"
         },
         {
           "name": "readout_l4",
           "type": "length",
           "unit": "um",
-          "default": "250"
+          "default": "120"
         },
         {
           "name": "readout_l5",
           "type": "length",
           "unit": "um",
-          "default": "400"
-        },
-        {
-          "name": "arc_step",
-          "type": "length",
-          "unit": "um",
-          "default": "1"
+          "default": "90"
         },
         {
           "name": "orientation",
@@ -2607,16 +2631,6 @@
           "default": "1"
         },
         {
-          "name": "layer_subtract",
-          "type": "number",
-          "default": "2"
-        },
-        {
-          "name": "subtract",
-          "type": "bool",
-          "default": "true"
-        },
-        {
           "name": "chip",
           "type": "string",
           "default": "main"
@@ -2627,29 +2641,25 @@
           "name": "readout",
           "direction": "io",
           "hint": {
-            "x": 897.487373,
-            "y": -168.198052,
-            "angle": -0.0
+            "x": 0.0,
+            "y": 0.0,
+            "angle": 0.0
           }
         }
       ],
       "default_options": {
-        "pos_x": "0 um",
-        "pos_y": "0 um",
-        "readout_radius": "50 um",
-        "readout_cpw_width": "5 um",
-        "readout_cpw_gap": "5 um",
-        "readout_cpw_turnradius": "50 um",
-        "readout_l1": "400 um",
-        "readout_l2": "400 um",
-        "readout_l3": "400 um",
-        "readout_l4": "250 um",
-        "readout_l5": "400 um",
-        "arc_step": "1 um",
+        "pos_x": "0um",
+        "pos_y": "0um",
+        "readout_cpw_width": "10um",
+        "readout_cpw_gap": "6um",
+        "readout_cpw_turnradius": "30um",
+        "readout_l1": "90um",
+        "readout_l2": "120um",
+        "readout_l3": "120um",
+        "readout_l4": "120um",
+        "readout_l5": "90um",
         "orientation": "0",
         "layer": "1",
-        "layer_subtract": "2",
-        "subtract": true,
         "chip": "main",
         "_default_connection_pads": {}
       }
@@ -3228,7 +3238,7 @@
           "hint": {
             "x": 25.0,
             "y": 0.0,
-            "angle": -0.0
+            "angle": 0.0
           }
         }
       ],
@@ -3281,7 +3291,7 @@
           "hint": {
             "x": 95.0,
             "y": 0.0,
-            "angle": -0.0
+            "angle": 0.0
           }
         }
       ],
@@ -3349,7 +3359,7 @@
           "hint": {
             "x": 25.0,
             "y": 0.0,
-            "angle": -0.0
+            "angle": 0.0
           }
         },
         {
@@ -3358,7 +3368,7 @@
           "hint": {
             "x": -260.0,
             "y": 0.0,
-            "angle": -0.0
+            "angle": 0.0
           }
         }
       ],

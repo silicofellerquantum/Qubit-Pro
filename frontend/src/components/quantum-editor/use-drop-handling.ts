@@ -23,13 +23,13 @@ export interface DropHandlingResult {
   onDragLeave: (e: React.DragEvent) => void;
 }
 
-export function useDropHandling(dispatch: Dispatch): DropHandlingResult {
+export function useDropHandling(dispatch: Dispatch, chipHalfW = 20, chipHalfH = 20): DropHandlingResult {
   const qc = useQueryClient();
   const [dropPrev, setDropPrev] = useState<{ componentId: string; x: number; y: number } | null>(null);
 
   const snapAndConstrain = (raw: { x: number; y: number }, snap: number) => ({
-    x: Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, parseFloat((Math.round(raw.x / snap) * snap).toFixed(3)))),
-    y: Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, parseFloat((Math.round(raw.y / snap) * snap).toFixed(3)))),
+    x: Math.max(-chipHalfW, Math.min(chipHalfW, parseFloat((Math.round(raw.x / snap) * snap).toFixed(3)))),
+    y: Math.max(-chipHalfH, Math.min(chipHalfH, parseFloat((Math.round(raw.y / snap) * snap).toFixed(3)))),
   });
 
   const onDrop = (
@@ -54,12 +54,17 @@ export function useDropHandling(dispatch: Dispatch): DropHandlingResult {
     const cachedMetadata = qc.getQueryData<ComponentMetadata>(queryKey);
     let params: Record<string, string | number> = {};
 
+    const catalogEntry = QISKIT_CATALOG.find((c) => c.className === cid);
+    const getMergedParams = (base: Record<string, any>) => {
+      if (!catalogEntry?.defaultParams) return base;
+      return { ...base, ...catalogEntry.defaultParams };
+    };
+
     if (cachedMetadata) {
-      params = defaultParamsFromMetadata(cachedMetadata);
+      params = getMergedParams(defaultParamsFromMetadata(cachedMetadata));
     } else {
-      const catalogEntry = QISKIT_CATALOG.find((c) => c.className === cid);
       if (catalogEntry) {
-        params = Object.fromEntries(Object.entries(catalogEntry.defaultParams).map(([k, v]) => [k, String(v)]));
+        params = getMergedParams({});
       }
     }
 
@@ -81,7 +86,9 @@ export function useDropHandling(dispatch: Dispatch): DropHandlingResult {
         .getMetadata(cid)
         .then((metaRes) => {
           if (metaRes.data) {
-            dispatch({ type: "UPDATE_PLACEMENT", id: placementId, patch: { params: defaultParamsFromMetadata(metaRes.data) } });
+            const baseParams = defaultParamsFromMetadata(metaRes.data);
+            const mergedParams = getMergedParams(baseParams);
+            dispatch({ type: "UPDATE_PLACEMENT", id: placementId, patch: { params: mergedParams } });
           }
         })
         .catch(console.error);

@@ -1,4 +1,4 @@
-# Triggering reload...
+# codegen fix: unique route names, cpw placeholder resolution, total_length fallback
 """
 SILICOFELLER Quantum Studio — FastAPI Backend
 =============================================
@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.database import init_db
-from app.routers import auth, claude, generate, materials, projects, qclang, simulations, tapeout, verification, bridge
+from app.routers import auth, claude, generate, materials, projects, qclang, simulations, tapeout, verification, bridge, billing, team
 from app.routers import design  # V2 design pipeline
 
 log = logging.getLogger(__name__)
@@ -46,6 +46,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         log.warning(f"Database init skipped (will run without persistence): {e}")
 
     # Prewarm component registry, metadata, pins, and previews
+    # Invalidate all caches on startup so catalog changes always take effect
+    try:
+        from app.core.registry_cache import registry_cache
+        from app.services.component_registry import component_registry_service
+        registry_cache.invalidate()
+        component_registry_service.invalidate()
+        log.info("Registry cache invalidated — catalog reloaded from disk.")
+    except Exception as e:
+        log.warning(f"Registry cache invalidation failed: {e}")
+
     try:
         import threading
         def _prewarm_registry() -> None:
@@ -149,6 +159,20 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+# ── Root route ────────────────────────────────────────────────────────────────
+
+@app.get("/")
+async def root():
+    """API root — see /health for status or /docs for API documentation."""
+    return {
+        "service": "Silicofeller Quantum Studio API",
+        "version": "3.0.0",
+        "status": "online",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
 # ── Routers ───────────────────────────────────────────────────────────────────
 
 app.include_router(generate.router)          # /health  /generate
@@ -163,6 +187,8 @@ app.include_router(materials.router)         # /api/materials/...
 app.include_router(claude.router)            # /api/claude/...
 app.include_router(design.router)            # /api/design/... (V2 pipeline)
 app.include_router(bridge.router)            # /components and /design (bridge router)
+app.include_router(billing.router)           # /api/billing/...
+app.include_router(team.router)              # /api/team/...
 
 
 # ── Frequency plan (legacy frontend compat) ───────────────────────────────────

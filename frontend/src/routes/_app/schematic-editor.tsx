@@ -10,7 +10,7 @@ import { WorkspaceProvider, useWorkspace } from "@/lib/editor/workspace-store";
 import { getSingleSelection, isSelected, type Selection } from "@/lib/editor/design-store";
 import { ComponentLibrary } from "@/components/quantum-editor/component-library";
 import { PropertyInspector } from "@/components/quantum-editor/property-inspector";
-import { EditorCanvas, type EditorCanvasHandle, CHIP_HALF_W, CHIP_HALF_H } from "@/components/quantum-editor/editor-canvas";
+import { EditorCanvas, type EditorCanvasHandle } from "@/components/quantum-editor/editor-canvas";
 import { EditorToolbar } from "@/components/quantum-editor/editor-toolbar";
 import { CodeIdePanel, type CodePanelMode } from "@/components/quantum-editor/code-ide-panel";
 import { useDesign } from "@/lib/design-context";
@@ -40,10 +40,11 @@ export const Route = createFileRoute("/_app/schematic-editor")({
   errorComponent: ErrorBoundary,
 });
 
+
 function ErrorBoundary({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   return (
-    <div className="flex min-h-screen items-center justify-center p-6 bg-card text-card-foreground">
+    <div className="flex min-h-[100svh] items-center justify-center p-6 bg-card text-card-foreground">
       <div className="max-w-md rounded-lg border border-border bg-card p-6 shadow-md">
         <h2 className="mb-2 text-lg font-bold text-destructive">Editor failed to load</h2>
         <p className="mb-4 text-sm font-mono text-muted-foreground bg-muted p-3 rounded overflow-auto max-h-40">
@@ -191,6 +192,7 @@ function SchematicEditorShell() {
   );
 
   const [libOpen, setLibOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
   const [codeMode, setCodeMode] = useState<CodePanelMode | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -244,6 +246,12 @@ function SchematicEditorShell() {
         newCanvas(conversation.title || "Schematic", doc, tabId);
       } else {
         loadIntoCanvas(tabId, doc);
+      }
+
+      if (doc.placements.length > 0) {
+        requestAnimationFrame(() => {
+          canvasRef.current?.fitToContent();
+        });
       }
 
       if (highlight) {
@@ -481,8 +489,8 @@ function SchematicEditorShell() {
             action: {
               type: "MOVE_PLACEMENT",
               id: p.id,
-              x: Math.max(-CHIP_HALF_W, Math.min(CHIP_HALF_W, nx)),
-              y: Math.max(-CHIP_HALF_H, Math.min(CHIP_HALF_H, ny)),
+              x: Math.max(-activeTab.state.chipW / 2, Math.min(activeTab.state.chipW / 2, nx)),
+              y: Math.max(-activeTab.state.chipH / 2, Math.min(activeTab.state.chipH / 2, ny)),
             },
           });
         }
@@ -723,15 +731,48 @@ function SchematicEditorShell() {
           </div>
         )}
 
-        {/* Canvas */}
+        {/* Canvas — flex:1, fills all space between panels */}
         <div className="flex-1 min-w-0 overflow-hidden relative h-full bg-background">
           <EditorCanvas key={activeTab.id} ref={canvasRef} />
         </div>
 
-        {/* Property Inspector */}
-        {activeTab.state.selection && (
-          <div className="w-80 shrink-0 border-l border-border bg-card overflow-y-auto p-3 flex flex-col">
-            <PropertyInspector />
+        {/* Property Inspector — collapsible via X button */}
+        {inspectorOpen ? (
+          <div
+            className="border-l border-border bg-card flex flex-col"
+            style={{ width: 280, minWidth: 280, flexShrink: 0 }}
+          >
+            {/* Panel header with close button */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Inspector</span>
+              <button
+                onClick={() => setInspectorOpen(false)}
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Close panel"
+                aria-label="Close inspector panel"
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3">
+              <PropertyInspector />
+            </div>
+          </div>
+        ) : (
+          /* Thin collapsed tab — click to re-open */
+          <div className="shrink-0 border-l border-border bg-card flex flex-col items-center py-3" style={{ width: 28 }}>
+            <button
+              onClick={() => setInspectorOpen(true)}
+              className="h-6 w-6 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              title="Open inspector"
+              aria-label="Open inspector panel"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M8 2L4 6L8 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
           </div>
         )}
 

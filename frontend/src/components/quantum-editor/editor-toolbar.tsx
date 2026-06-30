@@ -1,50 +1,62 @@
-import { type RefObject, useCallback, useState } from "react";
+import { type RefObject, useCallback, useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Undo2, Redo2, MousePointer2, Hand, Code2, Maximize,
-  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson,
+  Layers, Save, Download, ChevronDown, FileCode2, PenLine, Trash2, Upload, FileJson, Map, RefreshCw,
+  AlignCenter, AlignHorizontalJustifyCenter, AlignVerticalJustifyCenter,
+  Circle, Hexagon, Minus, LayoutGrid, Cpu, ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { type Tool } from "@/lib/editor/design-store";
+import { type Tool, type AlignLayout, CHIP_SIZE_PRESETS } from "@/lib/editor/design-store";
 import { useWorkspace } from "@/lib/editor/workspace-store";
 import type { CodePanelMode } from "./code-ide-panel";
 import type { EditorCanvasHandle } from "./editor-canvas";
 import { SaveStatus } from "./save-status";
- 
+
 interface Props {
   libOpen: boolean;
   onToggleLib: () => void;
   onFitView: () => void;
   onShowCode: (mode: CodePanelMode) => void;
   canvasRef: RefObject<EditorCanvasHandle | null>;
+  onSave?: () => void;
 }
- 
+
 function triggerDownload(url: string, filename: string) {
   Object.assign(document.createElement("a"), { href: url, download: filename }).click();
   URL.revokeObjectURL(url);
 }
- 
-export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, canvasRef }: Props) {
+
+export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, canvasRef, onSave }: Props) {
   const { activeTab, dispatchActive, saveAll } = useWorkspace();
-  const state    = activeTab.state;
+  const state = activeTab.state;
   const dispatch = dispatchActive;
-  const canUndo  = state.past.length > 0;
-  const canRedo  = state.future.length > 0;
-  const qc       = useQueryClient();
+  const canUndo = state.past.length > 0;
+  const canRedo = state.future.length > 0;
+  const qc = useQueryClient();
   const [showClearDialog, setShowClearDialog] = useState(false);
 
   const setTool = (t: Tool) => dispatch({ type: "SET_TOOL", tool: t });
 
-  const handleSave = useCallback(() => { saveAll(); toast.success("Design saved"); }, [saveAll]);
+  const handleSave = useCallback(() => {
+    if (onSave) {
+      onSave();
+    } else {
+      saveAll();
+      toast.success("Design saved");
+    }
+  }, [onSave, saveAll]);
 
   const confirmClear = useCallback(() => {
     dispatch({ type: "LOAD", doc: { placements: [], connections: [] } });
@@ -122,10 +134,18 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
     <TooltipProvider delayDuration={250}>
       <div className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-card px-3">
         <TB icon={MousePointer2} label="Select" active={state.tool === "select"} onClick={() => setTool("select")} />
-        <TB icon={Hand}          label="Pan"    active={state.tool === "pan"}    onClick={() => setTool("pan")} />
+        <TB icon={Hand} label="Pan" active={state.tool === "pan"} onClick={() => setTool("pan")} />
         <Separator orientation="vertical" className="h-6" />
-        <TB icon={Undo2} label="Undo (Ctrl+Z)"       onClick={() => dispatch({ type: "UNDO" })} disabled={!canUndo} />
+        <TB icon={Undo2} label="Undo (Ctrl+Z)" onClick={() => dispatch({ type: "UNDO" })} disabled={!canUndo} />
         <TB icon={Redo2} label="Redo (Ctrl+Shift+Z)" onClick={() => dispatch({ type: "REDO" })} disabled={!canRedo} />
+
+        <Separator orientation="vertical" className="h-6" />
+
+        {/* ── Qubit Count Input ────────────────────────────────────────── */}
+        <QubitCountControl />
+
+        {/* ── Chip Size Selector ───────────────────────────────────────── */}
+        <ChipSizeControl />
 
         <div className="ml-auto flex items-center gap-1">
           <Tooltip>
@@ -145,6 +165,98 @@ export function EditorToolbar({ libOpen, onToggleLib, onFitView, onShowCode, can
               </Button>
             </TooltipTrigger>
             <TooltipContent>Fit all components into view (F)</TooltipContent>
+          </Tooltip>
+
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost" size="sm"
+                    className="h-8 gap-1.5 text-[11px]"
+                    disabled={state.placements.length === 0}
+                  >
+                    <AlignCenter className="h-3.5 w-3.5" />
+                    <span className="hidden md:inline">Auto Align</span>
+                    <ChevronDown className="h-3 w-3 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Choose an auto-align layout for qubits</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="start" className="w-52">
+              {(
+                [
+                  { layout: "grid" as AlignLayout, label: "Grid", desc: "Balanced rows × cols", Icon: LayoutGrid },
+                  { layout: "horizontal" as AlignLayout, label: "Horizontal", desc: "Single row left → right", Icon: AlignHorizontalJustifyCenter },
+                  { layout: "vertical" as AlignLayout, label: "Vertical", desc: "Single column top → bottom", Icon: AlignVerticalJustifyCenter },
+                  { layout: "rhombus" as AlignLayout, label: "Rhombus", desc: "Diamond / rhombus pattern", Icon: Hexagon },
+                  { layout: "u-shape" as AlignLayout, label: "U-Shape", desc: "Three sides — open bottom", Icon: Minus },
+                  { layout: "circle" as AlignLayout, label: "Circle", desc: "Equidistant ring", Icon: Circle },
+                  { layout: "h-shape" as AlignLayout, label: "H-Shape", desc: "Two staggered rows (heavy-hex style)", Icon: AlignCenter },
+                ] as const
+              ).map(({ layout, label, desc, Icon }) => (
+                <DropdownMenuItem
+                  key={layout}
+                  className="flex items-start gap-2 py-2 cursor-pointer"
+                  onClick={() => {
+                    const qubits = state.placements.filter(
+                      (p) => !p.locked &&
+                        /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i
+                          .test(p.componentId),
+                    );
+                    if (qubits.length === 0) {
+                      toast.info("No unlocked qubits to align.");
+                      return;
+                    }
+                    dispatch({ type: "AUTO_ALIGN", layout });
+                    dispatch({ type: "CLEAR_ROUTE_CACHE" });
+                    qc.removeQueries({ queryKey: ["bridge", "render-route"] });
+                    toast.success(
+                      `${label}: aligned ${qubits.length} qubit${qubits.length > 1 ? "s" : ""} — resonators won't overlap`,
+                    );
+                  }}
+                >
+                  <Icon className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-medium text-[12px]">{label}</span>
+                    <span className="text-[10px] text-muted-foreground">{desc}</span>
+                  </div>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost" size="sm"
+                onClick={() => {
+                  dispatch({ type: "CLEAR_ROUTE_CACHE" });
+                  qc.removeQueries({ queryKey: ["bridge", "render-route"] });
+                  toast.success("Routes refreshed");
+                }}
+                className="h-8 gap-1.5 text-[11px]"
+                disabled={state.connections.length === 0}
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> <span className="hidden md:inline">Refresh Routes</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Re-render all route connections</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={state.showMiniMap ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => dispatch({ type: "TOGGLE_MINIMAP" })}
+                className={cn("h-8 gap-1.5 text-[11px]", state.showMiniMap && "bg-primary/10 text-primary hover:bg-primary/15")}
+              >
+                <Map className="h-3.5 w-3.5" /> <span className="hidden md:inline">Top View</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{state.showMiniMap ? "Hide Top View" : "Show Top View"}</TooltipContent>
           </Tooltip>
 
           <Separator orientation="vertical" className="h-6" />
@@ -243,5 +355,253 @@ function TB({ icon: Icon, label, active, onClick, disabled }: { icon: React.Comp
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+// ── Qubit Count Control ───────────────────────────────────────────────────────
+// Shows a compact "Qubits" numeric stepper. Typing N and pressing Enter (or
+// clicking ± buttons) calls PLACE_N_QUBITS which removes unlocked qubits and
+// places exactly N new ones in a grid layout that fills the current chip.
+function QubitCountControl() {
+  const { activeTab, dispatchActive } = useWorkspace();
+  const state = activeTab.state;
+
+  // Count currently placed unlocked qubits for the initial value
+  const QUBIT_RE = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
+  const currentCount = state.placements.filter(
+    (p) => QUBIT_RE.test(p.componentId) && !p.locked,
+  ).length;
+
+  const [inputVal, setInputVal] = useState<string>(String(currentCount));
+
+  // Sync when external changes happen (e.g. undo, load)
+  useEffect(() => {
+    setInputVal(String(currentCount));
+  }, [currentCount]);
+
+  const commit = (raw: string) => {
+    const n = Math.max(0, Math.min(200, parseInt(raw, 10)));
+    if (!isNaN(n)) {
+      dispatchActive({ type: "PLACE_N_QUBITS", n });
+      toast.success(
+        n === 0
+          ? "Qubits cleared from canvas"
+          : `Placing ${n} qubit${n !== 1 ? "s" : ""} on canvas`,
+      );
+    }
+    setInputVal(String(isNaN(n) ? currentCount : n));
+  };
+
+  const step = (delta: number) => {
+    const cur = parseInt(inputVal, 10);
+    const next = Math.max(0, Math.min(200, (isNaN(cur) ? 0 : cur) + delta));
+    setInputVal(String(next));
+    dispatchActive({ type: "PLACE_N_QUBITS", n: next });
+    toast.success(
+      next === 0
+        ? "Qubits cleared from canvas"
+        : `Placing ${next} qubit${next !== 1 ? "s" : ""} on canvas`,
+    );
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center gap-0.5 rounded-md border border-border bg-muted/30 px-1.5 h-8">
+          <Cpu className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <span className="text-[10px] font-semibold text-muted-foreground mx-1 hidden sm:inline">Qubits</span>
+          <div className="flex flex-col -my-0.5">
+            <button
+              className="h-3.5 w-3.5 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => step(1)}
+              aria-label="Increase qubit count"
+              tabIndex={-1}
+            >
+              <ChevronUp className="h-2.5 w-2.5" />
+            </button>
+            <button
+              className="h-3.5 w-3.5 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted"
+              onClick={() => step(-1)}
+              aria-label="Decrease qubit count"
+              tabIndex={-1}
+            >
+              <ChevronDown className="h-2.5 w-2.5" />
+            </button>
+          </div>
+          <Input
+            type="number"
+            min={0}
+            max={200}
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            onBlur={(e) => commit(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                (e.currentTarget as HTMLInputElement).blur();
+                commit((e.currentTarget as HTMLInputElement).value);
+              }
+            }}
+            className="h-6 w-12 border-0 bg-transparent p-0 text-center text-[11px] font-bold focus-visible:ring-0 focus-visible:ring-offset-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            aria-label="Qubit count"
+          />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">
+        <p className="font-semibold">Place N qubits</p>
+        <p className="text-[10px] text-muted-foreground">Type a number or use ± buttons — replaces unlocked qubits with a grid layout</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// ── Chip Size Control ─────────────────────────────────────────────────────────
+// A popover button showing the current chip size. Opens a menu with preset
+// sizes and a "Custom…" option that reveals W×H fields.
+function ChipSizeControl() {
+  const { activeTab, dispatchActive } = useWorkspace();
+  const state = activeTab.state;
+  const chipW = state.chipW ?? 40;
+  const chipH = state.chipH ?? 40;
+
+  const [open, setOpen] = useState(false);
+  const [customW, setCustomW] = useState(String(chipW));
+  const [customH, setCustomH] = useState(String(chipH));
+  const [showCustom, setShowCustom] = useState(false);
+
+  // Keep custom fields in sync with external changes
+  useEffect(() => {
+    setCustomW(String(chipW));
+    setCustomH(String(chipH));
+  }, [chipW, chipH]);
+
+  const applySize = (w: number, h: number) => {
+    const clampedW = Math.max(1, Math.min(200, w));
+    const clampedH = Math.max(1, Math.min(200, h));
+    dispatchActive({ type: "SET_CHIP_SIZE", w: clampedW, h: clampedH });
+    // Re-layout qubits to fit the new boundary
+    const QUBIT_RE = /transmon|qubit|JJ_Dolan|JJ_Manhattan|SNAIL|SQUID|star_qubit/i;
+    const qubitCount = state.placements.filter(
+      (p) => QUBIT_RE.test(p.componentId) && !p.locked,
+    ).length;
+    if (qubitCount > 0) {
+      dispatchActive({ type: "PLACE_N_QUBITS", n: qubitCount });
+    }
+    toast.success(`Chip size set to ${clampedW} × ${clampedH} mm`);
+    setOpen(false);
+    setShowCustom(false);
+  };
+
+  const commitCustom = () => {
+    const w = parseFloat(customW);
+    const h = parseFloat(customH);
+    if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
+      applySize(w, h);
+    } else {
+      toast.error("Invalid chip size — enter positive numbers");
+    }
+  };
+
+  // Find if the current size matches a preset
+  const matchedPreset = CHIP_SIZE_PRESETS.find((p) => p.w === chipW && p.h === chipH);
+
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setShowCustom(false); }}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-[11px] font-semibold tabular-nums"
+              aria-label={`Chip size: ${chipW} × ${chipH} mm`}
+            >
+              <span className="text-muted-foreground hidden sm:inline text-[10px]">Chip</span>
+              <span className="font-bold text-foreground">{chipW} × {chipH}</span>
+              <span className="text-muted-foreground text-[10px]">mm</span>
+              <ChevronDown className="h-3 w-3 opacity-60" />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Change chip physical size</TooltipContent>
+      </Tooltip>
+
+      <PopoverContent align="start" className="w-52 p-2">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1 pb-1.5">
+          Chip Size
+        </p>
+        <div className="flex flex-col gap-0.5">
+          {CHIP_SIZE_PRESETS.map((preset) => {
+            const isActive = preset.w === chipW && preset.h === chipH;
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => applySize(preset.w, preset.h)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[12px] transition-colors hover:bg-muted",
+                  isActive && "bg-primary/10 text-primary font-semibold",
+                )}
+              >
+                <span>{preset.label}</span>
+                {isActive && (
+                  <span className="text-[10px] text-primary">✓</span>
+                )}
+              </button>
+            );
+          })}
+
+          <div className="my-1 border-t border-border" />
+
+          {/* Custom size toggle */}
+          <button
+            type="button"
+            onClick={() => setShowCustom((v) => !v)}
+            className={cn(
+              "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[12px] transition-colors hover:bg-muted",
+              !matchedPreset && "bg-primary/10 text-primary font-semibold",
+            )}
+          >
+            <span>Custom…</span>
+            <ChevronDown className={cn("h-3 w-3 transition-transform", showCustom && "rotate-180")} />
+          </button>
+
+          {showCustom && (
+            <div className="mt-1 flex items-center gap-1.5 px-1">
+              <Input
+                type="number"
+                min={1}
+                max={200}
+                value={customW}
+                onChange={(e) => setCustomW(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && commitCustom()}
+                className="h-7 w-16 text-[11px] text-center px-1"
+                placeholder="W"
+                aria-label="Custom chip width in mm"
+              />
+              <span className="text-[11px] text-muted-foreground font-semibold">×</span>
+              <Input
+                type="number"
+                min={1}
+                max={200}
+                value={customH}
+                onChange={(e) => setCustomH(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && commitCustom()}
+                className="h-7 w-16 text-[11px] text-center px-1"
+                placeholder="H"
+                aria-label="Custom chip height in mm"
+              />
+              <span className="text-[10px] text-muted-foreground">mm</span>
+              <button
+                type="button"
+                onClick={commitCustom}
+                className="ml-0.5 rounded bg-primary px-2 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                OK
+              </button>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

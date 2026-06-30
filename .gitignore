@@ -7,6 +7,7 @@ __pycache__/
 env/
 venv/
 .venv/
+.venv*/
 pip-log.txt
 pip-delete-this-directory.txt
 .toast
@@ -49,3 +50,4 @@ dist-ssr/
 *.njsproj
 *.sln
 *.sw?
+backend/metal_env/ 

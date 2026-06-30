@@ -144,6 +144,14 @@ class LayerRender(BaseModel):
 class RouteRender(BaseModel):
     connectionId: str
     svg: str
+    # Resolved Qiskit Metal options that produced this geometry.
+    # When present, the export pipeline should use these verbatim so the
+    # generated Python reproduces the exact same geometry (Δ = 0).
+    resolvedRouteOptions: Optional[Dict[str, Any]] = None
+    # Exact path points (x, y in metres) as computed by Qiskit Metal after rebuild.
+    # The frontend renders these directly — no re-computation, no rounding,
+    # no snap-to-grid — to achieve port anchor parity with the Metal output.
+    resolvedPathPoints: Optional[List[Dict[str, float]]] = None
 
 
 class RenderResult(BaseModel):

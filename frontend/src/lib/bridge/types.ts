@@ -128,6 +128,19 @@ export interface GeneratedCode {
 export interface RouteRender {
   connectionId: string;
   svg: string;
+  /**
+   * Resolved Qiskit Metal options that produced this SVG.
+   * Stored back as routeOverrides so the code export emits identical
+   * parameters and achieves geometry parity (Δ = 0).
+   */
+  resolvedRouteOptions?: Record<string, unknown>;
+  /**
+   * Exact path point coordinates (x, y in metres) as computed by Qiskit Metal
+   * after design.rebuild(). These are the ground-truth vertices.
+   * The frontend renders these directly without any rounding, snapping,
+   * or independent arc/fillet re-computation.
+   */
+  resolvedPathPoints?: Array<{ x: number; y: number }>;
 }
 
 export interface LayerRender {

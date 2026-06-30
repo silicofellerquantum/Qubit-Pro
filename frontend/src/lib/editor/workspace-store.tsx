@@ -67,13 +67,13 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
   switch (action.type) {
     case "NEW_CANVAS": {
       const name = action.name?.trim() || uniqueName(state.tabs.map((t) => t.name));
-      const tab  = makeTab(name, action.id);
+      const tab = makeTab(name, action.id);
       return { ...state, tabs: [...state.tabs, tab], activeId: tab.id, saveStatus: "unsaved" };
     }
     case "CLOSE_CANVAS": {
       if (state.tabs.length === 1)
         return { ...state, tabs: [{ ...state.tabs[0], state: { ...initialEditorState }, dirty: false }], saveStatus: "saved" };
-      const idx     = state.tabs.findIndex((t) => t.id === action.id);
+      const idx = state.tabs.findIndex((t) => t.id === action.id);
       const newTabs = state.tabs.filter((t) => t.id !== action.id);
       const newActive = state.activeId === action.id ? (newTabs[Math.max(0, idx - 1)]?.id ?? newTabs[0].id) : state.activeId;
       return { ...state, tabs: newTabs, activeId: newActive, saveStatus: "unsaved" };
@@ -110,7 +110,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
 // ── Persistence ───────────────────────────────────────────────────────────────
 
 const WORKSPACE_KEY = "silicofeller:workspace:v2";
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 interface PersistedWorkspace extends Omit<WorkspaceState, "tabs"> {
   version: number;
@@ -193,6 +193,18 @@ function migrateWorkspace(data: unknown): PersistedWorkspace | null {
     }));
   }
 
+  // v6 -> v7: ensure chipW/chipH fields exist
+  if (version < 7) {
+    d.tabs = (d.tabs as any[]).map((t) => ({
+      ...t,
+      state: {
+        ...t.state,
+        chipW: t.state?.chipW ?? 40,
+        chipH: t.state?.chipH ?? 40,
+      },
+    }));
+  }
+
   return { ...d, version: CURRENT_SCHEMA_VERSION } as PersistedWorkspace;
 }
 
@@ -248,7 +260,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const newCanvas = useCallback((name?: string, doc?: DesignDocument, customId?: string): string => {
     const existingNames = workspace.tabs.map((t) => t.name);
-    const resolvedName  = name?.trim() || uniqueName(existingNames);
+    const resolvedName = name?.trim() || uniqueName(existingNames);
     const newId = customId ?? generateId();
     dispatch({ type: "NEW_CANVAS", name: resolvedName, id: newId });
     if (doc) dispatch({ type: "LOAD_INTO_CANVAS", id: newId, doc });
