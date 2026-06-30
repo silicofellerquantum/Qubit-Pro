@@ -1,43 +1,38 @@
-# ── Core Framework ────────────────────────────────────────────────────────────
+# ── Core Framework ───────────────────────────────────────────────────────────
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
 pydantic==2.10.3
 pydantic-settings==2.7.0
 
-# ── Database ──────────────────────────────────────────────────────────────────
+# ── Database ─────────────────────────────────────────────────────────────
 sqlalchemy==2.0.36
 alembic==1.14.0
 aiosqlite==0.20.0          # SQLite async driver (dev default)
 asyncpg==0.31.0            # Postgres async driver (production)
 greenlet>=3.2.5            # Required by SQLAlchemy sync session bridge (missing = RuntimeError)
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
+# ── Auth ──────────────────────────────────────────────────────────────
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==5.0.0              # Direct pin — passlib delegates to it; missing = ModuleNotFoundError
 python-multipart==0.0.20
 
-# ── HTTP / Utils ──────────────────────────────────────────────────────────────
+# ── HTTP / Utils ──────────────────────────────────────────────────────────
 httpx==0.28.1
 aiofiles==24.1.0
 python-dotenv==1.0.1
 razorpay==1.4.1
 
-razorpay==1.4.1
-
-# ── Physics / ML ──────────────────────────────────────────────────────────────
+# ── Physics / ML ──────────────────────────────────────────────────────────
 networkx==3.2.1
-shapely==2.1.2             # Geometric footprint/obstacle polygons for layout engine (LAYOUT-003)
-ortools==9.15.6755         # CP-SAT constraint solver for Auto Layout (LAYOUT-010)
+shapely==2.0.4             # Geometric footprint/obstacle polygons for layout engine (LAYOUT-003)
+ortools==9.7.2996          # CP-SAT constraint solver for Auto Layout (LAYOUT-010)
 qiskit-metal
 # torch>=2.0.0             # Optional — large dep, not installed in CI; code falls back to regex intent
 
-# ── AI Assistant ──────────────────────────────────────────────────────────────
+# ── AI Assistant ──────────────────────────────────────────────────────────
 anthropic==0.39.0          # Optional — falls back to rule-based responses if no API key; 0.40+ requires Python>=3.10
 
-# ── Payments ───────────────────────────────────────────────────────────────────
-razorpay==1.4.1
-
-# ── Testing ────────────────────────────────────────────────────────────────────
+# ── Testing ───────────────────────────────────────────────────────────
 pytest==8.3.4
 pytest-asyncio==0.24.0
