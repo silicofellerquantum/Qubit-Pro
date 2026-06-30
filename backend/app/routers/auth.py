@@ -234,26 +234,40 @@ async def google_login(body: GoogleLoginRequest, db: AsyncSession = Depends(get_
 async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # 1. Check if user already exists
     result = await db.execute(select(User).where(User.email == body.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    user = result.scalar_one_or_none()
 
-    # 2. Generate secure 6-digit OTP
-    otp = f"{secrets.randbelow(1000000):06d}"
-    expires_at = datetime.utcnow() + timedelta(minutes=5)
+    if user:
+        if user.is_verified:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # If user exists but is not verified, overwrite details and generate new OTP
+        user.name = body.name
+        user.hashed_password = hash_password(body.password)
+        user.organization = body.organization
+        user.role = body.role
+        otp = f"{secrets.randbelow(1000000):06d}"
+        user.email_otp = otp
+        user.otp_expires_at = datetime.utcnow() + timedelta(minutes=5)
+        user.otp_attempts = 0
+    else:
+        # 2. Generate secure 6-digit OTP
+        otp = f"{secrets.randbelow(1000000):06d}"
+        expires_at = datetime.utcnow() + timedelta(minutes=5)
 
-    # 3. Create user (with is_verified=False)
-    user = User(
-        name=body.name,
-        email=body.email,
-        hashed_password=hash_password(body.password),
-        organization=body.organization,
-        role=body.role,
-        is_verified=False,
-        email_otp=otp,
-        otp_expires_at=expires_at,
-        otp_attempts=0,
-    )
-    db.add(user)
+        # 3. Create user (with is_verified=False)
+        user = User(
+            name=body.name,
+            email=body.email,
+            hashed_password=hash_password(body.password),
+            organization=body.organization,
+            role=body.role,
+            is_verified=False,
+            email_otp=otp,
+            otp_expires_at=expires_at,
+            otp_attempts=0,
+        )
+        db.add(user)
+
     await db.flush()
     await db.commit()
     await db.refresh(user)
