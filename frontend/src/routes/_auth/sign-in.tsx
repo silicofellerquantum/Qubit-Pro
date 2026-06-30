@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
+import { useGoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -34,11 +35,41 @@ export const Route = createFileRoute("/_auth/sign-in")({
 
 function SignInPage() {
   const navigate = useNavigate();
-  const { signIn, signInAs } = useAuth();
+  const { signIn, signInAs, signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      // Exchange access token for user info, then send id_token to backend
+      setGoogleLoading(true);
+      try {
+        // Fetch user info from Google using the access token
+        const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        if (!userInfoRes.ok) throw new Error("Failed to fetch Google user info");
+        const userInfo = await userInfoRes.json();
+
+        // Call our backend with the access token as credential
+        const res = await signInWithGoogle(tokenResponse.access_token);
+        if (!res.ok) {
+          toast.error(res.error ?? "Google sign-in failed");
+          return;
+        }
+        toast.success(`Welcome, ${userInfo.name ?? ""}!`);
+        navigate({ to: "/" });
+      } catch (err) {
+        toast.error("Google sign-in failed");
+      } finally {
+        setGoogleLoading(false);
+      }
+    },
+    onError: () => toast.error("Google sign-in was cancelled or failed"),
+  });
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,12 +184,13 @@ function SignInPage() {
               <SocialButton
                 provider="google"
                 label="Continue with Google"
-                onClick={() => toast("Demo only")}
+                onClick={() => handleGoogleLogin()}
+                disabled={googleLoading}
               />
               <SocialButton
                 provider="github"
                 label="Continue with GitHub"
-                onClick={() => toast("Demo only")}
+                onClick={() => toast("GitHub OAuth coming soon")}
               />
             </div>
           </AuthCard>

@@ -1,4 +1,4 @@
-"""Auth router — register, login, token refresh."""
+"""Auth router — register, login, token refresh, Google OAuth."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,12 +34,8 @@ class TokenResponse(BaseModel):
     user: dict
 
 
-class UserOut(BaseModel):
-    id: str
-    name: str
-    email: str
-    role: str
-    organization: str
+class GoogleAuthRequest(BaseModel):
+    credential: str  # Google ID token (JWT) from Google One Tap / OAuth popup
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,6 +88,74 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = 
         )
 
     token = create_access_token({"sub": user.id}, timedelta(minutes=settings.access_token_expire_minutes))
+    return TokenResponse(access_token=token, user=_user_to_dict(user))
+
+
+@router.post("/google", response_model=TokenResponse)
+async def google_auth(body: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Verify a Google OAuth access token (from @react-oauth/google useGoogleLogin)
+    by fetching userinfo, then return a Silicofeller JWT.
+    Creates a new user automatically on first sign-in, or links to existing email.
+    """
+    import httpx
+
+    # Fetch Google userinfo using the access token
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {body.credential}"},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            idinfo = resp.json()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Failed to verify Google token: {exc}",
+        )
+
+    google_sub: str = idinfo.get("sub", "")
+    email: str = idinfo.get("email", "")
+    name: str = idinfo.get("name", "") or (email.split("@")[0] if email else "Unknown")
+
+    if not google_sub or not email:
+        raise HTTPException(status_code=400, detail="Google account missing sub or email")
+
+    # 1. Try to find by google_id (returning user via Google)
+    result = await db.execute(select(User).where(User.google_id == google_sub))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        # 2. Try to find existing account by email and link it
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user:
+            # Link existing account to Google
+            user.google_id = google_sub
+        else:
+            # 3. New user — create account (Google-only, random unusable password)
+            import uuid as _uuid
+            user = User(
+                name=name,
+                email=email,
+                hashed_password=hash_password(str(_uuid.uuid4())),
+                organization="Independent",
+                role=UserRole.engineer,
+                google_id=google_sub,
+            )
+            db.add(user)
+            await db.flush()
+            await db.refresh(user)
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is inactive")
+
+    token = create_access_token(
+        {"sub": user.id},
+        timedelta(minutes=settings.access_token_expire_minutes),
+    )
     return TokenResponse(access_token=token, user=_user_to_dict(user))
 
 

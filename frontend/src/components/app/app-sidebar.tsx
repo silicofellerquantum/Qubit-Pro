@@ -68,7 +68,7 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
     label: "Design",
     items: [
       { title: "Projects", url: "/projects", icon: FolderKanban },
-      { title: "Design Copilot", url: "/designer", icon: Sparkles, locked: true },
+      { title: "Design Copilot", url: "/designer", icon: Sparkles },
       { title: "Architecture Explorer", url: "/architecture-explorer", icon: Network, locked: true },
       { title: "Schematic Editor", url: "/schematic-editor", icon: PenSquare },
       { title: "Layout Viewer", url: "/layout-viewer", icon: LayoutTemplate, locked: true },

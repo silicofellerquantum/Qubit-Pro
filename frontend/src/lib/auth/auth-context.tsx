@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { loginUser, registerUser } from "@/lib/api/backend";
+import { loginUser, registerUser, googleAuthUser } from "@/lib/api/backend";
 
 export type UserRole = "admin" | "org_manager" | "engineer";
 
@@ -55,6 +55,7 @@ interface AuthContextType {
   hydrated: boolean;
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   signInAs: (role: UserRole) => Promise<void>;
+  signInWithGoogle: (credential: string) => Promise<{ ok: boolean; error?: string }>;
   signUp: (name: string, email: string, password: string, org: string, role?: UserRole) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
 }
@@ -248,6 +249,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // ── signInWithGoogle: exchanges Google credential for a Silicofeller JWT ─
+  const signInWithGoogle = async (credential: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const data = await googleAuthUser(credential);
+      const serverUser = (data as { user?: Record<string, string> }).user;
+      if (serverUser) {
+        const newUser: User = {
+          id: serverUser.id ?? `u_${Date.now()}`,
+          name: serverUser.name ?? "User",
+          email: serverUser.email ?? "",
+          role: (serverUser.role as UserRole) ?? "engineer",
+          organization: serverUser.organization ?? "Independent",
+          initials: serverUser.initials ?? _makeInitials(serverUser.name ?? "User"),
+        };
+        setUser(newUser);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newUser));
+        return { ok: true };
+      }
+      return { ok: false, error: "Invalid server response" };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Google sign-in failed";
+      return { ok: false, error: msg };
+    }
+  };
+
   const signOut = async () => {
     setUser(null);
     localStorage.removeItem(LOCAL_STORAGE_KEY);
@@ -255,7 +281,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, hydrated, signIn, signInAs, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, hydrated, signIn, signInAs, signInWithGoogle, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
@@ -269,6 +295,7 @@ export const useAuth = () => {
       hydrated: false,
       signIn: async () => ({ ok: false, error: "Auth not ready" }),
       signInAs: async () => {},
+      signInWithGoogle: async () => ({ ok: false, error: "Auth not ready" }),
       signUp: async () => ({ ok: false, error: "Auth not ready" }),
       signOut: async () => {},
     };

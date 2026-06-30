@@ -410,3 +410,15 @@ export async function registerUser(
   }
   return data;
 }
+
+export async function googleAuthUser(credential: string) {
+  const data = await api("/api/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ credential }),
+  });
+  const d = data as { access_token?: string };
+  if (d.access_token && typeof window !== "undefined") {
+    localStorage.setItem("qs_token", d.access_token);
+  }
+  return data;
+}

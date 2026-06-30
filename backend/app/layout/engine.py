@@ -151,7 +151,11 @@ class LayoutEngineImpl:
         pitch = floorplan_result.spec.pitch_mm
         
         # 4. Generate footprints using solver-aware sizing
-        clearance_mm = constraints_obj.fab.min_qubit_spacing_mm
+        # Use DEFAULT_CLEARANCE_MM (0.05mm) as the keepout buffer for NoOverlap2D.
+        # min_qubit_spacing_mm is already baked into floorplan site positions;
+        # using it here as an additional buffer makes the model INFEASIBLE.
+        from app.layout.constants import DEFAULT_CLEARANCE_MM
+        clearance_mm = DEFAULT_CLEARANCE_MM
         footprints_pos = _get_solver_footprints(temp_graph, clearance_mm, pitch, die_w)
         
         # 5. Run Legalization (CP-SAT solver)
@@ -215,7 +219,7 @@ class LayoutEngineImpl:
             if node.id in centered_placements:
                 node.x_mm, node.y_mm = centered_placements[node.id]
                 
-        scorer_clearance_mm = clearance_mm - 1e-4
+        scorer_clearance_mm = DEFAULT_CLEARANCE_MM - 1e-4
         centered_footprints = _get_solver_footprints(centered_graph, scorer_clearance_mm, pitch, die_w)
         
         # Filter out feedlines for scorer to prevent false-positive overlap failures

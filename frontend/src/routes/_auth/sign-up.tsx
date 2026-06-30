@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
+import { useGoogleLogin } from "@react-oauth/google";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,7 +45,8 @@ interface FormState {
 
 function SignUpPage() {
   const navigate = useNavigate();
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [form, setForm] = useState<FormState>({
     fullName: "",
     organization: "",
@@ -59,6 +61,32 @@ function SignUpPage() {
 
   const update = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setGoogleLoading(true);
+      try {
+        const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+        });
+        if (!userInfoRes.ok) throw new Error("Failed to fetch Google user info");
+        const userInfo = await userInfoRes.json();
+
+        const res = await signInWithGoogle(tokenResponse.access_token);
+        if (!res.ok) {
+          toast.error(res.error ?? "Google sign-up failed");
+          return;
+        }
+        toast.success(`Welcome, ${userInfo.name ?? ""}!`);
+        navigate({ to: "/" });
+      } catch {
+        toast.error("Google sign-up failed");
+      } finally {
+        setGoogleLoading(false);
+      }
+    },
+    onError: () => toast.error("Google sign-up was cancelled or failed"),
+  });
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,12 +254,13 @@ function SignUpPage() {
             <SocialButton
               provider="google"
               label="Sign up with Google"
-              onClick={() => toast("Demo only")}
+              onClick={() => handleGoogleLogin()}
+              disabled={googleLoading}
             />
             <SocialButton
               provider="github"
               label="Sign up with GitHub"
-              onClick={() => toast("Demo only")}
+              onClick={() => toast("GitHub OAuth coming soon")}
             />
           </div>
         </AuthCard>

@@ -94,6 +94,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
+    # ── Google OAuth ──────────────────────────────────────────────────────────
+    google_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, unique=True, index=True)
+
     # ── Billing / Subscription ────────────────────────────────────────────────
     # plan: "free" | "basic" | "pro"
     plan: Mapped[str] = mapped_column(String(20), default="free")

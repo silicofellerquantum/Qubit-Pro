@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # Claude / Anthropic (optional — falls back to rule-based assistant if empty)
     anthropic_api_key: str = ""
 
+    # Google OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
     # Razorpay payments — set in .env before going live
     # Test keys start with rzp_test_; live keys with rzp_live_
     razorpay_key_id: str = ""           # RAZORPAY_KEY_ID
