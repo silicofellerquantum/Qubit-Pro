@@ -37,3 +37,8 @@ anthropic==0.39.0          # Optional — falls back to rule-based responses if 
 # ── Testing ────────────────────────────────────────────────────────────────────
 pytest==8.3.4
 pytest-asyncio==0.24.0
+
+# ── Production Queue & Worker (Phase 13/14) ────────────────────────────────────
+redis>=5.0.1
+aio-pika>=9.3.1
+psutil>=5.9.8

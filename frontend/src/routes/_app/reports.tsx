@@ -13,7 +13,7 @@ import { useDesign } from "@/lib/design-context";
 import { useProject } from "@/lib/project-context";
 import { cn } from "@/lib/utils";
 
-const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(/\/$/, "");
+const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "").replace(/\/$/, "");
 const token = () => (typeof window !== "undefined" ? localStorage.getItem("qs_token") ?? "" : "");
 
 export const Route = createFileRoute("/_app/reports")({

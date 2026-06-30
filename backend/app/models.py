@@ -198,6 +198,12 @@ class Simulation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     project: Mapped["Project"] = relationship("Project", back_populates="simulations")
+    executions: Mapped[List["SimulationExecution"]] = relationship(
+        "SimulationExecution", back_populates="simulation", cascade="all, delete-orphan"
+    )
+    parameters: Mapped[List["SimulationParameter"]] = relationship(
+        "SimulationParameter", back_populates="simulation", cascade="all, delete-orphan"
+    )
 
 
 # ── Verification Report ──────────────────────────────────────────────────────
@@ -249,3 +255,15 @@ class ChatHistory(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     user: Mapped["User"] = relationship("User", back_populates="chat_history")
+
+
+# Import simulation database models to register them with Base.metadata
+from app.simulation.database.models import (
+    SimulationExecution,
+    SimulationResult,
+    SimulationArtifact,
+    SimulationLog,
+    SimulationMetric,
+    SimulationParameter,
+    WorkspaceSnapshot,
+)

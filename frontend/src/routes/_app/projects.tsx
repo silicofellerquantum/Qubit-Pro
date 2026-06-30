@@ -15,7 +15,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { deleteProject, updateProject, fetchSimulations, createProject, fetchProject, type Project } from "@/lib/api/backend";
+import { deleteProject, updateProject, fetchSimulations, createProject, fetchProject, type Project, type Simulation } from "@/lib/api/backend";
 import { useProject } from "@/lib/project-context";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -612,7 +612,7 @@ function ProjectsPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [simulations, setSimulations] = useState<any[]>([]);
+  const [simulations, setSimulations] = useState<Simulation[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
@@ -624,8 +624,8 @@ function ProjectsPage() {
   }, [refreshProjects]);
 
   useEffect(() => {
-    fetchSimulations()
-      .then((data) => setSimulations(data))
+    fetchSimulations({ page_size: 100 })
+      .then((data) => setSimulations(data.items))
       .catch(() => { });
   }, [projects]);
 

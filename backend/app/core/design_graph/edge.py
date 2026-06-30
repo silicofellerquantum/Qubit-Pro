@@ -51,6 +51,7 @@ class DesignEdge:
             "pin_source": self.pin_source,
             "pin_target": self.pin_target,
             "label":      self.label,
+            "meta":       self.meta,
         }
 
     @classmethod
@@ -62,4 +63,5 @@ class DesignEdge:
             pin_source = d.get("pin_source", ""),
             pin_target = d.get("pin_target", ""),
             label      = d.get("label", ""),
+            meta       = d.get("meta") or {},
         )

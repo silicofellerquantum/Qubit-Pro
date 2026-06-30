@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { useProject } from "@/lib/project-context";
-import { fetchSimulations, deleteProject, createProject, type Project } from "@/lib/api/backend";
+import { fetchSimulations, deleteProject, createProject, type Project, type Simulation } from "@/lib/api/backend";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/dashboard")({
@@ -171,15 +171,15 @@ function WorkspaceHomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { projects, activeProject, setActiveProject, refreshProjects } = useProject();
-  const [simulations, setSimulations] = useState<any[]>([]);
+  const [simulations, setSimulations] = useState<Simulation[]>([]);
 
   useEffect(() => {
     refreshProjects();
   }, [refreshProjects]);
 
   useEffect(() => {
-    fetchSimulations()
-      .then((data) => setSimulations(data))
+    fetchSimulations({ page_size: 5 })
+      .then((data) => setSimulations(data.items))
       .catch(() => {});
   }, [projects]);
 

@@ -19,7 +19,7 @@ export const Route = createFileRoute("/_app/version-control")({
   component: VersionControlPage,
 });
 
-const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(/\/$/, "");
+const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "").replace(/\/$/, "");
 const token = () => (typeof window !== "undefined" ? localStorage.getItem("qs_token") ?? "" : "");
 
 type BackendVersion = { id: string; tag: string; message: string; created_at: string };

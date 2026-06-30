@@ -23,13 +23,19 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.config import settings
+from app.config import settings, validate_config
 from app.database import init_db
-from app.routers import auth, claude, generate, materials, projects, qclang, simulations, tapeout, verification, bridge
-from app.routers import design  # V2 design pipeline
+from app.core.logging import setup_logging
+from app.core.middleware import CorrelationIDMiddleware, SecurityHeadersMiddleware, RateLimitingMiddleware
+from app.routers import auth, claude, generate, materials, projects, qclang, simulations, tapeout, verification, bridge, queue_monitoring, health, geometry
+from app.routers import design        # V2 design pipeline
+from app.routers import visualization # Phase 12 visualization
+from app.routers import mesh_visualization # Palace 3D Mesh Wireframe Visualization
 
+
+# Initialize structured JSON logging (or clean development logging) immediately
+setup_logging(settings.is_production)
 log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(message)s")
 
 
 # ── Lifespan ─────────────────────────────────────────────────────────────────
@@ -38,12 +44,28 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(name)s  %(messa
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     log.info("Starting Quantum Studio backend …")
 
-    # Initialise database tables (dev; use Alembic in prod)
+    # 1. Validate environment configuration and secrets in production
+    try:
+        validate_config()
+        log.info("Configuration validated successfully.")
+    except Exception as e:
+        log.critical("Startup configuration validation failed. Aborting startup.", exc_info=True)
+        raise e
+
+    # 2. Initialise database tables (dev; use Alembic in prod)
     try:
         await init_db()
         log.info("Database ready.")
     except Exception as e:
         log.warning(f"Database init skipped (will run without persistence): {e}")
+
+    # 3. Start the background worker for simulations
+    try:
+        from app.simulation.queue import start_global_worker
+        await start_global_worker()
+        log.info("Simulation Background Worker initialized.")
+    except Exception as e:
+        log.warning(f"Failed to start simulation background worker: {e}")
 
     # Prewarm component registry, metadata, pins, and previews
     try:
@@ -126,6 +148,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(RateLimitingMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CorrelationIDMiddleware)
+
+
 
 # ── Request timing middleware ─────────────────────────────────────────────────
 
@@ -169,14 +196,20 @@ app.include_router(generate.router)          # /health  /generate
 app.include_router(generate.sub_router)      # /api/generate/frequency-plan|placement|drc|netlist|em-simulation
 app.include_router(auth.router)              # /api/auth/...
 app.include_router(projects.router)          # /api/projects/...
+app.include_router(geometry.router)          # /api/projects/... (geometry converter & preview)
 app.include_router(qclang.router)            # /api/qclang/...
 app.include_router(simulations.router)       # /api/simulations/...
+app.include_router(queue_monitoring.router)  # /api/queue/... (Phase 13)
 app.include_router(verification.router)      # /api/verification/...
 app.include_router(tapeout.router)           # /api/tapeout/...
 app.include_router(materials.router)         # /api/materials/...
 app.include_router(claude.router)            # /api/claude/...
 app.include_router(design.router)            # /api/design/... (V2 pipeline)
 app.include_router(bridge.router)            # /components and /design (bridge router)
+app.include_router(visualization.router)     # /api/simulations/{id}/visualization/... (Phase 12)
+app.include_router(mesh_visualization.router) # /api/simulations/{id}/mesh-wireframe
+health.register_root_health_endpoints(app)   # /live, /ready, /health, /metrics (Phase 14)
+
 
 
 # ── Frequency plan (legacy frontend compat) ───────────────────────────────────

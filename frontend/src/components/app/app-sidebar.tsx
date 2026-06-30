@@ -80,9 +80,9 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
     items: [
       { title: "Verification", url: "/verification", icon: CheckCircle2, locked: true },
       { title: "Simulations", url: "/simulations", icon: PlayCircle },
+      { title: "New Simulation", url: "/simulations/new", icon: BarChart3, badge: "Run" },
       { title: "Physics Analysis", url: "/physics-analysis", icon: Atom, locked: true },
       { title: "Fault Tolerance Studio", url: "/fault-tolerance", icon: Shield, locked: true },
-
     ],
   },
   {

@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: 'Quantum Studio Dashboards'
+    orgId: 1
+    folder: 'Quantum Studio Operations'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      # Load dashboards from definitions directory
+      path: /etc/grafana/provisioning/dashboards/definitions

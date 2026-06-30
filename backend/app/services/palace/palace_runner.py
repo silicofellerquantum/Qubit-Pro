@@ -223,6 +223,40 @@ class PalaceRunner:
                                     row_vals.append("-1.000000000000e-15")
                             f.write(f"{float(i):.2e}, " + ", ".join(row_vals) + "\n")
 
+                elif solver_type == "magnetostatic":
+                    terminals = config_data.get("Boundaries", {}).get("Terminal", [])
+                    if not terminals:
+                        terminals = config_data.get("Boundaries", {}).get("LumpedPort", [])
+                    n_terms = len(terminals) if terminals else 3
+
+                    # Write terminal-L.csv (inductance matrix in Henries)
+                    l_path = output_dir / "terminal-L.csv"
+                    with open(l_path, "w", encoding="utf-8") as f:
+                        header_cols = [f"L[i][{col}] (H)" for col in range(1, n_terms + 1)]
+                        f.write("i, " + ", ".join(header_cols) + "\n")
+                        for i in range(1, n_terms + 1):
+                            row_vals = []
+                            for j in range(1, n_terms + 1):
+                                if i == j:
+                                    row_vals.append("+5.000000000000e-09")
+                                else:
+                                    row_vals.append("+1.000000000000e-10")
+                            f.write(f"{float(i):.2e}, " + ", ".join(row_vals) + "\n")
+
+                    # Write terminal-M.csv (mutual inductance matrix in Henries, required by result parser)
+                    m_path = output_dir / "terminal-M.csv"
+                    with open(m_path, "w", encoding="utf-8") as f:
+                        header_cols = [f"M[i][{col}] (H)" for col in range(1, n_terms + 1)]
+                        f.write("i, " + ", ".join(header_cols) + "\n")
+                        for i in range(1, n_terms + 1):
+                            row_vals = []
+                            for j in range(1, n_terms + 1):
+                                if i == j:
+                                    row_vals.append("+5.000000000000e-09")
+                                else:
+                                    row_vals.append("+1.000000000000e-10")
+                            f.write(f"{float(i):.2e}, " + ", ".join(row_vals) + "\n")
+
                 runtime = time.perf_counter() - start_time
                 logger.info("Mock simulation execution completed in %.2f seconds.", runtime)
                 return {
@@ -342,6 +376,18 @@ class PalaceRunner:
                     logger.error("Required output file 'terminal-C.csv' not found.")
                     raise PalaceRunnerError(f"Palace simulation succeeded but expected output file 'terminal-C.csv' is missing at: {c_file}")
                 logger.info("Discovered output file: %s", c_file)
+            elif solver_type == "magnetostatic":
+                l_file = output_dir / "terminal-L.csv"
+                if not l_file.exists():
+                    logger.error("Required output file 'terminal-L.csv' not found.")
+                    raise PalaceRunnerError(f"Palace simulation succeeded but expected output file 'terminal-L.csv' is missing at: {l_file}")
+                logger.info("Discovered output file: %s", l_file)
+
+                m_file = output_dir / "terminal-M.csv"
+                if not m_file.exists():
+                    logger.error("Required output file 'terminal-M.csv' not found.")
+                    raise PalaceRunnerError(f"Palace simulation succeeded but expected output file 'terminal-M.csv' is missing at: {m_file}")
+                logger.info("Discovered output file: %s", m_file)
 
             return {
                 "output_dir": output_dir,

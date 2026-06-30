@@ -13,7 +13,7 @@ import type {
 
 const RAW_URL = (import.meta.env.VITE_BRIDGE_URL as string | undefined) ??
                 (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
-                "http://localhost:5000";
+                "";
 const BASE_URL = RAW_URL.replace(/\/$/, "");
 
 const UI_PARAM_KEYS = new Set(["_uiScale"]);

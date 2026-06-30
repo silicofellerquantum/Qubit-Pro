@@ -42,6 +42,9 @@ import { Route as AppBillingRouteImport } from './routes/_app/billing'
 import { Route as AppArchitectureExplorerRouteImport } from './routes/_app/architecture-explorer'
 import { Route as AppAdminRouteImport } from './routes/_app/admin'
 import { Route as AppAboutRouteImport } from './routes/_app/about'
+import { Route as AppSimulationsIndexRouteImport } from './routes/_app/simulations.index'
+import { Route as AppSimulationsNewRouteImport } from './routes/_app/simulations.new'
+import { Route as AppSimulationsIdRouteImport } from './routes/_app/simulations.$id'
 
 const OurTeamRoute = OurTeamRouteImport.update({
   id: '/our-team',
@@ -206,6 +209,21 @@ const AppAboutRoute = AppAboutRouteImport.update({
   path: '/about',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSimulationsIndexRoute = AppSimulationsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSimulationsRoute,
+} as any)
+const AppSimulationsNewRoute = AppSimulationsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => AppSimulationsRoute,
+} as any)
+const AppSimulationsIdRoute = AppSimulationsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppSimulationsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -230,7 +248,7 @@ export interface FileRoutesByFullPath {
   '/results': typeof AppResultsRoute
   '/schematic-editor': typeof AppSchematicEditorRoute
   '/settings': typeof AppSettingsRoute
-  '/simulations': typeof AppSimulationsRoute
+  '/simulations': typeof AppSimulationsRouteWithChildren
   '/team': typeof AppTeamRoute
   '/verification': typeof AppVerificationRoute
   '/version-control': typeof AppVersionControlRoute
@@ -239,6 +257,9 @@ export interface FileRoutesByFullPath {
   '/sign-up': typeof AuthSignUpRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/': typeof BlogIndexRoute
+  '/simulations/$id': typeof AppSimulationsIdRoute
+  '/simulations/new': typeof AppSimulationsNewRoute
+  '/simulations/': typeof AppSimulationsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -262,7 +283,6 @@ export interface FileRoutesByTo {
   '/results': typeof AppResultsRoute
   '/schematic-editor': typeof AppSchematicEditorRoute
   '/settings': typeof AppSettingsRoute
-  '/simulations': typeof AppSimulationsRoute
   '/team': typeof AppTeamRoute
   '/verification': typeof AppVerificationRoute
   '/version-control': typeof AppVersionControlRoute
@@ -271,6 +291,9 @@ export interface FileRoutesByTo {
   '/sign-up': typeof AuthSignUpRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog': typeof BlogIndexRoute
+  '/simulations/$id': typeof AppSimulationsIdRoute
+  '/simulations/new': typeof AppSimulationsNewRoute
+  '/simulations': typeof AppSimulationsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -298,7 +321,7 @@ export interface FileRoutesById {
   '/_app/results': typeof AppResultsRoute
   '/_app/schematic-editor': typeof AppSchematicEditorRoute
   '/_app/settings': typeof AppSettingsRoute
-  '/_app/simulations': typeof AppSimulationsRoute
+  '/_app/simulations': typeof AppSimulationsRouteWithChildren
   '/_app/team': typeof AppTeamRoute
   '/_app/verification': typeof AppVerificationRoute
   '/_app/version-control': typeof AppVersionControlRoute
@@ -307,6 +330,9 @@ export interface FileRoutesById {
   '/_auth/sign-up': typeof AuthSignUpRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/': typeof BlogIndexRoute
+  '/_app/simulations/$id': typeof AppSimulationsIdRoute
+  '/_app/simulations/new': typeof AppSimulationsNewRoute
+  '/_app/simulations/': typeof AppSimulationsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -342,6 +368,9 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/blog/$slug'
     | '/blog/'
+    | '/simulations/$id'
+    | '/simulations/new'
+    | '/simulations/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -365,7 +394,6 @@ export interface FileRouteTypes {
     | '/results'
     | '/schematic-editor'
     | '/settings'
-    | '/simulations'
     | '/team'
     | '/verification'
     | '/version-control'
@@ -374,6 +402,9 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/blog/$slug'
     | '/blog'
+    | '/simulations/$id'
+    | '/simulations/new'
+    | '/simulations'
   id:
     | '__root__'
     | '/'
@@ -409,6 +440,9 @@ export interface FileRouteTypes {
     | '/_auth/sign-up'
     | '/blog/$slug'
     | '/blog/'
+    | '/_app/simulations/$id'
+    | '/_app/simulations/new'
+    | '/_app/simulations/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -654,8 +688,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAboutRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/simulations/': {
+      id: '/_app/simulations/'
+      path: '/'
+      fullPath: '/simulations/'
+      preLoaderRoute: typeof AppSimulationsIndexRouteImport
+      parentRoute: typeof AppSimulationsRoute
+    }
+    '/_app/simulations/new': {
+      id: '/_app/simulations/new'
+      path: '/new'
+      fullPath: '/simulations/new'
+      preLoaderRoute: typeof AppSimulationsNewRouteImport
+      parentRoute: typeof AppSimulationsRoute
+    }
+    '/_app/simulations/$id': {
+      id: '/_app/simulations/$id'
+      path: '/$id'
+      fullPath: '/simulations/$id'
+      preLoaderRoute: typeof AppSimulationsIdRouteImport
+      parentRoute: typeof AppSimulationsRoute
+    }
   }
 }
+
+interface AppSimulationsRouteChildren {
+  AppSimulationsIdRoute: typeof AppSimulationsIdRoute
+  AppSimulationsNewRoute: typeof AppSimulationsNewRoute
+  AppSimulationsIndexRoute: typeof AppSimulationsIndexRoute
+}
+
+const AppSimulationsRouteChildren: AppSimulationsRouteChildren = {
+  AppSimulationsIdRoute: AppSimulationsIdRoute,
+  AppSimulationsNewRoute: AppSimulationsNewRoute,
+  AppSimulationsIndexRoute: AppSimulationsIndexRoute,
+}
+
+const AppSimulationsRouteWithChildren = AppSimulationsRoute._addFileChildren(
+  AppSimulationsRouteChildren,
+)
 
 interface AppRouteChildren {
   AppAboutRoute: typeof AppAboutRoute
@@ -675,7 +746,7 @@ interface AppRouteChildren {
   AppResultsRoute: typeof AppResultsRoute
   AppSchematicEditorRoute: typeof AppSchematicEditorRoute
   AppSettingsRoute: typeof AppSettingsRoute
-  AppSimulationsRoute: typeof AppSimulationsRoute
+  AppSimulationsRoute: typeof AppSimulationsRouteWithChildren
   AppTeamRoute: typeof AppTeamRoute
   AppVerificationRoute: typeof AppVerificationRoute
   AppVersionControlRoute: typeof AppVersionControlRoute
@@ -699,7 +770,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppResultsRoute: AppResultsRoute,
   AppSchematicEditorRoute: AppSchematicEditorRoute,
   AppSettingsRoute: AppSettingsRoute,
-  AppSimulationsRoute: AppSimulationsRoute,
+  AppSimulationsRoute: AppSimulationsRouteWithChildren,
   AppTeamRoute: AppTeamRoute,
   AppVerificationRoute: AppVerificationRoute,
   AppVersionControlRoute: AppVersionControlRoute,

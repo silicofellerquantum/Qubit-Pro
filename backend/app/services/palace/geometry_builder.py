@@ -7,6 +7,7 @@ normalized electromagnetic geometries.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 from app.core.design_graph.serializer import dict_to_graph
 from app.core.design_graph.graph import DesignGraph
@@ -182,6 +183,51 @@ class GeometryBuilder:
                 )
             )
 
+        # 6. Extract connections (edges) as physical transmission lines
+        node_map = {n.id: n for n in graph.nodes}
+        for edge in graph.edges:
+            node_a = node_map.get(edge.source_id)
+            node_b = node_map.get(edge.target_id)
+            if not node_a or not node_b:
+                continue
+
+            ax, ay = (node_a.x_mm or 0.0), (node_a.y_mm or 0.0)
+            bx, by = (node_b.x_mm or 0.0), (node_b.y_mm or 0.0)
+
+            # Avoid zero-length lines
+            if math.isclose(ax, bx) and math.isclose(ay, by):
+                continue
+
+            mx = (ax + bx) / 2.0
+            my = (ay + by) / 2.0
+            dist = math.sqrt((bx - ax)**2 + (by - ay)**2)
+            angle = math.degrees(math.atan2(by - ay, bx - ax))
+
+            # Represent connection as a resonator element so it gets meshed as metallic
+            kind = GeometryElementKind.RESONATOR
+
+            params = {
+                "length_mm": dist,
+                "cpw_width_um": 10.0,
+                "cpw_gap_um": 5.0,
+                "source_id": edge.source_id,
+                "target_id": edge.target_id,
+                "edge_kind": edge.kind.value if hasattr(edge.kind, "value") else str(edge.kind),
+            }
+            if edge.meta:
+                params.update(edge.meta)
+
+            elements.append(
+                GeometryElement(
+                    id=edge.label or f"edge_{edge.source_id}_{edge.target_id}",
+                    kind=kind,
+                    x_mm=round(mx, 4),
+                    y_mm=round(my, 4),
+                    orientation_deg=round(angle, 2),
+                    params=params,
+                )
+            )
+
         return EMGeometry(
             design_id=graph.chip_name,
             chip_width_mm=graph.chip_width_mm,
@@ -198,6 +244,7 @@ class GeometryBuilder:
         design = payload.get("design", {})
         placements = design.get("placements", [])
         logger.info("Extracting elements from legacy payload: placements=%d", len(placements))
+        placement_map = {}
 
         for p in placements:
             # Fallback chain for ID / Name
@@ -213,6 +260,7 @@ class GeometryBuilder:
                 y = float(p.get("y", 0.0))
                 
             rot = float(p.get("rotation", 0.0))
+            placement_map[inst_id] = (x, y)
 
             # Determine kind based on naming convention or componentId
             inst_lower = inst_id.lower()
@@ -267,6 +315,40 @@ class GeometryBuilder:
                     params=p.get("params", {}),
                 )
             )
+
+        # Parse connections in legacy fallback flow
+        connections = design.get("connections", [])
+        for conn in connections:
+            conn_id = conn.get("id") or ""
+            from_data = conn.get("from", {})
+            to_data = conn.get("to", {})
+            from_id = from_data.get("placementId")
+            to_id = to_data.get("placementId")
+
+            if from_id in placement_map and to_id in placement_map:
+                ax, ay = placement_map[from_id]
+                bx, by = placement_map[to_id]
+                mx = (ax + bx) / 2.0
+                my = (ay + by) / 2.0
+                dist = math.sqrt((bx - ax)**2 + (by - ay)**2)
+                angle = math.degrees(math.atan2(by - ay, bx - ax))
+
+                kind = GeometryElementKind.RESONATOR
+
+                elements.append(
+                    GeometryElement(
+                        id=conn_id,
+                        kind=kind,
+                        x_mm=round(mx, 4),
+                        y_mm=round(my, 4),
+                        orientation_deg=round(angle, 2),
+                        params=conn.get("params") or {
+                            "length_mm": dist,
+                            "cpw_width_um": 10.0,
+                            "cpw_gap_um": 5.0,
+                        },
+                    )
+                )
 
         # --- Fallback: synthesize qubit elements from frequency_plan ---
         # If design.placements is empty but frequency_plan has qubit data,

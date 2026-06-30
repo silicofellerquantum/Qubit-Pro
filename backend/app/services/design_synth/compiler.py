@@ -32,6 +32,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app.services.design_synth.pin_allocator import PinAllocator
+from app.simulation.geometry.coordinate_transform import simplify_path
 
 log = logging.getLogger(__name__)
 
@@ -163,3 +164,243 @@ class SchematicCompiler:
 
 # Module-level singleton.
 schematic_compiler = SchematicCompiler()
+
+
+def compile_schematic_to_v2_graph(payload: dict[str, Any]) -> dict[str, Any]:
+    """Compile the flat design document (placements/connections) from the schematic
+    editor into a serialized V2 DesignGraph, storing it under payload['v2']['graph'].
+    """
+    import copy
+    from app.core.design_graph.graph import DesignGraph
+    from app.core.design_graph.node import (
+        QubitNode, CouplerNode, ResonatorNode, FeedlineNode, LaunchpadNode,
+        NodeKind, QubitType, CouplerType, ResonatorType, LaunchpadStyle
+    )
+    from app.core.design_graph.edge import DesignEdge, EdgeKind
+    from app.core.design_graph.serializer import graph_to_dict
+
+    # Work on a deep copy of payload to avoid mutating the original in unexpected ways
+    payload = copy.deepcopy(payload)
+
+    design = payload.get("design")
+    if not design or "placements" not in design:
+        return payload
+
+    placements = design.get("placements", [])
+    connections = design.get("connections", [])
+
+    # Helper to convert values safely
+    def to_float(val: Any, default: float) -> float:
+        try:
+            return float(val) if val is not None else default
+        except (ValueError, TypeError):
+            return default
+
+    # Initialize a new DesignGraph
+    freq_plan = payload.get("frequency_plan", {})
+    g = DesignGraph(
+        chip_name=str(payload.get("label") or "QuantumChip"),
+        chip_width_mm=to_float(payload.get("chip_size_mm"), 10.0),
+        chip_height_mm=to_float(payload.get("chip_size_mm"), 10.0),
+        substrate=str(freq_plan.get("substrate") or payload.get("material", {}).get("substrate") or "silicon"),
+        metal=str(freq_plan.get("metal") or payload.get("material", {}).get("metal") or "aluminum"),
+        topology=str(payload.get("topology") or "custom"),
+    )
+
+    # Helper to strip 'comp_' prefix from placement IDs for graph node IDs
+    def clean_id(pid: str) -> str:
+        if pid.startswith("comp_"):
+            return pid[len("comp_"):]
+        return pid
+
+    # Map placement ID -> node ID
+    placement_to_node = {}
+
+    # 1. Reconstruct Nodes
+    for p in placements:
+        inst_id = str(p.get("id") or "")
+        name = str(p.get("name") or clean_id(inst_id))
+        placement_to_node[inst_id] = name
+
+        comp_id = str(p.get("componentId") or "")
+        comp_lower = comp_id.lower()
+        name_lower = name.lower()
+
+        x = p.get("x")
+        y = p.get("y")
+        rot = p.get("rotation") or 0
+
+        # Extract parameters
+        params = p.get("params") or {}
+
+        # Classify and create the node
+        if (
+            name_lower.startswith("q")
+            or "qubit" in name_lower
+            or "qubit" in comp_lower
+            or "transmon" in comp_lower
+        ):
+            node = QubitNode(
+                id=name,
+                qubit_type=QubitType.TRANSMON,
+                frequency_ghz=to_float(params.get("frequency_ghz") or params.get("frequency"), 5.0),
+                anharmonicity_ghz=to_float(params.get("anharmonicity_ghz") or params.get("anharmonicity"), -0.34),
+            )
+        elif (
+            name_lower.startswith("c")
+            or "coupler" in name_lower
+            or "coupler" in comp_lower
+            or "route" in comp_lower
+        ):
+            node = CouplerNode(
+                id=name,
+                coupler_type=CouplerType.FIXED,
+                strength_mhz=to_float(params.get("strength_mhz") or params.get("coupling_strength"), 10.0),
+            )
+        elif (
+            name_lower.startswith("r")
+            or "resonator" in name_lower
+            or "resonator" in comp_lower
+            or "res" in name_lower
+            or "res" in comp_lower
+        ):
+            node = ResonatorNode(
+                id=name,
+                resonator_type=ResonatorType.READOUT,
+                frequency_ghz=to_float(params.get("frequency_ghz") or params.get("frequency"), 6.5),
+                length_mm=to_float(params.get("length_mm"), 7.5),
+            )
+        elif (
+            name_lower.startswith("f")
+            or "feed" in name_lower
+            or "line" in name_lower
+            or "feedline" in comp_lower
+        ):
+            node = FeedlineNode(
+                id=name,
+                length_mm=to_float(params.get("length_mm"), 10.0),
+            )
+        elif (
+            name_lower.startswith("l")
+            or name_lower.startswith("p")
+            or "launch" in name_lower
+            or "pad" in name_lower
+            or "launchpad" in comp_lower
+        ):
+            node = LaunchpadNode(
+                id=name,
+                style=LaunchpadStyle.WIREBOND,
+            )
+        else:
+            node = QubitNode(id=name)
+
+        # Set common attributes
+        node.x_mm = to_float(x, 0.0)
+        node.y_mm = to_float(y, 0.0)
+        node.orientation_deg = int(to_float(rot, 0.0))
+        node.component_id = comp_id
+        node.design_options = params
+
+        g.add_node(node)
+
+    # 2. Reconstruct Edges (Connections)
+    for conn in connections:
+        conn_id = str(conn.get("id") or "")
+        from_data = conn.get("from") or {}
+        to_data = conn.get("to") or {}
+
+        from_placement = str(from_data.get("placementId") or "")
+        to_placement = str(to_data.get("placementId") or "")
+
+        from_node = placement_to_node.get(from_placement)
+        to_node = placement_to_node.get(to_placement)
+
+        if from_node and to_node and g.has_node(from_node) and g.has_node(to_node):
+            # Determine edge kind
+            n_from = g.get_node(from_node)
+            n_to = g.get_node(to_node)
+
+            kinds = {n_from.kind, n_to.kind}
+
+            if NodeKind.QUBIT in kinds and NodeKind.COUPLER in kinds:
+                kind = EdgeKind.COUPLING
+            elif NodeKind.QUBIT in kinds and NodeKind.RESONATOR in kinds:
+                kind = EdgeKind.READOUT
+            elif NodeKind.RESONATOR in kinds and NodeKind.FEEDLINE in kinds:
+                kind = EdgeKind.FEEDLINE
+            elif NodeKind.FEEDLINE in kinds and NodeKind.LAUNCHPAD in kinds:
+                kind = EdgeKind.IO
+            else:
+                kind = EdgeKind.COUPLING  # fallback
+
+            # Helper to parse meander points from cachedSvg
+            def _parse_svg_path_points(svg_str: str | None) -> list[tuple[float, float]] | None:
+                import re
+                if not svg_str:
+                    return None
+                match = re.search(r'points=["\']([^"\']+)["\']', svg_str)
+                if not match:
+                    return None
+                points_str = match.group(1)
+                tokens = points_str.strip().split()
+                points = []
+                for token in tokens:
+                    parts = token.split(',')
+                    if len(parts) == 2:
+                        try:
+                            # Convert from micrometers (um) to millimeters (mm)
+                            x = float(parts[0]) / 1000.0
+                            y = float(parts[1]) / 1000.0
+                            points.append((x, y))
+                        except ValueError:
+                            continue
+                if len(points) >= 2:
+                    return simplify_path(points)
+                return None
+
+            edge_meta = {
+                "cpw_width_um": 10.0,
+                "cpw_gap_um": 5.0,
+            }
+            if conn.get("params"):
+                edge_meta.update(conn.get("params"))
+            
+            path_points = _parse_svg_path_points(conn.get("cachedSvg"))
+            if path_points:
+                edge_meta["path_points"] = path_points
+
+            edge = DesignEdge(
+                source_id=from_node,
+                target_id=to_node,
+                kind=kind,
+                pin_source=str(from_data.get("pinName") or ""),
+                pin_target=str(to_data.get("pinName") or ""),
+                label=conn_id,
+                meta=edge_meta,
+            )
+            g.add_edge(edge)
+
+    # 3. Update Coupler qubits references (qubit_a_id, qubit_b_id) based on connections
+    for coupler in g.couplers:
+        neighbors = g.neighbors(coupler.id)
+        qubit_neighbors = [nb for nb in neighbors if g.get_node(nb).kind == NodeKind.QUBIT]
+        if len(qubit_neighbors) >= 1:
+            coupler.qubit_a_id = qubit_neighbors[0]
+        if len(qubit_neighbors) >= 2:
+            coupler.qubit_b_id = qubit_neighbors[1]
+
+    # 4. Update Resonator target_qubit_id based on connections
+    for resonator in g.resonators:
+        neighbors = g.neighbors(resonator.id)
+        qubit_neighbors = [nb for nb in neighbors if g.get_node(nb).kind == NodeKind.QUBIT]
+        if qubit_neighbors:
+            resonator.target_qubit_id = qubit_neighbors[0]
+
+    # Serialize to dictionary and set in the payload
+    graph_dict = graph_to_dict(g)
+    if "v2" not in payload:
+        payload["v2"] = {}
+    payload["v2"]["graph"] = graph_dict
+
+    return payload
+

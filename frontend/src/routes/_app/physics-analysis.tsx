@@ -35,7 +35,7 @@ function PhysicsAnalysisPage() {
     if (!hasDesign) return;
     setRunning(true);
     try {
-      const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(
+      const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "").replace(
         /\/$/,
         "",
       );

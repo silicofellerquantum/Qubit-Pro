@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     keep_simulation_artifacts: bool = True
     gmsh_coarse_test: bool = False
 
+    # Simulation Workspace Settings
+    workspace_root: str = "tmp/simulations"
+    workspace_archive_dir: str = "outputs/simulations"
+    workspace_retention_days: int = 7
+    workspace_cleanup_timeout_seconds: float = 86400.0  # 24 hours
+    workspace_max_count: int = 1000
+
     # Database — defaults to SQLite for zero-setup local dev
     database_url: str = "sqlite+aiosqlite:///./dev.db"
     sync_database_url: str = "sqlite:///./dev.db"
@@ -67,3 +74,37 @@ settings = Settings()
 import os
 if settings.gmsh_coarse_test:
     os.environ["GMSH_COARSE_TEST"] = "true"
+
+
+def validate_config() -> None:
+    """Validate critical production environment configurations and secrets."""
+    if not settings.is_production:
+        return
+
+    errors = []
+    
+    # 1. Check Secret Key
+    if settings.secret_key == "dev-secret-key-change-in-production-minimum-32-chars":
+        errors.append(
+            "SECRET_KEY is still set to the default developer key. This is a severe security risk."
+        )
+    elif len(settings.secret_key) < 32:
+        errors.append(
+            f"SECRET_KEY is too short ({len(settings.secret_key)} chars). Production keys must be at least 32 characters long."
+        )
+
+    # 2. Check Database URL
+    if settings.is_sqlite:
+        errors.append(
+            "SQLite is not supported in production. Please configure DATABASE_URL to use PostgreSQL."
+        )
+
+    if errors:
+        import sys
+        print("\n" + "="*70, file=sys.stderr)
+        print("CRITICAL CONFIGURATION FAILURE — STARTUP BLOCKED", file=sys.stderr)
+        print("="*70, file=sys.stderr)
+        for err in errors:
+            print(f"[-] {err}", file=sys.stderr)
+        print("="*70 + "\n", file=sys.stderr)
+        raise ValueError("Invalid production configuration. Startup aborted.")

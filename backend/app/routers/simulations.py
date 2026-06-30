@@ -1,564 +1,771 @@
-"""Simulation management router."""
+"""FastAPI Router for Simulation Management.
+
+Exposes the production-grade Simulation Orchestrator and Repository layers.
+This router is thin and contains no business logic.
+"""
 
 from __future__ import annotations
 
-from datetime import datetime
-import json
-import os
+import asyncio
 import logging
-
-logger = logging.getLogger(__name__)
+import os
+import uuid
 import shutil
 import zipfile
 import io
+from datetime import datetime
 from pathlib import Path
-from typing import Any
-import logging
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, status
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user
 from app.config import settings
 from app.database import get_db, AsyncSessionLocal
 from app.models import Project, Simulation, SimulationStatus, User
-from app.services.physics import full_physics_analysis
-from app.services.palace import (
-    GeometryBuilder,
-    ConfigGenerator,
-    PalaceRunner,
-    ResultParser,
-    EMAdapter,
-    PalaceSolverType,
-    PalaceSimulationOutput,
-    GeometryElementKind,
+from app.simulation.service.simulation_service import (
+    SimulationService,
+    SimulationRequest,
+    RollbackPolicy,
 )
-from app.drc.runner import run_drc_from_payload
-import uuid
+from app.simulation.service.state_manager import PipelineState
+from app.simulation.database import (
+    SimulationArtifact,
+    SimulationExecution,
+    SimulationLog,
+    SimulationMetric,
+    SimulationParameter,
+    SimulationResult,
+    WorkspaceSnapshot,
+    SimulationRepository,
+    SimulationExecutionRepository,
+)
+from app.simulation.queue import global_queue
+from app.simulation.queue.models import SimulationJob, JobState
+from app.core.logging import correlation_id_ctx
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/simulations", tags=["simulations"])
 
+# Instantiate the thin orchestrator service
+simulation_service = SimulationService()
 
-class SimulationCreate(BaseModel):
-    project_id: str
-    solver: str = "eigenmode"
-    config: dict = {}
 
+# ── Request Models ────────────────────────────────────────────────────────────
 
 class RunSimulationRequest(BaseModel):
-    engine: str = "analytic"
-def _sim_out(s: Simulation) -> dict:
-    return {
-        "id": s.id,
-        "project_id": s.project_id,
-        "solver": s.solver,
-        "status": s.status.value,
-        "config": s.config,
-        "results": s.results,
-        "error_message": s.error_message,
-        "runtime_seconds": s.runtime_seconds,
-        "memory_gb": s.memory_gb,
-        "created_at": s.created_at.isoformat(),
-        "started_at": s.started_at.isoformat() if s.started_at else None,
-        "finished_at": s.finished_at.isoformat() if s.finished_at else None,
-    }
-
-
-@router.get("")
-async def list_simulations(
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> list[dict]:
-    # Get all sims for user's projects
-    proj_result = await db.execute(select(Project.id).where(Project.owner_id == user.id))
-    project_ids = [r[0] for r in proj_result.all()]
-
-    if not project_ids:
-        return []
-
-    result = await db.execute(
-        select(Simulation)
-        .where(Simulation.project_id.in_(project_ids))
-        .order_by(Simulation.created_at.desc())
-        .limit(50)
+    """Pydantic model representing a request to start a simulation."""
+    project_id: str = Field(..., description="The unique UUID string associated with the project.")
+    solver_type: str = Field("eigenmode", description="Solver type: eigenmode | electrostatic | magnetostatic | driven")
+    user_settings: Dict[str, Any] = Field(default_factory=dict, description="Optional solver settings, np, etc.")
+    terminal_names: Optional[List[str]] = Field(default=None, description="Capacitance/inductance terminal names.")
+    qubits: Optional[List[Dict[str, Any]]] = Field(default=None, description="Qubit parameters for energy derivations.")
+    port_names: Optional[List[str]] = Field(default=None, description="Port names for EPR junctions.")
+    mesh_settings: Optional[Dict[str, Any]] = Field(default=None, description="Custom GMSH meshing parameters.")
+    coarse_mesh: bool = Field(default=False, description="True for rapid coarse meshing.")
+    rollback_policy: RollbackPolicy = Field(
+        default=RollbackPolicy.DELETE_ON_SUCCESS,
+        description="Workspace cleanup policy: DELETE_ALL | KEEP_ALL | DELETE_ON_SUCCESS"
     )
-    return [_sim_out(s) for s in result.scalars().all()]
 
 
-@router.post("", status_code=201)
-async def create_simulation(
-    body: SimulationCreate,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> dict:
-    # Verify project ownership
-    proj_result = await db.execute(
-        select(Project).where(Project.id == body.project_id, Project.owner_id == user.id)
+class RetrySimulationRequest(BaseModel):
+    """Pydantic model representing a request to retry a simulation."""
+    coarse_mesh: Optional[bool] = Field(default=None, description="Override coarse meshing setting.")
+    rollback_policy: Optional[RollbackPolicy] = Field(default=None, description="Override rollback policy.")
+
+
+# ── Response Models ───────────────────────────────────────────────────────────
+
+class SimulationResponse(BaseModel):
+    """Structured response model representing a simulation run."""
+    id: str
+    project_id: str
+    solver: str
+    status: str
+    config: Dict[str, Any]
+    results: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+    runtime_seconds: Optional[float] = None
+    memory_gb: Optional[float] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SimulationStatusResponse(BaseModel):
+    """Model tracking the real-time status, phase, progress, and warnings of a run."""
+    simulation_id: str
+    status: str
+    current_phase: Optional[str] = None
+    progress: float
+    runtime: float
+    warnings: List[str] = Field(default_factory=list)
+    errors: List[str] = Field(default_factory=list)
+
+
+class SimulationHistoryResponse(BaseModel):
+    """Paginated simulation history list with metadata."""
+    total_count: int
+    page: int
+    page_size: int
+    total_pages: int
+    items: List[SimulationResponse]
+
+
+class ArtifactResponse(BaseModel):
+    """Details of a generated file artifact."""
+    id: str
+    file_name: str
+    size: int
+    checksum: str
+    artifact_type: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LogResponse(BaseModel):
+    """Structured simulation log entry."""
+    id: str
+    log_type: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class MetricResponse(BaseModel):
+    """Timings and performance metrics."""
+    metrics: Dict[str, float]
+
+
+class WorkspaceResponse(BaseModel):
+    """Workspace metadata scrubbed of sensitive filesystem paths."""
+    workspace_id: str
+    files_count: int
+    total_size_bytes: int
+    rollback_policy: str
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _to_sim_response(sim: Simulation) -> SimulationResponse:
+    """Helper mapping database Simulation model to SimulationResponse Pydantic schema."""
+    return SimulationResponse(
+        id=sim.id,
+        project_id=sim.project_id,
+        solver=sim.solver,
+        status=sim.status.value,
+        config=sim.config,
+        results=sim.results,
+        error_message=sim.error_message,
+        runtime_seconds=sim.runtime_seconds,
+        memory_gb=sim.memory_gb,
+        started_at=sim.started_at,
+        finished_at=sim.finished_at,
+        created_at=sim.created_at,
     )
-    project = proj_result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    sim = Simulation(
-        id=str(uuid.uuid4()),
-        project_id=body.project_id,
-        solver=body.solver,
-        config=body.config,
-    )
-    db.add(sim)
-    await db.flush()
-    await db.refresh(sim)
-    return _sim_out(sim)
-def _copy_tree_robust(src: Path | str, dst: Path | str):
-    src = Path(src)
-    dst = Path(dst)
-    dst.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Starting robust copy from {src} to {dst}")
-    
-    # We use rglob("*") for recursive directory scanning
-    for item in src.rglob("*"):
-        rel_path = item.relative_to(src)
-        target = dst / rel_path
-        logger.info(f"DISCOVERED: {item} (rel: {rel_path})")
-        if item.is_dir():
-            target.mkdir(parents=True, exist_ok=True)
-            logger.info(f"CREATED DIR: {target}")
-        else:
-            try:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(item, target)
-                logger.info(f"COPIED: {item} -> {target}")
-            except Exception as e:
-                logger.warning(f"SKIPPED/FAILED: {item} -> {target} (error: {e})")
 
 
-async def _run_simulation_background_task(
-    sim_id: str,
-    project_id: str,
-    payload: dict,
-    engine: str,
-) -> None:
-    """
-    Non-blocking background worker to execute Palace simulation jobs.
-    Uses its own database session context to prevent closed-session/transaction errors.
-    """
-    logger.info(f"Starting background simulation {sim_id} for project {project_id}...")
-    
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
-        sim = result.scalar_one_or_none()
-        if not sim:
-            logger.error(f"Simulation {sim_id} not found in background task.")
-            return
-
-        try:
-            if engine == "palace":
-                project_root = Path(__file__).resolve().parents[3]
-                artifact_dir = project_root / "backend" / "storage" / "simulations" / sim_id
-                images_dir = artifact_dir / "images"
-                images_dir.mkdir(parents=True, exist_ok=True)
-
-                # 1. Build EMGeometry
-                geometry = GeometryBuilder.build_geometry(payload)
-                
-                # Check if there are any qubits or resonators in the design
-                has_terminals = any(el.kind in (GeometryElementKind.QUBIT, GeometryElementKind.RESONATOR) for el in geometry.elements)
-                if not has_terminals:
-                    raise ValueError(
-                        "Cannot run simulation on an empty design. Please add qubits or resonators to your design first."
-                    )
-
-                # Generate mesh file directly in the permanent artifact directory
-                mesh_file_path = artifact_dir / "mesh.msh"
-                from app.services.palace.gmsh_builder import GmshBuilder
-                GmshBuilder.generate_mesh(geometry, mesh_file_path, coarse=settings.palace_mock_mode)
-                
-                # Render the mesh file immediately
-                try:
-                    from app.services.vtu_renderer import render_mesh_file
-                    render_mesh_file(mesh_file_path, images_dir / "mesh_0.png")
-                except Exception as e:
-                    logger.warning(f"Failed to pre-render mesh image: {e}")
-                    
-                # Load mesh bytes for runner
-                with open(mesh_file_path, "rb") as f:
-                    mesh_bytes = f.read()
-
-                # 2. Generate configurations for all three solvers (Eigenmode, Electrostatic, Magnetostatic)
-                config_eig = ConfigGenerator.generate_config(geometry, PalaceSolverType.EIGENMODE)
-                config_cap = ConfigGenerator.generate_config(geometry, PalaceSolverType.ELECTROSTATIC)
-                config_mag = ConfigGenerator.generate_config(geometry, PalaceSolverType.MAGNETOSTATIC)
-
-                # 3. Execute runs concurrently, wrapped in safe try-except handlers for Partial Success
-                mock_mode = settings.palace_mock_mode
-                runner = PalaceRunner(mock_mode=mock_mode)
-
-                import asyncio
-
-                async def run_safe(solver_type: str, config: dict) -> dict:
-                    try:
-                        logger.info(f"Launching {solver_type} solver in background...")
-                        res = await runner.run_simulation(config, mesh_content=mesh_bytes)
-                        return {"status": "success", "data": res}
-                    except Exception as err:
-                        logger.error(f"Solver {solver_type} failed: {err}")
-                        return {"status": "error", "error": str(err)}
-
-                run_eig_task = asyncio.create_task(run_safe("eigenmode", config_eig))
-                run_cap_task = asyncio.create_task(run_safe("electrostatic", config_cap))
-                run_mag_task = asyncio.create_task(run_safe("magnetostatic", config_mag))
-
-                # Await all runs simultaneously
-                res_eig, res_cap, res_mag = await asyncio.gather(run_eig_task, run_cap_task, run_mag_task)
-
-                temp_dirs = []
-                errors = {}
-                success_count = 0
-
-                # Process Eigenmode
-                parsed_eig = None
-                run_eig_time = 0.0
-                run_eig_stdout = ""
-                run_eig_stderr = ""
-                if res_eig["status"] == "success":
-                    success_count += 1
-                    run_eig = res_eig["data"]
-                    temp_dirs.append(run_eig["temp_dir_obj"])
-                    run_eig_time = run_eig.get("runtime_seconds", 0.0)
-                    run_eig_stdout = run_eig.get("stdout", "")
-                    run_eig_stderr = run_eig.get("stderr", "")
-                    try:
-                        if settings.keep_simulation_artifacts:
-                            _copy_tree_robust(run_eig["temp_dir_obj"].name, artifact_dir / "eigenmode")
-                        
-                        port_names = [f"JJ_{q.id}" for q in geometry.qubits]
-                        parsed_eig = ResultParser.parse_eigenmode(
-                            artifact_dir / "eigenmode" / "out" if settings.keep_simulation_artifacts else run_eig["output_dir"],
-                            port_names=port_names
-                        )
-                    except Exception as parse_err:
-                        logger.warning(f"Failed to parse/copy eigenmode results: {parse_err}")
-                        errors["eigenmode_parse"] = str(parse_err)
-                else:
-                    errors["eigenmode"] = res_eig["error"]
-
-                # Process Electrostatic
-                parsed_cap = None
-                run_cap_time = 0.0
-                run_cap_stdout = ""
-                run_cap_stderr = ""
-                if res_cap["status"] == "success":
-                    success_count += 1
-                    run_cap = res_cap["data"]
-                    temp_dirs.append(run_cap["temp_dir_obj"])
-                    run_cap_time = run_cap.get("runtime_seconds", 0.0)
-                    run_cap_stdout = run_cap.get("stdout", "")
-                    run_cap_stderr = run_cap.get("stderr", "")
-                    try:
-                        if settings.keep_simulation_artifacts:
-                            _copy_tree_robust(run_cap["temp_dir_obj"].name, artifact_dir / "electrostatic")
-                        
-                        terminal_names = []
-                        for el in geometry.elements:
-                            if el.kind in (GeometryElementKind.QUBIT, GeometryElementKind.RESONATOR):
-                                prefix = "" if el.id.startswith("comp_") else "comp_"
-                                terminal_names.append(f"{prefix}{el.id}_island" if el.kind == GeometryElementKind.QUBIT else f"{prefix}{el.id}")
-                        parsed_cap = ResultParser.parse_electrostatic(
-                            artifact_dir / "electrostatic" / "out" if settings.keep_simulation_artifacts else run_cap["output_dir"],
-                            terminal_names=terminal_names
-                        )
-                    except Exception as parse_err:
-                        logger.warning(f"Failed to parse/copy electrostatic results: {parse_err}")
-                        errors["electrostatic_parse"] = str(parse_err)
-                else:
-                    errors["electrostatic"] = res_cap["error"]
-
-                # Process Magnetostatic
-                parsed_mag = None
-                run_mag_time = 0.0
-                run_mag_stdout = ""
-                run_mag_stderr = ""
-                if res_mag["status"] == "success":
-                    success_count += 1
-                    run_mag = res_mag["data"]
-                    temp_dirs.append(run_mag["temp_dir_obj"])
-                    run_mag_time = run_mag.get("runtime_seconds", 0.0)
-                    run_mag_stdout = run_mag.get("stdout", "")
-                    run_mag_stderr = run_mag.get("stderr", "")
-                    try:
-                        if settings.keep_simulation_artifacts:
-                            _copy_tree_robust(run_mag["temp_dir_obj"].name, artifact_dir / "magnetostatic")
-                        
-                        terminal_names = []
-                        for el in geometry.elements:
-                            if el.kind in (GeometryElementKind.QUBIT, GeometryElementKind.RESONATOR):
-                                prefix = "" if el.id.startswith("comp_") else "comp_"
-                                terminal_names.append(f"{prefix}{el.id}_island" if el.kind == GeometryElementKind.QUBIT else f"{prefix}{el.id}")
-                        parsed_mag = ResultParser.parse_magnetostatic(
-                            artifact_dir / "magnetostatic" / "out" if settings.keep_simulation_artifacts else run_mag["output_dir"],
-                            terminal_names=terminal_names
-                        )
-                    except Exception as parse_err:
-                        logger.warning(f"Failed to parse/copy magnetostatic results: {parse_err}")
-                        errors["magnetostatic_parse"] = str(parse_err)
-                else:
-                    errors["magnetostatic"] = res_mag["error"]
-
-                # Cleanup temp workspace directories
-                for temp_dir in temp_dirs:
-                    try:
-                        temp_dir.cleanup()
-                    except Exception as clean_err:
-                        logger.warning(f"Failed to cleanup temp workspace directory (non-fatal): {clean_err}")
-
-                # If at least one solver succeeded, capture results (Partial Success)
-                if success_count > 0:
-                    image_urls = []
-                    if settings.keep_simulation_artifacts:
-                        try:
-                            from app.services.vtu_renderer import generate_field_visualizations
-                            image_urls = generate_field_visualizations(sim_id, str(artifact_dir), geometry=geometry)
-                            logger.info(f"Generated {len(image_urls)} field visualization(s): {image_urls}")
-                        except Exception as render_err:
-                            logger.warning(f"Field visualization generation failed (non-fatal): {render_err}", exc_info=True)
-
-                    # Combine into PalaceSimulationOutput
-                    palace_output = PalaceSimulationOutput(
-                        simulation_id=sim_id,
-                        design_id=geometry.design_id,
-                        timestamp=datetime.utcnow().isoformat() + "Z",
-                        solver_type=PalaceSolverType.EIGENMODE,
-                        eigenmode=parsed_eig,
-                        electrostatic=parsed_cap,
-                        magnetostatic=parsed_mag,
-                        runtime_seconds=run_eig_time + run_cap_time + run_mag_time,
-                        stdout=run_eig_stdout + "\n" + run_cap_stdout + "\n" + run_mag_stdout,
-                        stderr=run_eig_stderr + "\n" + run_cap_stderr + "\n" + run_mag_stderr
-                    )
-
-                    # Translate to standard EMResults
-                    em_results = EMAdapter.to_em_results(palace_output)
-
-                    # Build DesignSpec
-                    design_spec = EMAdapter.build_design_spec_from_payload(payload)
-
-                    # Find a successful output directory to feed the physics pipeline
-                    output_dir_for_pipeline = None
-                    if res_eig["status"] == "success":
-                        output_dir_for_pipeline = str(artifact_dir / "eigenmode" / "out" if settings.keep_simulation_artifacts else res_eig["data"]["output_dir"])
-                    elif res_cap["status"] == "success":
-                        output_dir_for_pipeline = str(artifact_dir / "electrostatic" / "out" if settings.keep_simulation_artifacts else res_cap["data"]["output_dir"])
-                    else:
-                        output_dir_for_pipeline = str(artifact_dir / "magnetostatic" / "out" if settings.keep_simulation_artifacts else res_mag["data"]["output_dir"])
-
-                    # Run downstream Physics Analysis
-                    from physics_engine.pipeline import PhysicsAnalysisPipeline
-                    pipeline = PhysicsAnalysisPipeline()
-                    report = pipeline.run(em_results, design_spec, output_dir=output_dir_for_pipeline)
-
-                    results_dict = json.loads(report.model_dump_json())
-                    if settings.keep_simulation_artifacts and image_urls:
-                        results_dict["field_images"] = image_urls
-
-                    if errors:
-                        results_dict["solver_errors"] = errors
-
-                    sim.results = results_dict
-                    sim.runtime_seconds = round(palace_output.runtime_seconds, 3)
-                    sim.status = SimulationStatus.completed
-                    if errors:
-                        sim.error_message = f"Partial success with errors: {errors}"
-                else:
-                    raise RuntimeError(f"All concurrent solvers failed. Details: {errors}")
-
-            else:
-                # Legacy analytic flow
-                physics_results = full_physics_analysis(payload)
-                sim.results = physics_results
-                sim.status = SimulationStatus.completed
-                sim.runtime_seconds = 0.1
-
-            sim.finished_at = datetime.utcnow()
-            sim.memory_gb = 0.5 if engine == "palace" else 0.1
-            db.add(sim)
-            await db.commit()
-            logger.info(f"Background simulation {sim_id} completed successfully.")
-
-        except Exception as e:
-            logger.exception(f"Background simulation {sim_id} failed")
-            sim.status = SimulationStatus.failed
-            sim.error_message = str(e)
-            sim.finished_at = datetime.utcnow()
-            db.add(sim)
-            await db.commit()
-
-
-@router.post("/{sim_id}/run")
-async def run_simulation(
-    sim_id: str,
-    body: RunSimulationRequest = RunSimulationRequest(),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
-) -> dict:
-    """
-    Verify design, pre-validate via DRC, and launch simulation job in a non-blocking background task.
-    """
-    # Verify ownership BEFORE mutating any state
-    result = await db.execute(
+async def _authorize_simulation(db: AsyncSession, simulation_id: str, user_id: str) -> Simulation:
+    """Helper verifying that the simulation exists and belongs to a project owned by the user."""
+    stmt = (
         select(Simulation)
         .join(Project, Simulation.project_id == Project.id)
-        .where(Simulation.id == sim_id, Project.owner_id == user.id)
+        .where(Simulation.id == simulation_id, Project.owner_id == user_id)
     )
+    result = await db.execute(stmt)
     sim = result.scalar_one_or_none()
     if not sim:
-        raise HTTPException(status_code=404, detail="Simulation not found")
-
-    # Fetch the project (already verified ownership above)
-    proj_result = await db.execute(
-        select(Project).where(Project.id == sim.project_id)
-    )
-    project = proj_result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    payload = project.design_payload or {}
-
-    # --- Phase 2: Pre-Solve Geometry Validation ---
-    if body.engine == "palace":
-        # Check ALL possible sources of qubit/resonator data in the payload.
-        # The design can store components in several places depending on how it was created.
-        placement = payload.get("placement", {})
-        design = payload.get("design", {})
-        freq_plan = payload.get("frequency_plan", {})
-        v2_graph = payload.get("v2", {}).get("graph")
-
-        has_components = bool(
-            placement.get("qubits")                          # Legacy placement qubits
-            or placement.get("resonators")                   # Legacy placement resonators
-            or design.get("placements")                      # V2 design placements
-            or freq_plan.get("qubit_frequencies_GHz")        # Frequency plan (always present for generated designs)
-            or v2_graph                                      # V2 graph object
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Simulation not found or access unauthorized."
         )
-        if not has_components:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot run simulation on an empty design. Please add qubits or resonators to your design first."
-            )
+    return sim
 
-        # --- Phase 2b: DRC Pre-validation ---
-        drc_report = run_drc_from_payload(payload)
-        errors = [v for v in drc_report.violations if v.severity == "ERROR"]
-        if errors:
-            err_messages = []
-            for err in errors:
-                err_messages.append(f"[{err.domain.upper()}] {err.message}")
-            detail_msg = f"Design Rule Check (DRC) failed with errors:\n" + "\n".join(err_messages)
-            raise HTTPException(
-                status_code=400,
-                detail=detail_msg
-            )
 
-    # Transition status to running immediately, register started_at, and commit
-    sim.status = SimulationStatus.running
-    sim.started_at = datetime.utcnow()
-    
-    if body.engine == "palace":
-        project_root = Path(__file__).resolve().parents[3]
-        artifact_dir = project_root / "backend" / "storage" / "simulations" / sim_id
-        sim.artifact_path = str(artifact_dir.relative_to(project_root))
-        sim.artifact_retained = True
-    else:
-        sim.artifact_path = None
-        sim.artifact_retained = False
-        
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.post("/run", status_code=status.HTTP_201_CREATED, response_model=SimulationResponse)
+async def run_simulation(
+    body: RunSimulationRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SimulationResponse:
+    """Starts a simulation run asynchronously by enqueuing a background job."""
+    # 1. Authorize project ownership
+    project = await db.scalar(
+        select(Project).where(Project.id == body.project_id, Project.owner_id == user.id)
+    )
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    # 2. Geometry Validation: Do not run on empty designs
+    payload = project.design_payload or {}
+    if payload.get("design") and "placements" in payload["design"]:
+        from app.services.design_synth.compiler import compile_schematic_to_v2_graph
+        try:
+            logger.info("Compiling schematic design document to V2 design graph for project %s...", project.id)
+            payload = compile_schematic_to_v2_graph(payload)
+            project.design_payload = payload
+            db.add(project)
+            await db.flush()
+        except Exception as exc:
+            logger.exception("Failed to compile schematic design to V2 design graph: %s", exc)
+
+    placement = payload.get("placement", {})
+    design = payload.get("design", {})
+    freq_plan = payload.get("frequency_plan", {})
+    v2_graph = payload.get("v2", {}).get("graph")
+
+    has_components = bool(
+        placement.get("qubits")
+        or placement.get("resonators")
+        or design.get("placements")
+        or freq_plan.get("qubit_frequencies_GHz")
+        or v2_graph
+    )
+    if not has_components:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot run simulation on an empty design. Please add qubits or resonators to your design first."
+        )
+
+    # 3. Create Simulation Record showing 'queued'
+    sim_id = str(uuid.uuid4())
+    sim = Simulation(
+        id=sim_id,
+        project_id=body.project_id,
+        solver=body.solver_type,
+        status=SimulationStatus.queued,
+        config=body.user_settings,
+        created_at=datetime.utcnow(),
+    )
+    db.add(sim)
     await db.commit()
     await db.refresh(sim)
 
-    # Queue the heavy FEM solver execution into a non-blocking background task
-    background_tasks.add_task(
-        _run_simulation_background_task,
-        sim_id=sim_id,
-        project_id=sim.project_id,
-        payload=payload,
-        engine=body.engine,
+    # 4. Enqueue Job in Background Queue
+    job = SimulationJob(
+        job_id=str(uuid.uuid4()),
+        simulation_id=sim_id,
+        project_id=body.project_id,
+        user_id=user.id,
+        solver_type=body.solver_type,
+        design_payload=payload,
+        user_settings=body.user_settings,
+        terminal_names=body.terminal_names,
+        qubits=body.qubits,
+        port_names=body.port_names,
+        mesh_settings=body.mesh_settings,
+        coarse_mesh=body.coarse_mesh,
+        rollback_policy=body.rollback_policy.value,
+        priority=5,  # default priority
+        correlation_id=correlation_id_ctx.get(),
     )
+    await global_queue.enqueue(job)
+    logger.info("Simulation enqueued successfully. Simulation ID: %s, Job ID: %s", sim_id, job.job_id)
 
-    return _sim_out(sim)
+    return _to_sim_response(sim)
 
 
-@router.get("/{sim_id}")
-async def get_simulation(
-    sim_id: str,
+@router.get("/{simulation_id}/status", response_model=SimulationStatusResponse)
+async def get_simulation_status(
+    simulation_id: str,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> dict:
-    result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
-    sim = result.scalar_one_or_none()
-    if not sim:
-        raise HTTPException(status_code=404, detail="Simulation not found")
-    return _sim_out(sim)
+) -> SimulationStatusResponse:
+    """Returns the current phase, progress percentage, runtime, warnings, and errors of a run.
 
+    Inspects both the active queue state and the database, falling back to history.
+    """
+    # Verify authorization
+    await _authorize_simulation(db, simulation_id, user.id)
 
-@router.get("/{sim_id}/artifacts")
-async def get_simulation_artifacts(
-    sim_id: str,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> dict:
-    result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
-    sim = result.scalar_one_or_none()
-    if not sim or not getattr(sim, "artifact_retained", False) or not getattr(sim, "artifact_path", None):
-        raise HTTPException(status_code=404, detail="Artifacts not found or not retained")
-        
-    project_root = Path(__file__).resolve().parents[3]
-    artifact_dir = project_root / sim.artifact_path
-    if not artifact_dir.exists():
-        raise HTTPException(status_code=404, detail="Artifact directory missing on disk")
-        
-    files = []
-    for root, _, filenames in os.walk(artifact_dir):
-        for name in filenames:
-            abs_path = Path(root) / name
-            rel_path = abs_path.relative_to(artifact_dir)
-            files.append(str(rel_path))
+    # Check background queue first
+    job = await global_queue.get_job(simulation_id)
+    if job:
+        # If job is in queue and active
+        if job.state in (JobState.QUEUED, JobState.STARTING, JobState.RETRYING, JobState.RUNNING):
+            progress_map = {
+                JobState.QUEUED: 5.0,
+                JobState.STARTING: 10.0,
+                JobState.RETRYING: 15.0,
+                JobState.RUNNING: job.progress if job.progress > 0 else 20.0,
+            }
+            progress = progress_map.get(job.state, 5.0)
             
-    return {"artifact_path": sim.artifact_path, "files": files}
+            # Check local simulation service as a fallback for high-fidelity progress
+            active_ctx = simulation_service.get_active_context(simulation_id)
+            current_phase = job.current_phase or job.state.value
+            warnings = job.warnings
+            errors = [job.error_message] if job.error_message else []
+            
+            if active_ctx:
+                phase_progress_map = {
+                    PipelineState.REQUEST_RECEIVED: 10.0,
+                    PipelineState.WORKSPACE_READY: 20.0,
+                    PipelineState.GEOMETRY_READY: 40.0,
+                    PipelineState.MESH_READY: 60.0,
+                    PipelineState.CONFIG_READY: 70.0,
+                    PipelineState.RUNNING: 80.0,
+                    PipelineState.RESULTS_READY: 90.0,
+                    PipelineState.COMPLETED: 100.0,
+                    PipelineState.FAILED: 100.0,
+                    PipelineState.CANCELLED: 100.0,
+                }
+                progress = phase_progress_map.get(active_ctx.status, progress)
+                current_phase = active_ctx.current_phase or active_ctx.status.value
+                warnings = active_ctx.warnings
+                errors = active_ctx.errors
 
-@router.get("/{sim_id}/download")
-async def download_simulation_artifacts(
-    sim_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
-    sim = result.scalar_one_or_none()
-    if not sim or not getattr(sim, "artifact_retained", False) or not getattr(sim, "artifact_path", None):
-        raise HTTPException(status_code=404, detail="Artifacts not found or not retained")
-        
-    project_root = Path(__file__).resolve().parents[3]
-    artifact_dir = project_root / sim.artifact_path
-    if not artifact_dir.exists():
-        raise HTTPException(status_code=404, detail="Artifact directory missing on disk")
-        
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for root, _, filenames in os.walk(artifact_dir):
-            for name in filenames:
-                file_path = Path(root) / name
-                archive_name = file_path.relative_to(artifact_dir)
-                zipf.write(file_path, arcname=str(archive_name))
-                
-    zip_buffer.seek(0)
-    return StreamingResponse(
-        zip_buffer, 
-        media_type="application/zip", 
-        headers={"Content-Disposition": f"attachment; filename=simulation_{sim_id}_artifacts.zip"}
+            runtime = 0.0
+            if job.started_at:
+                runtime = (datetime.utcnow() - job.started_at).total_seconds()
+            elif job.enqueued_at:
+                runtime = (datetime.utcnow() - job.enqueued_at).total_seconds()
+
+            return SimulationStatusResponse(
+                simulation_id=simulation_id,
+                status=job.state.value,
+                current_phase=current_phase,
+                progress=progress,
+                runtime=round(runtime, 2),
+                warnings=warnings,
+                errors=errors,
+            )
+
+    # Fallback to Database
+    exec_repo = SimulationExecutionRepository(db)
+    # Fetch the latest execution
+    stmt = (
+        select(SimulationExecution)
+        .where(SimulationExecution.simulation_id == simulation_id)
+        .order_by(SimulationExecution.started_at.desc())
+        .limit(1)
     )
+    res = await db.execute(stmt)
+    execution = res.scalar_one_or_none()
+
+    if execution:
+        return SimulationStatusResponse(
+            simulation_id=simulation_id,
+            status=execution.status,
+            current_phase="COMPLETED" if execution.status == "COMPLETED" else "FAILED",
+            progress=100.0,
+            runtime=execution.duration_seconds or 0.0,
+            warnings=execution.warnings or [],
+            errors=execution.errors or [],
+        )
+
+    # If no execution record exists yet, return the root record details
+    sim = await db.get(Simulation, simulation_id)
+    return SimulationStatusResponse(
+        simulation_id=simulation_id,
+        status=sim.status.value,
+        current_phase=sim.status.value,
+        progress=0.0,
+        runtime=0.0,
+        warnings=[],
+        errors=[sim.error_message] if sim.error_message else [],
+    )
+
+
+@router.get("/{simulation_id}", response_model=SimulationResponse)
+async def get_simulation_details(
+    simulation_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SimulationResponse:
+    """Returns complete details of a simulation run."""
+    sim = await _authorize_simulation(db, simulation_id, user.id)
+    return _to_sim_response(sim)
+
+
+@router.get("/{simulation_id}/results", response_model=Dict[str, Any])
+async def get_simulation_results(
+    simulation_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Returns the parsed results (capacitance matrix, eigenfrequencies, etc.) from the run."""
+    sim = await _authorize_simulation(db, simulation_id, user.id)
+    if sim.status != SimulationStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Simulation is in status '{sim.status.value}'. Results are only available for completed runs."
+        )
+    return sim.results or {}
+
+
+@router.get("", response_model=SimulationHistoryResponse)
+async def list_simulations(
+    page: int = Query(1, ge=1, description="Page number."),
+    page_size: int = Query(20, ge=1, le=100, description="Page size."),
+    limit: Optional[int] = Query(None, ge=1, description="Override limit."),
+    offset: Optional[int] = Query(None, ge=0, description="Override offset."),
+    project_id: Optional[str] = Query(None, description="Filter by project ID."),
+    status: Optional[str] = Query(None, description="Filter by status."),
+    solver: Optional[str] = Query(None, description="Filter by solver type."),
+    sort_by: str = Query("created_at", description="Field to sort by."),
+    sort_dir: str = Query("desc", description="Sort direction: asc | desc"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SimulationHistoryResponse:
+    """Lists simulation runs, supporting filtering, sorting, and pagination.
+
+    Strictly scoped to projects owned by the authenticated user to prevent BOLA/ID enumeration.
+    """
+    stmt = (
+        select(Simulation)
+        .join(Project, Simulation.project_id == Project.id)
+        .where(Project.owner_id == user.id)
+    )
+
+    # Filters
+    if project_id:
+        stmt = stmt.where(Simulation.project_id == project_id)
+    if status:
+        try:
+            from app.models import SimulationStatus
+            stmt = stmt.where(Simulation.status == SimulationStatus[status.lower()])
+        except (KeyError, ValueError):
+            stmt = stmt.where(Simulation.status == status)
+    if solver:
+        stmt = stmt.where(Simulation.solver == solver)
+
+    # Calculate total count
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total_count = await db.scalar(count_stmt) or 0
+
+    # Sort
+    sort_column = getattr(Simulation, sort_by, Simulation.created_at)
+    if sort_dir.lower() == "asc":
+        stmt = stmt.order_by(sort_column.asc())
+    else:
+        stmt = stmt.order_by(sort_column.desc())
+
+    # Pagination
+    if limit is not None:
+        stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
+        page_num = (offset // limit) + 1 if offset else 1
+        page_sz = limit
+    else:
+        page_num = page
+        page_sz = page_size
+        offset = (page - 1) * page_size
+        stmt = stmt.limit(page_size).offset(offset)
+
+    result = await db.execute(stmt)
+    sims = result.scalars().all()
+
+    total_pages = (total_count + page_sz - 1) // page_sz if page_sz > 0 else 0
+
+    return SimulationHistoryResponse(
+        total_count=total_count,
+        page=page_num,
+        page_size=page_sz,
+        total_pages=total_pages,
+        items=[_to_sim_response(s) for s in sims],
+    )
+
+
+@router.post("/{simulation_id}/cancel", status_code=status.HTTP_200_OK)
+async def cancel_simulation(
+    simulation_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Dict[str, str]:
+    """Cancels a currently executing simulation job."""
+    # Verify authorization
+    await _authorize_simulation(db, simulation_id, user.id)
+
+    # Issue cancellation command
+    await simulation_service.cancel_simulation(simulation_id)
+    return {"message": f"Cancellation request for simulation '{simulation_id}' successfully dispatched."}
+
+
+@router.post("/{simulation_id}/retry", response_model=SimulationResponse)
+async def retry_simulation(
+    simulation_id: str,
+    background_tasks: BackgroundTasks,
+    body: RetrySimulationRequest = RetrySimulationRequest(),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> SimulationResponse:
+    """Clones the configuration of a previous simulation run and triggers a new background queue run."""
+    # Verify authorization of source run
+    old_sim = await _authorize_simulation(db, simulation_id, user.id)
+
+    # Fetch associated project
+    project = await db.get(Project, old_sim.project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Associated project not found")
+
+    # Fetch the simulation parameters from parameters table for exact config reproduction
+    stmt = (
+        select(SimulationParameter)
+        .where(SimulationParameter.simulation_id == simulation_id)
+    )
+    result = await db.execute(stmt)
+    params = result.scalars().all()
+    
+    design_payload = project.design_payload or {}
+    user_settings = old_sim.config or {}
+    terminal_names = None
+    qubits = None
+    port_names = None
+    
+    for p in params:
+        if p.parameter_key == "design_payload":
+            design_payload = p.parameter_value
+        elif p.parameter_key == "user_settings":
+            user_settings = p.parameter_value
+        elif p.parameter_key == "terminal_names":
+            terminal_names = p.parameter_value.get("names")
+        elif p.parameter_key == "qubits":
+            qubits = p.parameter_value.get("qubits")
+        elif p.parameter_key == "port_names":
+            port_names = p.parameter_value.get("ports")
+
+    # Create new queued record
+    new_sim_id = str(uuid.uuid4())
+    new_sim = Simulation(
+        id=new_sim_id,
+        project_id=old_sim.project_id,
+        solver=old_sim.solver,
+        status=SimulationStatus.queued,
+        config=user_settings,
+        created_at=datetime.utcnow(),
+    )
+    db.add(new_sim)
+    await db.commit()
+    await db.refresh(new_sim)
+
+    # Setup the new request
+    rb_policy = body.rollback_policy if body.rollback_policy is not None else RollbackPolicy.DELETE_ON_SUCCESS
+
+    # Enqueue Job in Background Queue
+    job = SimulationJob(
+        job_id=str(uuid.uuid4()),
+        simulation_id=new_sim_id,
+        project_id=old_sim.project_id,
+        user_id=user.id,
+        solver_type=old_sim.solver,
+        design_payload=design_payload,
+        user_settings=user_settings,
+        terminal_names=terminal_names,
+        qubits=qubits,
+        port_names=port_names,
+        coarse_mesh=body.coarse_mesh if body.coarse_mesh is not None else False,
+        rollback_policy=rb_policy.value,
+        priority=5,  # default priority
+        correlation_id=correlation_id_ctx.get(),
+    )
+    await global_queue.enqueue(job)
+    logger.info("Retried simulation enqueued successfully. Old ID: %s, New ID: %s, Job ID: %s", simulation_id, new_sim_id, job.job_id)
+
+    return _to_sim_response(new_sim)
+
+
+@router.delete("/{simulation_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def delete_simulation(
+    simulation_id: str,
+    hard_delete: bool = Query(True, description="Enforce hard deletion from database."),
+    cleanup_workspace: bool = Query(True, description="Enforce removal of workspace files on disk."),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    """Deletes a simulation run, cleans up disk files, and cascades to all execution details."""
+    sim = await _authorize_simulation(db, simulation_id, user.id)
+
+    # 1. Workspace Files Cleanup
+    if cleanup_workspace and sim.artifact_path:
+        project_root = Path(__file__).resolve().parents[3]
+        artifact_dir = project_root / sim.artifact_path
+        if artifact_dir.exists() and artifact_dir.is_dir():
+            try:
+                shutil.rmtree(artifact_dir, ignore_errors=True)
+                logger.info("Successfully deleted workspace files on disk at: %s", artifact_dir)
+            except Exception as e:
+                logger.warning("Failed to clean up workspace directory on disk: %s", e)
+
+    # 2. DB Deletion (Cascades to executions, results, artifacts, logs, metrics)
+    if hard_delete:
+        await db.delete(sim)
+        await db.commit()
+        logger.info("Successfully deleted simulation %s from database on cascade.", simulation_id)
+    else:
+        # Soft delete
+        sim.status = SimulationStatus.failed
+        sim.error_message = "Simulation record soft-deleted."
+        await db.commit()
+
+
+@router.get("/{simulation_id}/artifacts", response_model=List[ArtifactResponse])
+async def list_simulation_artifacts(
+    simulation_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> List[ArtifactResponse]:
+    """Lists all database-indexed file artifacts generated by the simulation."""
+    await _authorize_simulation(db, simulation_id, user.id)
+
+    stmt = (
+        select(SimulationArtifact)
+        .join(SimulationExecution, SimulationArtifact.execution_id == SimulationExecution.id)
+        .where(SimulationExecution.simulation_id == simulation_id)
+        .order_by(SimulationArtifact.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    artifacts = result.scalars().all()
+    return artifacts
+
+
+@router.get("/{simulation_id}/artifacts/{artifact_id}")
+async def download_simulation_artifact(
+    simulation_id: str,
+    artifact_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> FileResponse:
+    """Downloads a specific file artifact by ID.
+
+    Supports range requests and sets proper MIME types natively using FastAPI FileResponse.
+    """
+    # Verify authorization
+    await _authorize_simulation(db, simulation_id, user.id)
+
+    # Fetch artifact and verify ownership
+    stmt = (
+        select(SimulationArtifact)
+        .join(SimulationExecution, SimulationArtifact.execution_id == SimulationExecution.id)
+        .where(
+            SimulationArtifact.id == artifact_id,
+            SimulationExecution.simulation_id == simulation_id
+        )
+    )
+    result = await db.execute(stmt)
+    artifact = result.scalar_one_or_none()
+    if not artifact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found")
+
+    filepath = Path(artifact.path)
+    if not filepath.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Artifact file missing on disk (it may have been cleaned up based on retention policies)."
+        )
+
+    return FileResponse(
+        path=filepath,
+        filename=artifact.file_name,
+        media_type=None,  # Automatically inferred from file extension
+    )
+
+
+@router.get("/{simulation_id}/logs", response_model=List[LogResponse])
+async def get_simulation_logs(
+    simulation_id: str,
+    log_type: Optional[str] = Query(None, description="Filter by log type: orchestrator | runner | gmsh | etc."),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> List[LogResponse]:
+    """Retrieves execution and solver logs."""
+    await _authorize_simulation(db, simulation_id, user.id)
+
+    stmt = (
+        select(SimulationLog)
+        .join(SimulationExecution, SimulationLog.execution_id == SimulationExecution.id)
+        .where(SimulationExecution.simulation_id == simulation_id)
+        .order_by(SimulationLog.created_at.desc())
+    )
+    if log_type:
+        stmt = stmt.where(SimulationLog.log_type == log_type)
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
+    return logs
+
+
+@router.get("/{simulation_id}/metrics", response_model=MetricResponse)
+async def get_simulation_metrics(
+    simulation_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> MetricResponse:
+    """Retrieves phase timings and execution metrics."""
+    await _authorize_simulation(db, simulation_id, user.id)
+
+    stmt = (
+        select(SimulationMetric)
+        .join(SimulationExecution, SimulationMetric.execution_id == SimulationExecution.id)
+        .where(SimulationExecution.simulation_id == simulation_id)
+    )
+    result = await db.execute(stmt)
+    metrics = result.scalars().all()
+    
+    return MetricResponse(metrics={m.metric_key: m.metric_value for m in metrics})
+
+
+@router.get("/{simulation_id}/workspace", response_model=WorkspaceResponse)
+async def get_simulation_workspace_info(
+    simulation_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> WorkspaceResponse:
+    """Returns workspace snapshot metadata, scrubbed of absolute file paths to protect security."""
+    await _authorize_simulation(db, simulation_id, user.id)
+
+    stmt = (
+        select(WorkspaceSnapshot)
+        .join(SimulationExecution, WorkspaceSnapshot.execution_id == SimulationExecution.id)
+        .where(SimulationExecution.simulation_id == simulation_id)
+    )
+    result = await db.execute(stmt)
+    snapshot = result.scalar_one_or_none()
+
+    if not snapshot:
+        # Check if currently executing
+        active_ctx = simulation_service.get_active_context(simulation_id)
+        if active_ctx and active_ctx.workspace:
+            return WorkspaceResponse(
+                workspace_id=active_ctx.workspace.workspace_id,
+                files_count=0,
+                total_size_bytes=0,
+                rollback_policy=active_ctx.rollback_policy.value,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace metadata not found or workspace was cleaned up."
+        )
+
+    meta = snapshot.snapshot_metadata
+    path_val = meta.get("root_path", "N/A")
+    workspace_id = path_val.split("/")[-1] if "/" in path_val else path_val
+
+    return WorkspaceResponse(
+        workspace_id=workspace_id,
+        files_count=meta.get("generated_files_count", 0),
+        total_size_bytes=0,  # Scrub absolute sizes/paths
+        rollback_policy=meta.get("rollback_policy", "N/A"),
+    )
+
+
+# ── Render & Legacy Compatibility Endpoints ─────────────────────────────────
 
 @router.get("/{sim_id}/render")
 async def render_simulation_snapshot(
@@ -566,40 +773,44 @@ async def render_simulation_snapshot(
     variant: str = "e",
     mode: int | None = None,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    from fastapi.responses import FileResponse
-    
-    result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
-    sim = result.scalar_one_or_none()
-    if not sim or not getattr(sim, "artifact_retained", False) or not getattr(sim, "artifact_path", None):
-        raise HTTPException(status_code=404, detail="No field renders — Palace Paraview output not yet available")
+    """Legacy compatibility endpoint returning flat 2D chip design field overlay overlays or 3D field renders."""
+    # Verify authorization
+    sim = await _authorize_simulation(db, sim_id, user.id)
+
+    if not sim.artifact_retained or not sim.artifact_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No field renders — Palace Paraview output not yet available"
+        )
         
     project_root = Path(__file__).resolve().parents[3]
     artifact_dir = project_root / sim.artifact_path
     if not artifact_dir.exists():
-        raise HTTPException(status_code=404, detail="Artifact directory missing on disk")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact directory missing on disk")
     
     images_dir = artifact_dir / "images"
     if images_dir.exists():
         mode_suffix = f"_{mode}" if mode is not None else ""
         
-        # 1. Prioritize the flat 2D chip design overlay (*_chip_e_{mode}.png)
+        # 1. Flat 2D chip design overlay (*_chip_e_{mode}.png)
         target_chip = list(images_dir.glob(f"*_chip_{variant.lower()}{mode_suffix}.png"))
         if target_chip:
             return FileResponse(target_chip[0], media_type="image/png")
             
-        # Fallback to Mode 1 (unsuffixed) if the specific mode is missing
+        # Fallback to Mode 1 (unsuffixed) flat chip overlay
         if mode is not None:
             target_chip_fallback = list(images_dir.glob(f"*_chip_{variant.lower()}.png"))
             if target_chip_fallback:
                 return FileResponse(target_chip_fallback[0], media_type="image/png")
 
-        # 2. Fall back to the 3D volumetric field renders (*_field_e_{mode}.png)
+        # 2. 3D volumetric field renders (*_field_e_{mode}.png)
         target_field = list(images_dir.glob(f"*_field_{variant.lower()}{mode_suffix}.png"))
         if target_field:
             return FileResponse(target_field[0], media_type="image/png")
             
-        # Fallback to Mode 1 (unsuffixed) 3D field if specific mode is missing
+        # Fallback to Mode 1 (unsuffixed) 3D field
         if mode is not None:
             target_field_fallback = list(images_dir.glob(f"*_field_{variant.lower()}.png"))
             if target_field_fallback:
@@ -615,55 +826,87 @@ async def render_simulation_snapshot(
         if pre_rendered_fields:
             return FileResponse(pre_rendered_fields[0], media_type="image/png")
 
-    # No VTU-derived field renders found — return 404 so frontend shows the waiting state
-    raise HTTPException(status_code=404, detail="No Palace field renders available yet. Run a simulation with Paraview output enabled.")
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="No Palace field renders available yet. Run a simulation with Paraview output enabled."
+    )
 
 
 @router.get("/{sim_id}/mesh")
 async def get_simulation_mesh(
     sim_id: str,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    from fastapi.responses import FileResponse
-    result = await db.execute(select(Simulation).where(Simulation.id == sim_id))
-    sim = result.scalar_one_or_none()
-    if not sim or not getattr(sim, "artifact_retained", False) or not getattr(sim, "artifact_path", None):
-        raise HTTPException(status_code=404, detail="Artifacts not found or not retained")
+    """Extracts and returns the 3D volume tetrahedral mesh for rendering.
+
+    This data is formatted specifically for line wireframe rendering in a Three.js scene.
+    """
+    sim = await _authorize_simulation(db, sim_id, user.id)
+
+    if not sim.artifact_retained or not sim.artifact_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No artifacts available for this simulation. Ensure artifact_retained=True.",
+        )
+
+    project_root = Path(__file__).resolve().parents[3]
+    artifact_dir = project_root / sim.artifact_path
+    if not artifact_dir.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Artifact directory does not exist on disk: {sim.artifact_path}",
+        )
+
+    try:
+        from app.services.palace_mesh_parser import parse_palace_mesh
+        data = parse_palace_mesh(
+            artifact_dir=artifact_dir,
+            sim_solver=sim.solver,
+            sim_results=sim.results,
+        )
+        if sim.runtime_seconds:
+            data["metadata"]["runtime_seconds"] = int(sim.runtime_seconds)
+        return data
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Failed to parse volume mesh")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal mesh parsing error: {str(exc)}",
+        )
+
+
+@router.get("/{simulation_id}/download")
+async def download_all_simulation_artifacts(
+    simulation_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """Legacy compatibility endpoint downloading all simulation workspace artifacts in a zip file."""
+    # Verify authorization
+    sim = await _authorize_simulation(db, simulation_id, user.id)
+
+    if not sim.artifact_retained or not sim.artifact_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifacts not found or not retained")
         
     project_root = Path(__file__).resolve().parents[3]
     artifact_dir = project_root / sim.artifact_path
     if not artifact_dir.exists():
-        raise HTTPException(status_code=404, detail="Artifact directory missing on disk")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact directory missing on disk")
         
-    # Check for pre-rendered mesh images
-    images_dir = artifact_dir / "images"
-    mesh_paths = [
-        images_dir / "eigenmode_mesh.png",
-        images_dir / "mesh_0.png",
-        images_dir / "electrostatic_mesh.png",
-    ]
-    for p in mesh_paths:
-        if p.exists():
-            return FileResponse(p, media_type="image/png")
-            
-    # Try generic png file as fallback
-    if images_dir.exists():
-        all_pngs = sorted(list(images_dir.glob("*.png")))
-        if all_pngs:
-            return FileResponse(all_pngs[0], media_type="image/png")
-            
-    # If no png exists, try generating the mesh image from mesh.msh on the fly
-    mesh_file_path = artifact_dir / "mesh.msh"
-    if mesh_file_path.exists():
-        try:
-            images_dir.mkdir(parents=True, exist_ok=True)
-            mesh_img = images_dir / "mesh_0.png"
-            from app.services.vtu_renderer import render_mesh_file
-            if render_mesh_file(mesh_file_path, mesh_img):
-                return FileResponse(mesh_img, media_type="image/png")
-        except Exception as e:
-            logger.warning(f"Failed to render mesh on the fly: {e}")
-            
-    raise HTTPException(status_code=404, detail="Mesh image not found")
-
-
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, _, filenames in os.walk(artifact_dir):
+            for name in filenames:
+                file_path = Path(root) / name
+                archive_name = file_path.relative_to(artifact_dir)
+                zipf.write(file_path, arcname=str(archive_name))
+                
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer, 
+        media_type="application/zip", 
+        headers={"Content-Disposition": f"attachment; filename=simulation_{simulation_id}_artifacts.zip"}
+    )

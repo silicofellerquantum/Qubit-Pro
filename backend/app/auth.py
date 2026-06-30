@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 import bcrypt
@@ -59,15 +59,17 @@ def decode_token(token: str) -> dict[str, Any]:
 
 async def get_current_user(
     token: str | None = Depends(oauth2_scheme),
+    token_query: str | None = Query(None, alias="token"),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    if not token:
+    resolved_token = token or token_query
+    if not resolved_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    payload = decode_token(token)
+    payload = decode_token(resolved_token)
     user_id: str | None = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
@@ -81,12 +83,14 @@ async def get_current_user(
 
 async def get_optional_user(
     token: str | None = Depends(oauth2_scheme),
+    token_query: str | None = Query(None, alias="token"),
     db: AsyncSession = Depends(get_db),
 ) -> User | None:
     """Like get_current_user but returns None instead of raising for unauthenticated requests."""
-    if not token:
+    resolved_token = token or token_query
+    if not resolved_token:
         return None
     try:
-        return await get_current_user(token, db)
+        return await get_current_user(resolved_token, None, db)
     except HTTPException:
         return None

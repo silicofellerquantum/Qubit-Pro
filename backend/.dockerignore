@@ -1,0 +1,21 @@
+# Exclude large storage and data directories
+storage/
+squadds_mirror/
+tmp/
+
+# Exclude python cache and test artifacts
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+
+# Exclude local database files
+*.db
+*.db-journal
+
+# Exclude GMSH/Palace local files
+*.msh
+*.csv
+*.json
+*.log

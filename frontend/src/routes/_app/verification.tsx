@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_app/verification")({
   component: VerificationPage,
 });
 
-const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(/\/$/, "");
+const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "").replace(/\/$/, "");
 const token = () => (typeof window !== "undefined" ? localStorage.getItem("qs_token") ?? "" : "");
 
 const SEV_COLORS = {

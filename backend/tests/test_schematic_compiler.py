@@ -217,6 +217,94 @@ def test_from_generate_response_uses_design_blob_when_present():
     assert design["placements"] and design["connections"] is not None
 
 
+def test_schematic_to_v2_graph_compilation():
+    """Test that compile_schematic_to_v2_graph correctly parses schematic placements
+    and connections into a structured, validated V2 DesignGraph.
+    """
+    from app.services.design_synth.compiler import compile_schematic_to_v2_graph
+
+    payload = {
+        "label": "TestSchematic",
+        "chip_size_mm": 10.0,
+        "topology": "custom",
+        "material": {"substrate": "silicon", "metal": "aluminum"},
+        "design": {
+            "placements": [
+                {
+                    "id": "comp_Q1",
+                    "name": "Q1",
+                    "componentId": "TransmonPocket",
+                    "x": -1.5,
+                    "y": 0.0,
+                    "rotation": 0.0,
+                    "params": {"frequency_ghz": 5.0, "anharmonicity_ghz": -0.34}
+                },
+                {
+                    "id": "comp_Q2",
+                    "name": "Q2",
+                    "componentId": "TransmonPocket",
+                    "x": 1.5,
+                    "y": 0.0,
+                    "rotation": 90.0,
+                    "params": {"frequency_ghz": 5.5, "anharmonicity_ghz": -0.34}
+                },
+                {
+                    "id": "comp_C12",
+                    "name": "C12",
+                    "componentId": "RouteMeander",
+                    "x": 0.0,
+                    "y": 0.0,
+                    "rotation": 0.0,
+                    "params": {"strength_mhz": 12.0}
+                }
+            ],
+            "connections": [
+                {
+                    "id": "conn_Q1_C12",
+                    "from": {"placementId": "comp_Q1", "pinName": "readout"},
+                    "to": {"placementId": "comp_C12", "pinName": "a"}
+                },
+                {
+                    "id": "conn_C12_Q2",
+                    "from": {"placementId": "comp_C12", "pinName": "b"},
+                    "to": {"placementId": "comp_Q2", "pinName": "readout"}
+                }
+            ]
+        }
+    }
+
+    compiled = compile_schematic_to_v2_graph(payload)
+    assert "v2" in compiled
+    assert "graph" in compiled["v2"]
+
+    graph_dict = compiled["v2"]["graph"]
+    assert graph_dict["chip_name"] == "TestSchematic"
+    assert graph_dict["chip_width_mm"] == 10.0
+    
+    # 3 nodes: Q1, Q2, C12
+    nodes = graph_dict["nodes"]
+    assert len(nodes) == 3
+
+    q1_node = next(n for n in nodes if n["id"] == "Q1")
+    assert q1_node["kind"] == "qubit"
+    assert q1_node["x_mm"] == -1.5
+    assert q1_node["frequency_ghz"] == 5.0
+
+    q2_node = next(n for n in nodes if n["id"] == "Q2")
+    assert q2_node["kind"] == "qubit"
+    assert q2_node["x_mm"] == 1.5
+    assert q2_node["orientation_deg"] == 90
+
+    c12_node = next(n for n in nodes if n["id"] == "C12")
+    assert c12_node["kind"] == "coupler"
+    assert c12_node["qubit_a_id"] == "Q1"
+    assert c12_node["qubit_b_id"] == "Q2"
+
+    # 2 edges (connections)
+    edges = graph_dict["edges"]
+    assert len(edges) == 2
+
+
 def _run_all() -> int:
     import traceback
     fns = [v for k, v in sorted(globals().items())

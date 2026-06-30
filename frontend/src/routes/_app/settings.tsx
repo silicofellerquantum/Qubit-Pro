@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_app/settings")({
   component: SettingsPage,
 });
 
-const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(/\/$/, "");
+const BACKEND = (import.meta.env.VITE_BACKEND_URL ?? "").replace(/\/$/, "");
 
 function SettingsPage() {
   const { user, signOut } = useAuth();
