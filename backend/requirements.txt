@@ -25,8 +25,8 @@ razorpay==1.4.1
 
 # ── Physics / ML ──────────────────────────────────────────────────────────
 networkx==3.2.1
-shapely==2.0.3             # Compatible with Python 3.9 (Geometric footprint/obstacle polygons for layout engine)
-ortools==9.7.2996         # CP-SAT constraint solver for Auto Layout (compatible with Python 3.9)
+shapely==2.0.4             # Geometric footprint/obstacle polygons for layout engine (LAYOUT-003)
+ortools==9.7.2996          # CP-SAT constraint solver for Auto Layout (LAYOUT-010)
 qiskit-metal
 # torch>=2.0.0             # Optional — large dep, not installed in CI; code falls back to regex intent
 

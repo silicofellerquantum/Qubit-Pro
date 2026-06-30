@@ -140,28 +140,84 @@ async def run_design_pipeline(constraints: "DesignConstraints") -> dict[str, Any
         freq_plan_obj  = None
 
     # ── Step 4: Physical placement ────────────────────────────────────────────
-    try:
-        placement_result = place_qubits(n, topology=topology, scale=constraints.scale)
-        placement_dict   = placement_to_dict(placement_result)
-        # Normalise x_mm/y_mm → x/y for frontend
-        for q_pd in placement_dict["qubits"]:
-            if "x_mm" in q_pd:
-                q_pd["x"] = q_pd.pop("x_mm")
-                q_pd["y"] = q_pd.pop("y_mm")
-        # Back-fill placement into graph nodes
-        for qp in placement_result.qubits:
-            if graph.has_node(qp.name):
-                node = graph.get_node(qp.name)
-                node.x_mm            = qp.x_mm
-                node.y_mm            = qp.y_mm
-                node.orientation_deg = qp.orientation_deg
-        # Derive coordinates for secondary nodes (couplers, resonators,
-        # feedline, launchpads) that don't participate in the qubit solver.
-        _assign_secondary_coords(graph, constraints)
-    except Exception as exc:
-        log.warning("Placement failed: %s", exc)
-        placement_result = None
-        placement_dict   = {"solver": "error", "qubits": [], "edges": []}
+    # LAYOUT-015: Feature-flagged integration of layout_engine_v2
+    from app.config import settings
+    layout_quality: dict[str, Any] | None = None
+    
+    if settings.layout_engine_v2:
+        # ── NEW PATH: Phase 1 Auto Layout Engine ──────────────────────────────
+        log.info("V2 pipeline: using layout_engine_v2 (template-driven, CP-SAT)")
+        try:
+            from app.layout import generate_layout
+            from app.layout.adapters import to_placement_dict
+            
+            # Generate layout candidate
+            layout_candidate = generate_layout(graph, constraints=constraints)
+            
+            # Convert to legacy placement_dict format
+            placement_dict = to_placement_dict(layout_candidate)
+            
+            # Normalise x_mm/y_mm → x/y for frontend
+            for q_pd in placement_dict["qubits"]:
+                if "x_mm" in q_pd:
+                    q_pd["x"] = q_pd.pop("x_mm")
+                    q_pd["y"] = q_pd.pop("y_mm")
+            
+            # Store layout quality metrics
+            layout_quality = {
+                "solver": layout_candidate.metadata.get("solver", "cpsat"),
+                "template": layout_candidate.template_name,
+                "generation_time_sec": layout_candidate.generation_time_sec,
+                "score": layout_candidate.score.to_dict(),
+                "gate_passed": layout_candidate.score.gate_passed,
+                "overall_score": layout_candidate.score.overall_score,
+            }
+            
+            placement_result = None  # Legacy result not used in v2 path
+            
+        except Exception as exc:
+            log.error("Layout engine v2 failed: %s. Falling back to legacy.", exc)
+            # Fallback to legacy path on failure
+            placement_result = place_qubits(n, topology=topology, scale=constraints.scale)
+            placement_dict   = placement_to_dict(placement_result)
+            # Normalise x_mm/y_mm → x/y for frontend
+            for q_pd in placement_dict["qubits"]:
+                if "x_mm" in q_pd:
+                    q_pd["x"] = q_pd.pop("x_mm")
+                    q_pd["y"] = q_pd.pop("y_mm")
+            # Back-fill placement into graph nodes
+            for qp in placement_result.qubits:
+                if graph.has_node(qp.name):
+                    node = graph.get_node(qp.name)
+                    node.x_mm            = qp.x_mm
+                    node.y_mm            = qp.y_mm
+                    node.orientation_deg = qp.orientation_deg
+            # Derive coordinates for secondary nodes
+            _assign_secondary_coords(graph, constraints)
+    else:
+        # ── LEGACY PATH: Original placement (byte-identical when flag OFF) ───
+        try:
+            placement_result = place_qubits(n, topology=topology, scale=constraints.scale)
+            placement_dict   = placement_to_dict(placement_result)
+            # Normalise x_mm/y_mm → x/y for frontend
+            for q_pd in placement_dict["qubits"]:
+                if "x_mm" in q_pd:
+                    q_pd["x"] = q_pd.pop("x_mm")
+                    q_pd["y"] = q_pd.pop("y_mm")
+            # Back-fill placement into graph nodes
+            for qp in placement_result.qubits:
+                if graph.has_node(qp.name):
+                    node = graph.get_node(qp.name)
+                    node.x_mm            = qp.x_mm
+                    node.y_mm            = qp.y_mm
+                    node.orientation_deg = qp.orientation_deg
+            # Derive coordinates for secondary nodes (couplers, resonators,
+            # feedline, launchpads) that don't participate in the qubit solver.
+            _assign_secondary_coords(graph, constraints)
+        except Exception as exc:
+            log.warning("Placement failed: %s", exc)
+            placement_result = None
+            placement_dict   = {"solver": "error", "qubits": [], "edges": []}
 
     # ── Step 5: Routing ───────────────────────────────────────────────────────
     route_result_dict: dict[str, Any] = {}
@@ -256,6 +312,7 @@ async def run_design_pipeline(constraints: "DesignConstraints") -> dict[str, Any
             "validation":       validation.to_dict(),
             "constraints":      constraints.to_dict(),
             "reasonableness":   gate_report.to_dict() if gate_report else {},
+            "layout_quality":   layout_quality,  # LAYOUT-015: Phase 1 layout metrics
         },
     }
     return result
