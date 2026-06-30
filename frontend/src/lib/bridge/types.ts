@@ -9,6 +9,7 @@ export type ComponentCategory =
   | "launchpads"
   | "ground"
   | "terminations"
+  | "feedlines"
   | "other";
 
 export interface ComponentSummary {
@@ -66,6 +67,58 @@ export interface ComponentPreview {
   units: "um" | "mm";
 }
 
+// ---------- Feedline — native transmission-line abstraction ----------
+
+/**
+ * Stores where a resonator taps into a feedline.
+ * segmentIndex + t encode a continuous position along the CPW geometry —
+ * no artificial pins are created on the feedline itself.
+ *
+ * During export the attachment point is computed geometrically and the
+ * resonator's RouteMeander destination is set to that exact coordinate.
+ */
+export interface FeedlineAttachment {
+  /** The placement ID of the resonator (or tee coupler) that taps the feedline */
+  resonatorId: string;
+  /** Index into the feedline's path[] segments (0 = the single straight segment for now) */
+  segmentIndex: number;
+  /** Normalised position [0–1] along that segment */
+  t: number;
+  /** Coupling gap in µm */
+  couplingGap: number;
+  /** Orientation of the resonator stub relative to the feedline normal */
+  orientation: "up" | "down" | "left" | "right";
+}
+
+/**
+ * A Feedline is a single logical transmission-line object in the editor.
+ * It always expands into LaunchpadWirebond → RouteStraight → LaunchpadWirebond
+ * during Python code export and is reconstructed from that pattern on import.
+ *
+ * Stored at the DesignDocument level so it survives undo/redo and persistence
+ * alongside regular placements.
+ */
+export interface Feedline {
+  id: string;
+  name: string;
+  /** Centre of LaunchPad A — the "start" end */
+  x1: number;
+  y1: number;
+  /** Centre of LaunchPad B — the "end" end */
+  x2: number;
+  y2: number;
+  /** CPW trace width in µm (default 10) */
+  traceWidth: number;
+  /** CPW gap in µm (default 6) */
+  traceGap: number;
+  /** LaunchPad style — maps to LaunchpadWirebond / LaunchpadWirebondCoupled */
+  launchpadType: "LaunchpadWirebond" | "LaunchpadWirebondCoupled" | "LaunchpadWirebondDriven";
+  /** Resonators / tees attached anywhere along this feedline */
+  attachedResonators: FeedlineAttachment[];
+  /** Derived length in mm — recomputed from (x1,y1)→(x2,y2) on every move */
+  totalLength?: number;
+}
+
 // ---------- Frontend-owned design document ----------
 
 export interface Placement {
@@ -104,6 +157,8 @@ export interface Connection {
 export interface DesignDocument {
   placements: Placement[];
   connections: Connection[];
+  /** Native feedline objects — each expands to LaunchPad→RouteStraight→LaunchPad on export */
+  feedlines?: Feedline[];
 }
 
 // ---------- Bridge call results ----------

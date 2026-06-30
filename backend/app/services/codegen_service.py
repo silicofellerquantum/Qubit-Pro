@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 import re
-from app.core.editor_models import DesignDocument, GeneratedCode
+from app.core.editor_models import DesignDocument, GeneratedCode, FeedlineModel
 
 # ── Fabrication constants — single source of truth ────────────────────────────
 # These MUST match what render_service/worker sends to RouteMeander.
@@ -46,6 +46,8 @@ _LOC_WH_COMPONENTS = {
 _COMPONENT_PINS: dict[str, list[str]] = {
     "TunableCoupler01": ["Control", "Flux"],
     "LineTee":          ["prime_start", "prime_end", "second_end"],
+    "CoupledLineTee":   ["prime_start", "prime_end", "second_end"],
+    "CapNInterdigitalTee": ["prime_start", "prime_end", "second_end"],
     "LaunchpadWirebond": ["tie"],
     "LaunchpadWirebondCoupled": ["tie", "in"],
     "LaunchpadWirebondDriven": ["tie"],
@@ -384,6 +386,19 @@ class CodegenService:
             "# Run: pip install qiskit-metal && python this_file.py\n"
             "# ----------------------------------------------------------------\n"
         )
+
+        # ── Emit feedline expansions ──────────────────────────────────────────
+        feedline_lines: list[str] = []
+        if design.feedlines:
+            feedline_lines.append("")
+            feedline_lines.append("# ── Feedlines ──────────────────────────────────────────────────")
+            feedline_lines.append("# Each editor Feedline expands to: LaunchpadWirebond → RouteStraight → LaunchpadWirebond")
+            imports.add("from qiskit_metal.qlibrary.terminations.launchpad_wb import LaunchpadWirebond")
+            imports.add("from qiskit_metal.qlibrary.tlines.straight_path import RouteStraight")
+
+            for fl in design.feedlines:
+                feedline_lines.extend(_emit_feedline_expansion(fl))
+
         footer = [
             "",
             "design.rebuild()",
@@ -398,12 +413,109 @@ class CodegenService:
             "",
         ]
         sorted_imports = "\n".join(sorted(imports))
-        body = "\n".join(setup + placement_lines + [""] + route_lines + footer)
+        body = "\n".join(setup + placement_lines + [""] + route_lines + feedline_lines + footer)
         code = f"{header}\n{sorted_imports}\n\n{body}\n"
         return GeneratedCode(language="python", filename="design.py", code=code)
 
 
 codegen_service = CodegenService()
+
+
+def _emit_feedline_expansion(fl: FeedlineModel) -> list[str]:
+    """
+    Expand one editor Feedline into the three Qiskit Metal components that
+    produce equivalent geometry:
+
+        LaunchpadWirebond (start)
+        RouteStraight  (CPW body connecting the two pads)
+        LaunchpadWirebond (end)
+
+    The LaunchPad orientations are computed from the feedline direction so
+    each pad faces inward along the CPW.
+
+    For any resonator attached to this feedline we also emit a comment showing
+    the computed attachment coordinates — the actual RouteMeander connection
+    must be edited by the user or set up via the resonator codegen path.
+    """
+    import math as _math
+    import re as _re
+
+    lines: list[str] = []
+
+    def _var(n: str) -> str:
+        return _re.sub(r"[^a-zA-Z0-9]", "_", n).strip("_") or "comp"
+
+    name = fl.name
+    vname = _var(name)
+
+    # ── Compute LaunchPad orientations from the feedline direction ──────────
+    dx = fl.x2 - fl.x1
+    dy = fl.y2 - fl.y1
+    angle_deg = _math.degrees(_math.atan2(dy, dx))
+
+    # LaunchPad A faces toward B (outward from chip edge inward)
+    # Qiskit Metal orientation: 0 = right, 90 = up, 180 = left, 270 = down
+    lp_a_orientation = round(angle_deg % 360, 1)
+    lp_b_orientation = round((angle_deg + 180) % 360, 1)
+
+    trace_w = f"{fl.traceWidth}um"
+    trace_g = f"{fl.traceGap}um"
+    lp_class = fl.launchpadType  # e.g. "LaunchpadWirebond"
+    total_len_mm = round(_math.sqrt(dx * dx + dy * dy), 4)
+
+    # ── LaunchPad A ─────────────────────────────────────────────────────────
+    lp_a_name = f"{vname}_lp_start"
+    lines.append(f"# Feedline '{name}' — LaunchPad A (start)")
+    lines.append(
+        f"{lp_a_name} = {lp_class}(design, {lp_a_name!r}, options=dict("
+        f"pos_x={fl.x1!r}mm, pos_y={fl.y1!r}mm, "
+        f"orientation={lp_a_orientation!r}, "
+        f"trace_width={trace_w!r}, trace_gap={trace_g!r}))"
+    )
+    lines.append("")
+
+    # ── LaunchPad B ─────────────────────────────────────────────────────────
+    lp_b_name = f"{vname}_lp_end"
+    lines.append(f"# Feedline '{name}' — LaunchPad B (end)")
+    lines.append(
+        f"{lp_b_name} = {lp_class}(design, {lp_b_name!r}, options=dict("
+        f"pos_x={fl.x2!r}mm, pos_y={fl.y2!r}mm, "
+        f"orientation={lp_b_orientation!r}, "
+        f"trace_width={trace_w!r}, trace_gap={trace_g!r}))"
+    )
+    lines.append("")
+
+    # ── RouteStraight (CPW body) ─────────────────────────────────────────────
+    route_name = f"{vname}_cpw"
+    lines.append(f"# Feedline '{name}' — CPW body (total length ≈ {total_len_mm} mm)")
+    lines.append(
+        f"{route_name} = RouteStraight(design, {route_name!r}, options=dict("
+    )
+    lines.append(
+        f"    pin_inputs=dict("
+        f"start_pin=dict(component={lp_a_name!r}, pin='tie'), "
+        f"end_pin=dict(component={lp_b_name!r}, pin='tie')),"
+    )
+    lines.append(f"    trace_width={trace_w!r},")
+    lines.append(f"    trace_gap={trace_g!r},")
+    lines.append(f"))")
+    lines.append("")
+
+    # ── Resonator attachment comments ────────────────────────────────────────
+    if fl.attachedResonators:
+        lines.append(f"# Feedline '{name}' — resonator attachment points:")
+        for att in fl.attachedResonators:
+            t = max(0.0, min(1.0, att.t))
+            ax = round(fl.x1 + (fl.x2 - fl.x1) * t, 4)
+            ay = round(fl.y1 + (fl.y2 - fl.y1) * t, 4)
+            lines.append(
+                f"#   resonator={att.resonatorId!r}  t={t:.3f}  "
+                f"attachment=({ax}mm, {ay}mm)  "
+                f"coupling_gap={att.couplingGap}um  side={att.orientation!r}"
+            )
+        lines.append("")
+
+    return lines
 
 
 def generate_from_editor_state(

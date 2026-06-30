@@ -138,23 +138,23 @@ export function toGenerateResponse(
     drc: prev?.drc ?? { passed: true, violations: [] },
     frequency_plan: prev?.frequency_plan
       ? {
-          ...prev.frequency_plan,
-          resonator_frequencies_GHz,
-          resonator_lengths_mm,
-        }
+        ...prev.frequency_plan,
+        resonator_frequencies_GHz,
+        resonator_lengths_mm,
+      }
       : {
-          epsilon_eff: 6.45,
-          qubit_frequencies_GHz: Object.fromEntries(
-            placementQubits.map((q, i) => [q.name, 5.0 + i * 0.05]),
-          ),
-          qubit_groups: {},
-          EJ_GHz: {},
-          EC_GHz: {},
-          resonator_frequencies_GHz,
-          resonator_lengths_mm,
-          detunings_GHz: {},
-          warnings: [],
-        },
+        epsilon_eff: 6.45,
+        qubit_frequencies_GHz: Object.fromEntries(
+          placementQubits.map((q, i) => [q.name, 5.0 + i * 0.05]),
+        ),
+        qubit_groups: {},
+        EJ_GHz: {},
+        EC_GHz: {},
+        resonator_frequencies_GHz,
+        resonator_lengths_mm,
+        detunings_GHz: {},
+        warnings: [],
+      },
     placement: {
       ...(prev?.placement ?? {}),
       solver: prev?.placement?.solver ?? "editor",
@@ -497,16 +497,22 @@ function SchematicEditorShell() {
       } else if (e.key === "Delete" || e.key === "Backspace") {
         if (activeTab.state.selection.length > 0 && !inInput) {
           e.preventDefault();
-          // Delete all selected placements and connections
+          // Delete all selected placements, connections, and feedlines
           const selPlacements = activeTab.state.selection
             .filter((s) => s.kind === "placement")
             .map((s) => s.id);
           const selConnections = activeTab.state.selection
             .filter((s) => s.kind === "connection")
             .map((s) => s.id);
-          selPlacements.forEach((id) =>
-            dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "DELETE_PLACEMENT", id } }),
-          );
+          // Feedlines use the same "placement" selection kind — check by feedline ids
+          const feedlineIds = new Set(activeTab.state.feedlines.map((f: { id: string }) => f.id));
+          selPlacements.forEach((id) => {
+            if (feedlineIds.has(id)) {
+              dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "DELETE_FEEDLINE", id } });
+            } else {
+              dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "DELETE_PLACEMENT", id } });
+            }
+          });
           selConnections.forEach((id) =>
             dispatch({ type: "CANVAS_ACTION", id: activeTab.id, action: { type: "DELETE_CONNECTION", id } }),
           );
@@ -642,7 +648,7 @@ function SchematicEditorShell() {
         if (selPlacements.length > 0) {
           const payload = JSON.stringify({ version: 1, placements: selPlacements });
           localClipboard = payload;
-          navigator.clipboard.writeText(payload).catch(() => {});
+          navigator.clipboard.writeText(payload).catch(() => { });
           toast.success(`${selPlacements.length} component${selPlacements.length > 1 ? "s" : ""} copied`);
         }
       } else if (!inInput && (e.metaKey || e.ctrlKey) && e.key === "v") {
@@ -659,7 +665,7 @@ function SchematicEditorShell() {
         if (localClipboard) {
           tryPaste(localClipboard);
         } else {
-          navigator.clipboard.readText().then(tryPaste).catch(() => {});
+          navigator.clipboard.readText().then(tryPaste).catch(() => { });
         }
       } else if (!inInput && (e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
@@ -923,7 +929,7 @@ function CommandPalette({
               if (selPlacements.length > 0) {
                 const payload = JSON.stringify({ version: 1, placements: selPlacements });
                 localClipboard = payload;
-                navigator.clipboard.writeText(payload).catch(() => {});
+                navigator.clipboard.writeText(payload).catch(() => { });
               }
             })}>Copy selected</CommandItem>
           )}

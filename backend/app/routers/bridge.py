@@ -159,8 +159,19 @@ class RunCodeResponse(BaseModel):
 async def run_code(body: RunCodeRequest) -> JSONResponse:
     try:
         from app.routers.bridge_worker import run_code_subprocess
+        from app.services.feedline_reconstructor import reconstruct_feedlines
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, run_code_subprocess, body.code)
+        # Attempt Feedline round-trip reconstruction from the returned design doc.
+        # If the code produced LaunchPad→RouteStraight→LaunchPad triples, collapse
+        # them back into native Feedline objects so the editor shows one object.
+        if result.get("ok") and result.get("design"):
+            try:
+                doc = DesignDocument(**result["design"])
+                doc = reconstruct_feedlines(doc)
+                result["design"] = doc.model_dump(by_alias=True)
+            except Exception as recon_exc:
+                log.warning("Feedline reconstruction skipped: %s", recon_exc)
         return JSONResponse(content=result)
     except Exception as exc:
         log.exception("run_code failed")

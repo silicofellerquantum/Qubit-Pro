@@ -26,7 +26,7 @@ import {
   getRouteDefaults,
   buildInitialRouteOverrides,
 } from "@/lib/editor/route-defaults";
-import type { Placement, Connection, ValidationResult, ComponentPreview, ComponentPins } from "@/lib/bridge/types";
+import type { Placement, Connection, ValidationResult, ComponentPreview, ComponentPins, Feedline } from "@/lib/bridge/types";
 
 // â”€â”€â”€ Resonator detection & physics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -183,8 +183,11 @@ export function PropertyInspector() {
   }
   if (sel?.kind === "placement") {
     const placement = state.placements.find((p) => p.id === sel.id);
-    if (!placement) return <EmptyState text="Placement no longer exists." />;
-    return <PlacementInspector placement={placement} />;
+    if (placement) return <PlacementInspector placement={placement} />;
+    // Check if the selection is a feedline (feedlines use "placement" kind with their own ids)
+    const feedline = state.feedlines.find((f) => f.id === sel.id);
+    if (feedline) return <FeedlineInspector feedline={feedline} />;
+    return <EmptyState text="Placement no longer exists." />;
   }
   const conn = state.connections.find((c) => c.id === sel!.id);
   if (!conn) return <EmptyState text="Connection no longer exists." />;
@@ -1312,6 +1315,237 @@ function EmptyState({ text }: { text: string }) {
   return (
     <div className="rounded-md border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
       {text}
+    </div>
+  );
+}
+
+// ── Feedline Inspector ────────────────────────────────────────────────────────
+
+function FeedlineInspector({ feedline }: { feedline: Feedline }) {
+  const { dispatchActive: dispatch } = useWorkspace();
+
+  const nameField = useLocalValue(feedline.name, (v) =>
+    dispatch({ type: "UPDATE_FEEDLINE", id: feedline.id, patch: { name: v } }),
+  );
+  const x1Field = useLocalValue(String(feedline.x1), (v) =>
+    dispatch({ type: "UPDATE_FEEDLINE", id: feedline.id, patch: { x1: parseFloat(v) || 0 } }),
+  );
+  const y1Field = useLocalValue(String(feedline.y1), (v) =>
+    dispatch({ type: "UPDATE_FEEDLINE", id: feedline.id, patch: { y1: parseFloat(v) || 0 } }),
+  );
+  const x2Field = useLocalValue(String(feedline.x2), (v) =>
+    dispatch({ type: "UPDATE_FEEDLINE", id: feedline.id, patch: { x2: parseFloat(v) || 0 } }),
+  );
+  const y2Field = useLocalValue(String(feedline.y2), (v) =>
+    dispatch({ type: "UPDATE_FEEDLINE", id: feedline.id, patch: { y2: parseFloat(v) || 0 } }),
+  );
+  const traceWField = useLocalValue(String(feedline.traceWidth), (v) =>
+    dispatch({ type: "UPDATE_FEEDLINE", id: feedline.id, patch: { traceWidth: parseFloat(v) || 10 } }),
+  );
+  const traceGField = useLocalValue(String(feedline.traceGap), (v) =>
+    dispatch({ type: "UPDATE_FEEDLINE", id: feedline.id, patch: { traceGap: parseFloat(v) || 6 } }),
+  );
+
+  const totalLength = feedline.totalLength
+    ? `${feedline.totalLength.toFixed(3)} mm`
+    : (() => {
+      const dx = feedline.x2 - feedline.x1;
+      const dy = feedline.y2 - feedline.y1;
+      return `${Math.sqrt(dx * dx + dy * dy).toFixed(3)} mm`;
+    })();
+
+  const launchpadOptions: Feedline["launchpadType"][] = [
+    "LaunchpadWirebond",
+    "LaunchpadWirebondCoupled",
+    "LaunchpadWirebondDriven",
+  ];
+
+  return (
+    <div className="flex flex-col gap-3 text-xs min-w-[190px]">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            Feedline
+          </p>
+          <p className="text-sm font-bold text-foreground">{feedline.name}</p>
+          <p className="text-[10px] text-muted-foreground">
+            {feedline.launchpadType} · {feedline.attachedResonators.length} resonator
+            {feedline.attachedResonators.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            dispatch({ type: "DELETE_FEEDLINE", id: feedline.id });
+            dispatch({ type: "SELECT", selection: [] });
+          }}
+          className="h-7 gap-1 px-2 text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="h-3 w-3" /> Delete
+        </Button>
+      </div>
+
+      {/* Qiskit Metal export note */}
+      <div className="rounded-md border border-amber-200 bg-amber-50/60 px-2 py-1.5 text-[10px] text-amber-800">
+        Exports as: <span className="font-mono font-semibold">{feedline.launchpadType}</span> →{" "}
+        <span className="font-mono font-semibold">RouteStraight</span> →{" "}
+        <span className="font-mono font-semibold">{feedline.launchpadType}</span>
+      </div>
+
+      {/* Identity */}
+      <Section title="Identity">
+        <Field label="Name">
+          <Input
+            value={nameField.local}
+            onChange={(e) => nameField.setLocal(e.target.value)}
+            onBlur={nameField.commit}
+            onKeyDown={nameField.onKeyDown}
+            className="h-7 text-[11px]"
+          />
+        </Field>
+        <Field label="Total Length (computed)">
+          <div className="rounded-md border border-border bg-muted/50 px-2 py-1 font-mono text-[11px] text-foreground">
+            {totalLength}
+          </div>
+        </Field>
+      </Section>
+
+      {/* LaunchPad A */}
+      <Section title="LaunchPad A (start)">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="x (mm)">
+            <Input
+              type="number"
+              step="0.05"
+              value={x1Field.local}
+              onChange={(e) => x1Field.setLocal(e.target.value)}
+              onBlur={x1Field.commit}
+              onKeyDown={x1Field.onKeyDown}
+              className="h-7 text-[11px]"
+            />
+          </Field>
+          <Field label="y (mm)">
+            <Input
+              type="number"
+              step="0.05"
+              value={y1Field.local}
+              onChange={(e) => y1Field.setLocal(e.target.value)}
+              onBlur={y1Field.commit}
+              onKeyDown={y1Field.onKeyDown}
+              className="h-7 text-[11px]"
+            />
+          </Field>
+        </div>
+      </Section>
+
+      {/* LaunchPad B */}
+      <Section title="LaunchPad B (end)">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="x (mm)">
+            <Input
+              type="number"
+              step="0.05"
+              value={x2Field.local}
+              onChange={(e) => x2Field.setLocal(e.target.value)}
+              onBlur={x2Field.commit}
+              onKeyDown={x2Field.onKeyDown}
+              className="h-7 text-[11px]"
+            />
+          </Field>
+          <Field label="y (mm)">
+            <Input
+              type="number"
+              step="0.05"
+              value={y2Field.local}
+              onChange={(e) => y2Field.setLocal(e.target.value)}
+              onBlur={y2Field.commit}
+              onKeyDown={y2Field.onKeyDown}
+              className="h-7 text-[11px]"
+            />
+          </Field>
+        </div>
+      </Section>
+
+      {/* CPW Parameters */}
+      <Section title="CPW Parameters">
+        <Field label="Trace Width (µm)" geo>
+          <Input
+            type="number"
+            step="1"
+            value={traceWField.local}
+            onChange={(e) => traceWField.setLocal(e.target.value)}
+            onBlur={traceWField.commit}
+            onKeyDown={traceWField.onKeyDown}
+            className="h-7 text-[11px] font-mono"
+          />
+        </Field>
+        <Field label="Trace Gap (µm)" geo>
+          <Input
+            type="number"
+            step="1"
+            value={traceGField.local}
+            onChange={(e) => traceGField.setLocal(e.target.value)}
+            onBlur={traceGField.commit}
+            onKeyDown={traceGField.onKeyDown}
+            className="h-7 text-[11px] font-mono"
+          />
+        </Field>
+        <Field label="LaunchPad Type">
+          <Select
+            value={feedline.launchpadType}
+            onValueChange={(v) =>
+              dispatch({
+                type: "UPDATE_FEEDLINE",
+                id: feedline.id,
+                patch: { launchpadType: v as Feedline["launchpadType"] },
+              })
+            }
+          >
+            <SelectTrigger className="h-7 text-[11px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {launchpadOptions.map((opt) => (
+                <SelectItem key={opt} value={opt} className="text-[11px] font-mono">
+                  {opt}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </Section>
+
+      {/* Attached Resonators */}
+      {feedline.attachedResonators.length > 0 && (
+        <Section title={`Attached Resonators (${feedline.attachedResonators.length})`}>
+          <table className="w-full text-[10px]">
+            <thead className="text-muted-foreground">
+              <tr>
+                <th className="px-1 py-1 text-left">ID</th>
+                <th className="px-1 py-1 text-right">t</th>
+                <th className="px-1 py-1 text-right">Gap</th>
+                <th className="px-1 py-1 text-right">Side</th>
+              </tr>
+            </thead>
+            <tbody>
+              {feedline.attachedResonators.map((att) => (
+                <tr key={att.resonatorId} className="border-t border-border">
+                  <td className="max-w-[70px] truncate px-1 py-1 font-mono">{att.resonatorId}</td>
+                  <td className="px-1 py-1 text-right font-mono">{att.t.toFixed(3)}</td>
+                  <td className="px-1 py-1 text-right font-mono">{att.couplingGap}µm</td>
+                  <td className="px-1 py-1 text-right text-muted-foreground">{att.orientation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="text-[9px] text-muted-foreground/70 italic">
+            Resonators snap to the feedline during drag. Positions stored as
+            (segmentIndex, t) — no artificial pins created.
+          </p>
+        </Section>
+      )}
     </div>
   );
 }

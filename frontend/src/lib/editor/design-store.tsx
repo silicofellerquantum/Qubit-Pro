@@ -11,6 +11,8 @@ import {
 import type {
   Connection,
   DesignDocument,
+  Feedline,
+  FeedlineAttachment,
   Placement,
 } from "@/lib/bridge/types";
 import { loadDesign, saveDesign, clearDesign } from "./persistence";
@@ -60,6 +62,8 @@ export interface PendingPin {
 export interface EditorState {
   placements: Placement[];
   connections: Connection[];
+  /** Native feedline objects — each expands to LaunchPad→RouteStraight→LaunchPad on export */
+  feedlines: Feedline[];
   selection: Selection;
   pendingPin: PendingPin | null;
   zoom: number;
@@ -114,22 +118,21 @@ export function pinOccupancy(
 
 /**
  * Return the maximum number of connections allowed on a pin.
- * Reads PinSpec metadata when available; falls back to the global default.
- * This is the single extension point: once PinSpec gains `maxConnections`,
- * update this function and all validation automatically benefits.
+ * One connection per pin — this matches Qiskit Metal's physical constraint.
+ * Use a CoupledLineTee inserted on the feedline to tap a resonator mid-line.
  */
 export function maxConnectionsForPin(
-  // Reserved for future PinSpec metadata lookup
   _placementId: string,
   _pinName: string,
+  _placements?: Array<{ id: string; componentId: string }>,
 ): number {
-  // Future: look up PinSpec.maxConnections from a pin catalog / metadata store.
-  return DEFAULT_MAX_CONNECTIONS_PER_PIN;
+  return DEFAULT_MAX_CONNECTIONS_PER_PIN; // always 1
 }
 
 interface Snapshot {
   placements: Placement[];
   connections: Connection[];
+  feedlines: Feedline[];
 }
 
 const MAX_HISTORY = 50;
@@ -169,7 +172,30 @@ export type EditorAction =
   | { type: "LOAD"; doc: DesignDocument }
   | { type: "AUTO_ALIGN"; layout?: AlignLayout }
   | { type: "SET_CHIP_SIZE"; w: number; h: number }
-  | { type: "PLACE_N_QUBITS"; n: number; componentId?: string };
+  | { type: "PLACE_N_QUBITS"; n: number; componentId?: string }
+  // ── Feedline actions ─────────────────────────────────────────────────────
+  | { type: "ADD_FEEDLINE"; feedline: Feedline }
+  | { type: "UPDATE_FEEDLINE"; id: string; patch: Partial<Feedline> }
+  | { type: "DELETE_FEEDLINE"; id: string }
+  | { type: "MOVE_FEEDLINE_START"; id: string; x1: number; y1: number }
+  | { type: "MOVE_FEEDLINE_END"; id: string; x2: number; y2: number }
+  | { type: "MOVE_FEEDLINE"; id: string; dx: number; dy: number }
+  | { type: "ATTACH_RESONATOR_TO_FEEDLINE"; feedlineId: string; attachment: FeedlineAttachment }
+  | { type: "DETACH_RESONATOR_FROM_FEEDLINE"; feedlineId: string; resonatorId: string }
+  /**
+   * Place a complete feedline preset: two LaunchpadWirebond placements wired
+   * by a RouteStraight — all created atomically in one undo step.
+   * This produces real editor placements identical to manually placing T0 + L1
+   * and connecting them, exactly matching the image reference.
+   */
+  | {
+    type: "ADD_FEEDLINE_PRESET";
+    lpA: Placement;          // LaunchpadWirebond start (left)
+    lpB: Placement;          // LaunchpadWirebond end (right)
+    connection: Connection;  // RouteStraight between them
+  }
+  /** Add a single connection directly — used for tee insertion on feedlines */
+  | { type: "ADD_CONNECTION"; connection: Connection };
 
 export type AlignLayout =
   | "grid"        // balanced rows × cols (default)
@@ -187,6 +213,10 @@ function snapshot(s: EditorState): Snapshot {
       ...c,
       routeOverrides: c.routeOverrides ? { ...c.routeOverrides } : undefined,
     })),
+    feedlines: s.feedlines.map((f) => ({
+      ...f,
+      attachedResonators: [...f.attachedResonators],
+    })),
   };
 }
 
@@ -201,6 +231,7 @@ function bump(s: EditorState): Pick<EditorState, "past" | "future" | "rev"> {
 export const initialEditorState: EditorState = {
   placements: [],
   connections: [],
+  feedlines: [],
   selection: [],
   pendingPin: null,
   zoom: 0.5,
@@ -339,14 +370,46 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case "DELETE_PLACEMENT": {
       const target = state.placements.find((p) => p.id === action.id);
       if (target?.locked) return state;
+
+      // ── Feedline tee healing ─────────────────────────────────────────────
+      // When a CoupledLineTee / LineTee is deleted that is wired inline on a
+      // feedline (prime_start ← RouteStraight and prime_end → RouteStraight),
+      // automatically reconnect the two outer endpoints with a new RouteStraight
+      // so the feedline body is not broken.
+      const _TEE_IDS = new Set(["CoupledLineTee", "LineTee", "CapNInterdigitalTee"]);
+      let healedConnections = state.connections.filter(
+        (c) => c.from.placementId !== action.id && c.to.placementId !== action.id,
+      );
+
+      if (target && _TEE_IDS.has(target.componentId)) {
+        // Find the segment arriving at Tee.prime_start
+        const segIn = state.connections.find(
+          (c) => c.to.placementId === action.id && c.to.pinName === "prime_start",
+        );
+        // Find the segment leaving from Tee.prime_end
+        const segOut = state.connections.find(
+          (c) => c.from.placementId === action.id && c.from.pinName === "prime_end",
+        );
+
+        if (segIn && segOut) {
+          // Reconnect outer endpoints: segIn.from → segOut.to
+          const healId = `conn_fl_heal_${Date.now()}`;
+          const healed: Connection = {
+            id: healId,
+            from: { placementId: segIn.from.placementId, pinName: segIn.from.pinName },
+            to: { placementId: segOut.to.placementId, pinName: segOut.to.pinName },
+            routeComponentId: "RouteStraight",
+            routeOverrides: { trace_width: "10um", trace_gap: "6um" },
+          };
+          healedConnections = [...healedConnections, healed];
+        }
+      }
+
       return {
         ...state,
         ...bump(state),
         placements: state.placements.filter((p) => p.id !== action.id),
-        // Cascade: drop any connection touching this placement.
-        connections: state.connections.filter(
-          (c) => c.from.placementId !== action.id && c.to.placementId !== action.id,
-        ),
+        connections: healedConnections,
         selection: state.selection.filter(
           (s) => !(s.kind === "placement" && s.id === action.id),
         ),
@@ -394,7 +457,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       }
       // ── Single-connection-per-pin capacity check ─────────────────────────
       // Check the "from" pin (the first pin the user clicked, i.e. pendingPin)
-      const fromMax = maxConnectionsForPin(state.pendingPin.placementId, state.pendingPin.pinName);
+      const fromMax = maxConnectionsForPin(state.pendingPin.placementId, state.pendingPin.pinName, state.placements);
       const fromCount = pinOccupancy(state.connections, state.pendingPin.placementId, state.pendingPin.pinName);
       if (fromCount >= fromMax) {
         return {
@@ -404,7 +467,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         };
       }
       // Check the "to" pin (the second pin the user clicked)
-      const toMax = maxConnectionsForPin(action.placementId, action.pinName);
+      const toMax = maxConnectionsForPin(action.placementId, action.pinName, state.placements);
       const toCount = pinOccupancy(state.connections, action.placementId, action.pinName);
       if (toCount >= toMax) {
         return {
@@ -662,6 +725,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         placements: prev.placements,
         connections: prev.connections,
+        feedlines: prev.feedlines,
         past: state.past.slice(0, -1),
         future: [snapshot(state), ...state.future].slice(0, MAX_HISTORY),
         rev: state.rev + 1,
@@ -671,7 +735,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const sel = state.selection;
       nextState.selection = sel.filter(
         (s) =>
-          (s.kind === "placement" && prev.placements.some((p) => p.id === s.id)) ||
+          (s.kind === "placement" && (prev.placements.some((p) => p.id === s.id) || prev.feedlines.some((f) => f.id === s.id))) ||
           (s.kind === "connection" && prev.connections.some((c) => c.id === s.id)),
       );
       return nextState;
@@ -683,6 +747,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         placements: next.placements,
         connections: next.connections,
+        feedlines: next.feedlines,
         past: [...state.past, snapshot(state)],
         future: state.future.slice(1),
         rev: state.rev + 1,
@@ -692,7 +757,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       const sel = state.selection;
       nextState.selection = sel.filter(
         (s) =>
-          (s.kind === "placement" && next.placements.some((p) => p.id === s.id)) ||
+          (s.kind === "placement" && (next.placements.some((p) => p.id === s.id) || next.feedlines.some((f) => f.id === s.id))) ||
           (s.kind === "connection" && next.connections.some((c) => c.id === s.id)),
       );
       return nextState;
@@ -803,11 +868,139 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         ...state,
         placements: action.doc.placements,
         connections: action.doc.connections,
+        feedlines: action.doc.feedlines ?? [],
         selection,
         pendingPin: null,
         rev: state.rev + 1,
       };
     }
+    // ── Feedline actions ─────────────────────────────────────────────────────
+    case "ADD_FEEDLINE": {
+      const fl = action.feedline;
+      // Compute totalLength from geometry
+      const dx = fl.x2 - fl.x1;
+      const dy = fl.y2 - fl.y1;
+      const totalLength = Math.sqrt(dx * dx + dy * dy);
+      return {
+        ...state,
+        ...bump(state),
+        feedlines: [...state.feedlines, { ...fl, totalLength }],
+        selection: [{ kind: "placement", id: fl.id }],
+      };
+    }
+    case "UPDATE_FEEDLINE": {
+      return {
+        ...state,
+        ...bump(state),
+        feedlines: state.feedlines.map((f) => {
+          if (f.id !== action.id) return f;
+          const patched = { ...f, ...action.patch };
+          const dx = patched.x2 - patched.x1;
+          const dy = patched.y2 - patched.y1;
+          patched.totalLength = Math.sqrt(dx * dx + dy * dy);
+          return patched;
+        }),
+      };
+    }
+    case "DELETE_FEEDLINE":
+      return {
+        ...state,
+        ...bump(state),
+        feedlines: state.feedlines.filter((f) => f.id !== action.id),
+        selection: state.selection.filter(
+          (s) => !(s.kind === "placement" && s.id === action.id),
+        ),
+      };
+    case "MOVE_FEEDLINE_START": {
+      return {
+        ...state,
+        feedlines: state.feedlines.map((f) => {
+          if (f.id !== action.id) return f;
+          const dx = f.x2 - action.x1;
+          const dy = f.y2 - action.y1;
+          return { ...f, x1: action.x1, y1: action.y1, totalLength: Math.sqrt(dx * dx + dy * dy) };
+        }),
+      };
+    }
+    case "MOVE_FEEDLINE_END": {
+      return {
+        ...state,
+        feedlines: state.feedlines.map((f) => {
+          if (f.id !== action.id) return f;
+          const dx = action.x2 - f.x1;
+          const dy = action.y2 - f.y1;
+          return { ...f, x2: action.x2, y2: action.y2, totalLength: Math.sqrt(dx * dx + dy * dy) };
+        }),
+      };
+    }
+    case "MOVE_FEEDLINE": {
+      return {
+        ...state,
+        feedlines: state.feedlines.map((f) => {
+          if (f.id !== action.id) return f;
+          return {
+            ...f,
+            x1: f.x1 + action.dx,
+            y1: f.y1 + action.dy,
+            x2: f.x2 + action.dx,
+            y2: f.y2 + action.dy,
+          };
+        }),
+      };
+    }
+    case "ATTACH_RESONATOR_TO_FEEDLINE":
+      return {
+        ...state,
+        ...bump(state),
+        feedlines: state.feedlines.map((f) =>
+          f.id !== action.feedlineId
+            ? f
+            : {
+              ...f,
+              attachedResonators: [
+                ...f.attachedResonators.filter(
+                  (a) => a.resonatorId !== action.attachment.resonatorId,
+                ),
+                action.attachment,
+              ],
+            },
+        ),
+      };
+    case "DETACH_RESONATOR_FROM_FEEDLINE":
+      return {
+        ...state,
+        ...bump(state),
+        feedlines: state.feedlines.map((f) =>
+          f.id !== action.feedlineId
+            ? f
+            : {
+              ...f,
+              attachedResonators: f.attachedResonators.filter(
+                (a) => a.resonatorId !== action.resonatorId,
+              ),
+            },
+        ),
+      };
+    // ── Feedline preset: creates real LP + Route + LP placements atomically ─
+    case "ADD_FEEDLINE_PRESET":
+      return {
+        ...state,
+        ...bump(state),
+        placements: [...state.placements, action.lpA, action.lpB],
+        connections: [...state.connections, action.connection],
+        selection: [
+          { kind: "placement" as const, id: action.lpA.id },
+          { kind: "placement" as const, id: action.lpB.id },
+        ],
+      };
+    // ── Add a single connection directly ─────────────────────────────────────
+    case "ADD_CONNECTION":
+      return {
+        ...state,
+        ...bump(state),
+        connections: [...state.connections, action.connection],
+        selection: [{ kind: "connection" as const, id: action.connection.id }],
+      };
     default:
       return state;
   }
@@ -863,7 +1056,7 @@ export function DesignStoreProvider({ children }: { children: ReactNode }) {
     () => ({
       state,
       dispatch,
-      doc: { placements: state.placements, connections: state.connections },
+      doc: { placements: state.placements, connections: state.connections, feedlines: state.feedlines },
       canUndo: state.past.length > 0,
       canRedo: state.future.length > 0,
       uniqueName,
@@ -896,6 +1089,8 @@ export function prefixForCategory(category: string | undefined): string {
       return "G";
     case "terminations":
       return "T";
+    case "feedlines":
+      return "FL";
     default:
       return "X";
   }
