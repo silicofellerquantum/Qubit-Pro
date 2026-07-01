@@ -5,11 +5,62 @@ import { AppSidebar } from "@/components/app/app-sidebar";
 import { useAuth } from "@/lib/auth/auth-context";
 import { DesignProvider } from "@/lib/design-context";
 import { ProjectProvider, useProject } from "@/lib/project-context";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Zap } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
+
+// ─── Credit Balance Indicator ─────────────────────────────────────────────
+// Reads from localStorage so it updates across all pages without API calls.
+// Credits are only deducted when a simulation actually runs.
+const CREDIT_KEY = "qs_credits";
+const CREDIT_DEFAULT = 50;
+
+export function getCreditBalance(): number {
+  if (typeof window === "undefined") return CREDIT_DEFAULT;
+  const v = localStorage.getItem(CREDIT_KEY);
+  return v !== null ? Number(v) : CREDIT_DEFAULT;
+}
+
+export function deductCredit(amount = 1): number {
+  const next = Math.max(0, getCreditBalance() - amount);
+  localStorage.setItem(CREDIT_KEY, String(next));
+  window.dispatchEvent(new Event("qs:credits:changed"));
+  return next;
+}
+
+function CreditBalanceIndicator() {
+  const [credits, setCredits] = useState<number>(getCreditBalance);
+
+  useEffect(() => {
+    const sync = () => setCredits(getCreditBalance());
+    window.addEventListener("qs:credits:changed", sync);
+    return () => window.removeEventListener("qs:credits:changed", sync);
+  }, []);
+
+  const pct  = Math.round((credits / CREDIT_DEFAULT) * 100);
+  const low  = credits <= 10;
+  const warn = credits <= 25;
+
+  return (
+    <div className={cn(
+      "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold select-none",
+      low  ? "bg-rose-50 border-rose-200 text-rose-700" :
+      warn ? "bg-amber-50 border-amber-200 text-amber-700" :
+             "bg-violet-50 border-violet-200 text-violet-700",
+    )}>
+      <Zap className={cn("h-3.5 w-3.5", low ? "text-rose-500" : warn ? "text-amber-500" : "text-violet-500")} />
+      <span>{credits} credits</span>
+      <span className={cn("text-[10px] font-normal",
+        low ? "text-rose-500" : warn ? "text-amber-500" : "text-violet-400")}>
+        {low ? "low" : warn ? "limited" : `${pct}%`}
+      </span>
+    </div>
+  );
+}
 
 function AppHeader({ getPageTitle }: { getPageTitle: () => string }) {
   const { user } = useAuth();
@@ -25,6 +76,8 @@ function AppHeader({ getPageTitle }: { getPageTitle: () => string }) {
           {getPageTitle()}
         </h1>
       </div>
+      {/* Right Group — credit balance always visible */}
+      <CreditBalanceIndicator />
     </header>
   );
 }

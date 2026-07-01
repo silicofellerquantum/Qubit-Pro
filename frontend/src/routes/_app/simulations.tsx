@@ -6,6 +6,7 @@ import {
   PlayCircle, Clock, Download, Sparkles, Bell, ChevronDown, ChevronLeft,
   Info, Search, Eye, EyeOff, Move, Hand, ZoomIn, Maximize2, Camera,
   ChevronRight, X, CheckCircle2, AlertTriangle, FileText, Loader2, Square,
+  Pause, RotateCcw, Database, Archive, AlertCircle, RefreshCw, Zap, BarChart3,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -22,6 +23,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import {
   SOLVER_GROUPS, OPTIMIZATION_GROUP, JOBS_GROUP, SOLVER_LABEL, SOLVER_TABS,
   type SolverId,
 } from "@/lib/simulator/solver-registry";
@@ -29,6 +33,7 @@ import { DESIGN_RULES, INDUSTRY_BENCHMARKS } from "@/lib/simulator/parameter-cat
 import {
   defaultSeedFromDesign, deriveAll, type DerivedAll,
 } from "@/lib/simulator/derive-parameters";
+import { deductCredit, getCreditBalance } from "@/routes/_app";
 
 export const Route = createFileRoute("/_app/simulations")({
   head: () => ({ meta: [{ title: "Simulations — Silicofeller Quantum Studio" }] }),
@@ -48,6 +53,24 @@ type SimResult = {
   derived: DerivedAll;
   logs: LogLine[];
 };
+
+// ── Job cache ─────────────────────────────────────────────────────────────────
+// Stored in module scope so it persists across re-renders without triggering
+// re-fetches. Viewing logs/results from this cache consumes zero credits.
+const JOB_CACHE: Map<string, SimResult> = new Map();
+
+function cacheJob(result: SimResult) {
+  JOB_CACHE.set(result.runId, result);
+  // Keep the 20 most recent jobs to avoid unbounded memory growth
+  if (JOB_CACHE.size > 20) {
+    const oldest = JOB_CACHE.keys().next().value;
+    if (oldest) JOB_CACHE.delete(oldest);
+  }
+}
+
+function getCachedJobs(): SimResult[] {
+  return Array.from(JOB_CACHE.values()).reverse();
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function fmtSci(v: number, digits = 2): string {
@@ -107,6 +130,7 @@ function useSimulationRunner(initial: DerivedAll, designId: string, numQubits: n
   const [logs,     setLogs]     = useState<LogLine[]>([]);
   const [derived,  setDerived]  = useState<DerivedAll>(initial);
   const [lastRun,  setLastRun]  = useState<SimResult | null>(null);
+  const [paused,   setPaused]   = useState(false);
   const variation = useRef(0);
   const tickRef   = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -117,17 +141,54 @@ function useSimulationRunner(initial: DerivedAll, designId: string, numQubits: n
     tickRef.current = null;
     setStatus("idle");
     setProgress(0);
+    setPaused(false);
     pushLog({ time: new Date().toTimeString().slice(0, 8), text: "Run cancelled by user.", kind: "warn" });
     toast.warning("Simulation cancelled");
   }, [pushLog]);
 
+  const pause = useCallback(() => {
+    // Pause just freezes the progress ticker — no new simulation, no credit charge.
+    if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
+    setPaused(true);
+    pushLog({ time: new Date().toTimeString().slice(0, 8), text: "Run paused by user.", kind: "warn" });
+    toast.info("Simulation paused");
+  }, [pushLog]);
+
+  const resume = useCallback(() => {
+    if (status !== "running") return;
+    setPaused(false);
+    tickRef.current = setInterval(() => {
+      setProgress(p => p < 92 ? p + Math.random() * 6 : p);
+    }, 90);
+    pushLog({ time: new Date().toTimeString().slice(0, 8), text: "Run resumed." });
+    toast.info("Simulation resumed");
+  }, [status, pushLog]);
+
+  // run() is the only place credits are consumed.
   const run = useCallback(async (solver: SolverId) => {
     if (status === "running") return;
+
+    // Credit gate — refuse if balance is 0
+    const balance = getCreditBalance();
+    if (balance <= 0) {
+      toast.error("No credits remaining", {
+        description: "Top up your credits in Billing & Usage before running a simulation.",
+      });
+      return;
+    }
+
     variation.current += 1;
     setStatus("running");
     setProgress(0);
-    setLogs([{ time: new Date().toTimeString().slice(0, 8), text: `Queuing ${solver} job…` }]);
-    toast.info(`Running ${solver}…`, { description: `Variation #${variation.current}` });
+    setPaused(false);
+    setLogs([{ time: new Date().toTimeString().slice(0, 8), text: `Queuing ${solver} job… (1 credit will be charged)` }]);
+    toast.info(`Running ${solver}…`, { description: `Variation #${variation.current} · Credits remaining: ${balance - 1}` });
+
+    // Deduct 1 credit — this is the ONLY place credits are consumed.
+    deductCredit(1);
 
     tickRef.current = setInterval(() => {
       setProgress(p => p < 92 ? p + Math.random() * 6 : p);
@@ -141,6 +202,8 @@ function useSimulationRunner(initial: DerivedAll, designId: string, numQubits: n
       }
       setDerived(result.derived);
       setLastRun(result);
+      // Cache the completed job — logs/results are now free to view
+      cacheJob(result);
       setProgress(100);
       setStatus("completed");
       toast.success(`${solver} completed`, {
@@ -160,6 +223,7 @@ function useSimulationRunner(initial: DerivedAll, designId: string, numQubits: n
   useEffect(() => () => { if (tickRef.current) clearInterval(tickRef.current); }, []);
 
   const exportResults = useCallback(() => {
+    // Export uses cached data — zero credits consumed.
     const payload = lastRun ?? { derived, note: "no run yet" };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url  = URL.createObjectURL(blob);
@@ -168,10 +232,10 @@ function useSimulationRunner(initial: DerivedAll, designId: string, numQubits: n
     a.download = `simulation_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Results exported", { description: a.download });
+    toast.success("Results exported (cached — no credits used)", { description: a.download });
   }, [lastRun, derived]);
 
-  return { status, progress, logs, derived, lastRun, run, cancel, exportResults };
+  return { status, progress, logs, derived, lastRun, paused, run, cancel, pause, resume, exportResults };
 }
 
 // ── Main page ────────────────────────────────────────────────────────────────
@@ -182,6 +246,10 @@ function SimulationsPage() {
   const [paramsTab,     setParamsTab]     = useState<"setup" | "advanced">("setup");
   const [aiPillOpen,    setAiPillOpen]    = useState(true);
   const [showDock,      setShowDock]      = useState(false);
+  // Jobs panel state (no extra API calls — uses local cache)
+  const [jobsPanel,     setJobsPanel]     = useState<"none"|"running"|"completed"|"results"|"reports">("none");
+  // Rerun confirmation dialog
+  const [rerunTarget,   setRerunTarget]   = useState<SimResult | null>(null);
 
   const designId   = "demo";
   const numQubits  = 5;
@@ -198,8 +266,41 @@ function SimulationsPage() {
     if (runner.status !== "idle") setShowDock(true);
   }, [runner.status]);
 
+  // Rerun: only triggers if user explicitly confirms. Credits consumed inside runner.run().
+  const handleRerunConfirm = useCallback(() => {
+    if (!rerunTarget) return;
+    setRerunTarget(null);
+    setJobsPanel("none");
+    setShowDock(true);
+    runner.run(rerunTarget.solver);
+  }, [rerunTarget, runner]);
+
   return (
     <TooltipProvider delayDuration={200}>
+      {/* Rerun confirmation dialog — prevents accidental credit usage */}
+      <Dialog open={rerunTarget !== null} onOpenChange={open => { if (!open) setRerunTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-amber-500" /> Confirm Rerun
+            </DialogTitle>
+            <DialogDescription className="text-sm text-slate-600">
+              Rerunning <span className="font-semibold">{rerunTarget ? SOLVER_LABEL[rerunTarget.solver] : ""}</span> will consume{" "}
+              <span className="font-bold text-violet-700">1 credit</span>. You currently have{" "}
+              <span className="font-bold">{getCreditBalance()} credits</span>.
+              <br /><br />
+              Only rerun if you have changed parameters. Viewing existing results is always free.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setRerunTarget(null)}>Cancel</Button>
+            <Button onClick={handleRerunConfirm} className="bg-accent hover:bg-accent/90 text-white gap-1.5">
+              <Zap className="h-3.5 w-3.5" /> Confirm Rerun (1 credit)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-col h-full w-full bg-slate-50 text-slate-800 overflow-hidden">
         <Topbar
           projectName="Transmon_Processor_v2"
@@ -208,23 +309,43 @@ function SimulationsPage() {
           setAiPillOpen={setAiPillOpen}
           status={runner.status}
           progress={runner.progress}
+          paused={runner.paused}
           onRun={() => { setShowDock(true); runner.run(solver); }}
           onCancel={runner.cancel}
+          onPause={runner.pause}
+          onResume={runner.resume}
           onExport={runner.exportResults}
         />
         <div className="flex-1 flex min-h-0">
-          <SolverRail solver={solver} setSolver={setSolver} collapsed={railCollapsed} setCollapsed={setRailCollapsed} />
+          <SolverRail
+            solver={solver} setSolver={setSolver}
+            collapsed={railCollapsed} setCollapsed={setRailCollapsed}
+            activeJobsPanel={jobsPanel} setJobsPanel={setJobsPanel}
+          />
           <div className="flex-1 flex flex-col min-w-0 min-h-0">
-            <CenterPane
-              solver={solver}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              derived={derived}
-              runner={runner}
-              showDock={showDock}
-              onCloseDock={() => setShowDock(false)}
-            />
-            <StatusBar derived={derived} status={runner.status} progress={runner.progress} />
+            {/* Jobs panels — uses cached data, zero credits */}
+            {jobsPanel !== "none" ? (
+              <JobsOverlay
+                panel={jobsPanel}
+                onClose={() => setJobsPanel("none")}
+                runner={runner}
+                solver={solver}
+                onRerun={(job) => setRerunTarget(job)}
+              />
+            ) : (
+              <>
+                <CenterPane
+                  solver={solver}
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  derived={derived}
+                  runner={runner}
+                  showDock={showDock}
+                  onCloseDock={() => setShowDock(false)}
+                />
+                <StatusBar derived={derived} status={runner.status} progress={runner.progress} />
+              </>
+            )}
           </div>
           <ParametersRail
             solver={solver}
@@ -240,13 +361,20 @@ function SimulationsPage() {
 }
 
 // ── Topbar ───────────────────────────────────────────────────────────────────
-function Topbar({ projectName, solverLabel, aiPillOpen, setAiPillOpen, status, progress, onRun, onCancel, onExport }: {
+function Topbar({ projectName, solverLabel, aiPillOpen, setAiPillOpen, status, progress, paused, onRun, onCancel, onPause, onResume, onExport }: {
   projectName: string; solverLabel: string;
   aiPillOpen: boolean; setAiPillOpen: (v: boolean) => void;
-  status: RunStatus; progress: number;
-  onRun: () => void; onCancel: () => void; onExport: () => void;
+  status: RunStatus; progress: number; paused: boolean;
+  onRun: () => void; onCancel: () => void; onPause: () => void; onResume: () => void; onExport: () => void;
 }) {
   const running = status === "running";
+  const [credits, setCredits] = useState<number>(getCreditBalance);
+  useEffect(() => {
+    const sync = () => setCredits(getCreditBalance());
+    window.addEventListener("qs:credits:changed", sync);
+    return () => window.removeEventListener("qs:credits:changed", sync);
+  }, []);
+
   return (
     <div className="h-14 px-5 flex items-center justify-between bg-white border-b border-slate-200 shrink-0">
       <div className="flex items-center gap-2 text-sm">
@@ -264,23 +392,44 @@ function Topbar({ projectName, solverLabel, aiPillOpen, setAiPillOpen, status, p
             status === "completed" ? "bg-emerald-500" :
             status === "running"   ? "bg-violet-500 animate-pulse" :
             status === "error"     ? "bg-rose-500" : "bg-slate-400")} />
-          {status === "running" ? `Running ${Math.round(progress)}%` :
+          {status === "running" ? (paused ? `Paused ${Math.round(progress)}%` : `Running ${Math.round(progress)}%`) :
            status === "completed" ? "Completed" :
            status === "error" ? "Error" : "Ready"}
         </span>
       </div>
       <div className="flex items-center gap-2">
+        {/* Credit cost indicator — shown before running */}
+        {!running && status !== "completed" && (
+          <div className={cn("flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold border",
+            credits <= 5 ? "bg-rose-50 text-rose-700 border-rose-200" :
+            credits <= 15 ? "bg-amber-50 text-amber-700 border-amber-200" :
+            "bg-violet-50 text-violet-700 border-violet-200")}>
+            <Zap className="h-3 w-3" />
+            {credits} credits · 1 per run
+          </div>
+        )}
         {running ? (
-          <Button onClick={onCancel} className="h-9 bg-rose-600 hover:bg-rose-700 text-white font-semibold gap-2 shadow-sm">
-            <Square className="h-4 w-4" /> Stop
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {paused ? (
+              <Button onClick={onResume} className="h-9 bg-violet-600 hover:bg-violet-700 text-white font-semibold gap-2 shadow-sm">
+                <PlayCircle className="h-4 w-4" /> Resume
+              </Button>
+            ) : (
+              <Button onClick={onPause} variant="outline" className="h-9 gap-2 font-medium text-amber-700 border-amber-300 hover:bg-amber-50">
+                <Pause className="h-4 w-4" /> Pause
+              </Button>
+            )}
+            <Button onClick={onCancel} className="h-9 bg-rose-600 hover:bg-rose-700 text-white font-semibold gap-2 shadow-sm">
+              <Square className="h-4 w-4" /> Stop
+            </Button>
+          </div>
         ) : (
-          <Button onClick={onRun} className="h-9 bg-accent hover:bg-accent/90 text-white font-semibold gap-2 shadow-sm">
+          <Button onClick={onRun} disabled={credits <= 0} className="h-9 bg-accent hover:bg-accent/90 text-white font-semibold gap-2 shadow-sm disabled:opacity-50">
             <PlayCircle className="h-4 w-4" /> Run Simulation
           </Button>
         )}
         <Button variant="outline" className="h-9 gap-2 font-medium"
-          onClick={() => toast.info("Job Monitor", { description: "0 queued · 0 running · 5 completed" })}>
+          onClick={() => toast.info("Job Monitor", { description: `${getCachedJobs().length} completed · cached` })}>
           <Clock className="h-4 w-4" /> Job Monitor
         </Button>
         <Button variant="outline" className="h-9 gap-2 font-medium" onClick={onExport}>
@@ -308,9 +457,10 @@ function Topbar({ projectName, solverLabel, aiPillOpen, setAiPillOpen, status, p
 }
 
 // ── Solver rail ──────────────────────────────────────────────────────────────
-function SolverRail({ solver, setSolver, collapsed, setCollapsed }: {
+function SolverRail({ solver, setSolver, collapsed, setCollapsed, activeJobsPanel, setJobsPanel }: {
   solver: SolverId; setSolver: (s: SolverId) => void;
   collapsed: boolean; setCollapsed: (v: boolean) => void;
+  activeJobsPanel: string; setJobsPanel: (v: "none"|"running"|"completed"|"results"|"reports") => void;
 }) {
   if (collapsed) {
     return (
@@ -377,10 +527,15 @@ function SolverRail({ solver, setSolver, collapsed, setCollapsed }: {
             {JOBS_GROUP.items.map(item => {
               const Icon = item.icon;
               const badge = "badge" in item ? (item as { badge?: number }).badge : undefined;
+              const panelId = item.id as "running"|"completed"|"results"|"reports";
+              const isActive = activeJobsPanel === panelId;
               return (
-                <button key={item.label} className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100">
+                <button key={item.label}
+                  onClick={() => setJobsPanel(isActive ? "none" : panelId)}
+                  className={cn("w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-colors",
+                    isActive ? "bg-accent/10 text-accent font-semibold" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900")}>
                   <div className="flex items-center gap-2.5">
-                    <Icon className="h-3.5 w-3.5 text-slate-400" />
+                    <Icon className={cn("h-3.5 w-3.5 shrink-0", isActive ? "text-accent" : "text-slate-400")} />
                     <span>{item.label}</span>
                   </div>
                   {badge != null && (
@@ -391,6 +546,341 @@ function SolverRail({ solver, setSolver, collapsed, setCollapsed }: {
             })}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Jobs overlay ─────────────────────────────────────────────────────────────
+// All four panels read from the local job cache. Zero credits consumed here.
+// Refresh interval: 30s for Running Jobs only; Completed/Results/Reports are static.
+
+type JobsOverlayProps = {
+  panel: "running" | "completed" | "results" | "reports";
+  onClose: () => void;
+  runner: ReturnType<typeof useSimulationRunner>;
+  solver: SolverId;
+  onRerun: (job: SimResult) => void;
+};
+
+function JobsOverlay({ panel, onClose, runner, solver, onRerun }: JobsOverlayProps) {
+  const [tick, setTick] = useState(0);
+  const [viewingLogsFor, setViewingLogsFor] = useState<string | null>(null);
+  // Generated reports cache — each job gets one report, re-downloads are free
+  const [generatedReports, setGeneratedReports] = useState<Set<string>>(new Set());
+
+  // 30-second refresh only when viewing running jobs — avoids unnecessary work
+  useEffect(() => {
+    if (panel !== "running") return;
+    const id = setInterval(() => setTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, [panel]);
+
+  const completedJobs = getCachedJobs();
+  const activeJob = runner.status === "running" || runner.status === "completed"
+    ? runner.lastRun ?? { runId: "current", startedAt: "-", finishedAt: "-", durationMs: 0, solver, derived: runner.derived, logs: runner.logs }
+    : null;
+
+  const titles: Record<typeof panel, string> = {
+    running:   "Running Jobs",
+    completed: "Completed Jobs",
+    results:   "Results",
+    reports:   "Reports",
+  };
+
+  function CreditSafeBadge() {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+        <Database className="h-3 w-3" /> Cached · 0 credits
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-white">
+      {/* Header */}
+      <div className="h-14 px-5 flex items-center justify-between border-b border-slate-200 shrink-0">
+        <div className="flex items-center gap-3">
+          <span className="text-base font-black text-slate-900 tracking-tight">{titles[panel]}</span>
+          <CreditSafeBadge />
+          {panel === "running" && (
+            <span className="text-[11px] text-slate-400">Auto-refreshes every 30s</span>
+          )}
+        </div>
+        <button onClick={onClose} className="h-8 w-8 rounded-lg hover:bg-slate-100 inline-flex items-center justify-center text-slate-500">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+
+        {/* ── Running Jobs ── */}
+        {panel === "running" && (
+          <div className="space-y-3">
+            {runner.status === "running" && activeJob ? (
+              <Card className="border-violet-200 bg-violet-50/40 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-violet-500 animate-pulse" />
+                    <span className="text-sm font-bold text-slate-900">{SOLVER_LABEL[solver]}</span>
+                    <Badge variant="outline" className="text-[10px] font-mono text-violet-700 border-violet-300">
+                      {runner.paused ? "Paused" : "Running"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {runner.paused ? (
+                      <Button size="sm" onClick={runner.resume} className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white gap-1">
+                        <PlayCircle className="h-3 w-3" /> Resume
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={runner.pause} className="h-7 text-xs text-amber-700 border-amber-300 hover:bg-amber-50 gap-1">
+                        <Pause className="h-3 w-3" /> Pause
+                      </Button>
+                    )}
+                    <Button size="sm" onClick={runner.cancel} className="h-7 text-xs bg-rose-600 hover:bg-rose-700 text-white gap-1">
+                      <Square className="h-3 w-3" /> Cancel
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[11px] text-slate-500">
+                    <span>Progress</span>
+                    <span className="font-mono font-semibold text-violet-700">{Math.round(runner.progress)}%</span>
+                  </div>
+                  <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-violet-500 rounded-full transition-all duration-300" style={{ width: `${runner.progress}%` }} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-[11px]">
+                  <div><span className="text-slate-400">Started</span><div className="font-mono font-semibold text-slate-700">{runner.logs[0]?.time ?? "–"}</div></div>
+                  <div><span className="text-slate-400">Solver</span><div className="font-semibold text-slate-700">{SOLVER_LABEL[solver]}</div></div>
+                  <div><span className="text-slate-400">Status</span><div className="font-semibold text-violet-700">{runner.paused ? "Paused" : "Active"}</div></div>
+                </div>
+              </Card>
+            ) : (
+              <div className="text-center py-16 text-slate-400">
+                <Archive className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No active jobs</p>
+                <p className="text-xs mt-1">Start a simulation to see live status here.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Completed Jobs ── */}
+        {panel === "completed" && (
+          <div className="space-y-3">
+            {completedJobs.length === 0 ? (
+              <div className="text-center py-16 text-slate-400">
+                <CheckCircle2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No completed jobs yet</p>
+                <p className="text-xs mt-1">Run a simulation — results are cached automatically.</p>
+              </div>
+            ) : completedJobs.map(job => (
+              <Card key={job.runId} className="rounded-xl border-slate-200 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <span className="text-sm font-bold text-slate-900">{SOLVER_LABEL[job.solver]}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {/* View logs — cached, 0 credits */}
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                      onClick={() => setViewingLogsFor(viewingLogsFor === job.runId ? null : job.runId)}>
+                      <FileText className="h-3 w-3" />
+                      {viewingLogsFor === job.runId ? "Hide Logs" : "View Logs"}
+                    </Button>
+                    {/* Rerun — opens confirmation dialog, credits charged only on confirm */}
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                      onClick={() => onRerun(job)}>
+                      <RotateCcw className="h-3 w-3" /> Rerun
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-3 text-[11px]">
+                  <div>
+                    <span className="text-slate-400">Job ID</span>
+                    <div className="font-mono text-slate-700 truncate">{job.runId}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Status</span>
+                    <div className="font-semibold text-emerald-600">Completed</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Runtime</span>
+                    <div className="font-mono text-slate-700">{(job.durationMs / 1000).toFixed(2)}s</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Finished</span>
+                    <div className="font-mono text-slate-700">{job.finishedAt}</div>
+                  </div>
+                </div>
+                {/* Cached logs — zero credits */}
+                {viewingLogsFor === job.runId && (
+                  <div className="bg-slate-900 rounded-lg p-3 font-mono text-[11px] leading-5 max-h-48 overflow-y-auto">
+                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700">
+                      <Database className="h-3 w-3 text-emerald-400" />
+                      <span className="text-emerald-400 text-[10px] font-semibold">Cached logs · 0 credits used</span>
+                    </div>
+                    {job.logs.map((line, i) => (
+                      <div key={i} className="flex gap-2">
+                        <span className="text-slate-500">{line.time}</span>
+                        <span className={cn(
+                          line.kind === "ok" ? "text-emerald-400" :
+                          line.kind === "warn" ? "text-amber-400" : "text-slate-300"
+                        )}>{line.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* ── Results ── */}
+        {panel === "results" && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <Database className="h-4 w-4 text-emerald-500 shrink-0" />
+              Viewing stored outputs. All results are loaded from cache — no re-computation, no credits consumed.
+            </div>
+            {completedJobs.length === 0 ? (
+              <div className="text-center py-16 text-slate-400">
+                <BarChart3 className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No results available</p>
+                <p className="text-xs mt-1">Run at least one simulation to see cached results here.</p>
+              </div>
+            ) : completedJobs.map(job => (
+              <Card key={job.runId} className="rounded-xl border-slate-200 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">{SOLVER_LABEL[job.solver]}</div>
+                    <div className="text-[11px] text-slate-400 font-mono">{job.runId} · {job.finishedAt}</div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                      onClick={() => {
+                        const blob = new Blob([JSON.stringify(job.derived, null, 2)], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a"); a.href = url; a.download = `${job.runId}_results.json`; a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success("Exported from cache · 0 credits used");
+                      }}>
+                      <Download className="h-3 w-3" /> JSON
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                      onClick={() => {
+                        const modes = job.derived.eigenmode.modes;
+                        const csv = ["mode,f_GHz,Q_loaded,Q_unloaded,stored_energy_J",
+                          ...modes.map(m => `${m.n},${m.f_GHz},${m.Q_loaded},${m.Q_unloaded},${m.stored_energy_J}`)
+                        ].join("\n");
+                        const blob = new Blob([csv], { type: "text/csv" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a"); a.href = url; a.download = `${job.runId}_eigenmode.csv`; a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success("CSV exported from cache · 0 credits used");
+                      }}>
+                      <Download className="h-3 w-3" /> CSV
+                    </Button>
+                  </div>
+                </div>
+                {/* Key metrics summary */}
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    ["f₀", `${job.derived.eigenmode.modes[0].f_GHz.toFixed(3)} GHz`],
+                    ["T₁", `${job.derived.coherence.T1_us.toFixed(0)} µs`],
+                    ["Q", fmtSci(job.derived.eigenmode.modes[0].Q_loaded)],
+                  ].map(([k, v]) => (
+                    <div key={k} className="bg-slate-50 rounded-lg px-3 py-2 border border-slate-100">
+                      <div className="text-[10px] text-slate-400 uppercase tracking-wide">{k}</div>
+                      <div className="text-sm font-black text-slate-900 font-mono">{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* ── Reports ── */}
+        {panel === "reports" && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg p-3 border border-slate-200">
+              <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+              Reports are generated once per job and cached. Re-downloading is always free — no credits consumed.
+            </div>
+            {completedJobs.length === 0 ? (
+              <div className="text-center py-16 text-slate-400">
+                <FileText className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No reports available</p>
+                <p className="text-xs mt-1">Complete a simulation to generate a report.</p>
+              </div>
+            ) : completedJobs.map(job => {
+              const hasReport = generatedReports.has(job.runId);
+              return (
+                <Card key={job.runId} className="rounded-xl border-slate-200 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-bold text-slate-900">{SOLVER_LABEL[job.solver]} — Summary</div>
+                      <div className="text-[11px] text-slate-400 font-mono">{job.runId}</div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {hasReport ? (
+                        // Re-download from cache — 0 credits
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                          onClick={() => {
+                            const content = `SIMULATION REPORT\n${"=".repeat(40)}\nJob: ${job.runId}\nSolver: ${SOLVER_LABEL[job.solver]}\nStarted: ${job.startedAt} · Finished: ${job.finishedAt}\nRuntime: ${(job.durationMs / 1000).toFixed(2)}s\n\nKEY RESULTS\nf₀ = ${job.derived.eigenmode.modes[0].f_GHz.toFixed(4)} GHz\nT₁ = ${job.derived.coherence.T1_us.toFixed(1)} µs\nT₂ = ${job.derived.coherence.T2_us.toFixed(1)} µs\nQ  = ${fmtSci(job.derived.eigenmode.modes[0].Q_loaded)}\n\n[Cached report — 0 credits]`;
+                            const blob = new Blob([content], { type: "text/plain" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a"); a.href = url; a.download = `report_${job.runId}.txt`; a.click();
+                            URL.revokeObjectURL(url);
+                            toast.success("Report downloaded from cache · 0 credits");
+                          }}>
+                          <Download className="h-3 w-3" /> Re-download
+                        </Button>
+                      ) : (
+                        // Generate once — also 0 credits (report generation doesn't rerun the sim)
+                        <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={() => {
+                            setGeneratedReports(prev => new Set(prev).add(job.runId));
+                            toast.success("Report generated · 0 credits used", {
+                              description: "Click 'Re-download' to save anytime.",
+                            });
+                          }}>
+                          <RefreshCw className="h-3 w-3" /> Generate Report
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-400">Job ID</span>
+                      <span className="font-mono text-slate-700">{job.runId}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-400">Status</span>
+                      <span className="text-emerald-600 font-semibold">Completed</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-400">Runtime</span>
+                      <span className="font-mono text-slate-700">{(job.durationMs / 1000).toFixed(2)}s</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-100">
+                      <span className="text-slate-400">Finished</span>
+                      <span className="font-mono text-slate-700">{job.finishedAt}</span>
+                    </div>
+                  </div>
+                  {hasReport && (
+                    <div className="text-[10px] text-emerald-600 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Report cached — re-download anytime at no cost
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -740,20 +1230,20 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
         <FieldHeatmapSVG selectedMode={selectedMode} />
         {/* Layers panel */}
         {showLayers && (
-          <div className="absolute top-16 left-3 w-52 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-white/20 text-xs z-10">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
-              <span className="font-bold text-slate-800">Layers</span>
-              <button onClick={() => setShowLayers(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+          <div className="absolute top-16 left-3 w-52 bg-white/[0.15] backdrop-blur-md rounded-lg border border-white/20 text-xs z-10 shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-opacity duration-300 opacity-[0.18] hover:opacity-100">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/15">
+              <span className="font-bold text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]">Layers</span>
+              <button onClick={() => setShowLayers(false)} className="text-white/60 hover:text-white"><X className="h-3 w-3" /></button>
             </div>
             <div className="p-2 space-y-1">
               {Object.entries(layers).map(([name, on]) => (
                 <button key={name} onClick={() => setLayers(s => ({ ...s, [name]: !s[name] }))}
-                  className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-slate-100">
+                  className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-white/10">
                   <div className="flex items-center gap-2">
                     <span className={cn("h-3 w-3 rounded-sm shrink-0", LAYER_COLORS[name] || "bg-slate-400")} />
-                    <span className="text-slate-700">{name}</span>
+                    <span className="text-white/90 [text-shadow:0_0_8px_rgba(255,255,255,0.5)]">{name}</span>
                   </div>
-                  {on ? <Eye className="h-3 w-3 text-slate-500" /> : <EyeOff className="h-3 w-3 text-slate-300" />}
+                  {on ? <Eye className="h-3 w-3 text-white/60" /> : <EyeOff className="h-3 w-3 text-white/30" />}
                 </button>
               ))}
             </div>
@@ -761,10 +1251,10 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
         )}
         {/* View controls */}
         {showViewCtrl && (
-          <div className="absolute top-[280px] left-3 w-52 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-white/20 z-10">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
-              <span className="text-xs font-bold text-slate-800">View Controls</span>
-              <button onClick={() => setShowViewCtrl(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+          <div className="absolute top-[280px] left-3 w-52 bg-white/[0.15] backdrop-blur-md rounded-lg border border-white/20 z-10 shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-opacity duration-300 opacity-[0.18] hover:opacity-100">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/15">
+              <span className="text-xs font-bold text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]">View Controls</span>
+              <button onClick={() => setShowViewCtrl(false)} className="text-white/60 hover:text-white"><X className="h-3 w-3" /></button>
             </div>
             <div className="flex items-center gap-1 p-2">
               {viewTools.map(({ id, Icon, label: lbl }) => (
@@ -773,8 +1263,8 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
                   if (id === "zoom") setZoom(z => Math.min(z + 0.2, 3));
                   else if (id === "fit") setZoom(1);
                   toast.success(lbl);
-                }} className={cn("h-7 w-7 inline-flex items-center justify-center rounded hover:bg-slate-100",
-                  tool === id ? "bg-accent/10 text-accent" : "text-slate-600")}>
+                }} className={cn("h-7 w-7 inline-flex items-center justify-center rounded hover:bg-white/15",
+                  tool === id ? "bg-white/20 text-white" : "text-white/70")}>
                   <Icon className="h-3.5 w-3.5" />
                 </button>
               ))}
@@ -784,9 +1274,9 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
         {/* Restore chips */}
         {(!showLayers || !showViewCtrl || !showFreq) && (
           <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-1.5">
-            {!showLayers   && <button onClick={() => setShowLayers(true)}   className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/90 text-slate-700 shadow hover:bg-white">Show Layers</button>}
-            {!showViewCtrl && <button onClick={() => setShowViewCtrl(true)} className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/90 text-slate-700 shadow hover:bg-white">Show View Controls</button>}
-            {!showFreq     && <button onClick={() => setShowFreq(true)}     className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/90 text-slate-700 shadow hover:bg-white">Show Frequency</button>}
+            {!showLayers   && <button onClick={() => setShowLayers(true)}   className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/[0.15] backdrop-blur-md text-white/90 border border-white/20 shadow-[0_2px_12px_rgba(0,0,0,0.4)] [text-shadow:0_0_8px_rgba(255,255,255,0.6)] transition-opacity duration-300 opacity-[0.18] hover:opacity-100">Show Layers</button>}
+            {!showViewCtrl && <button onClick={() => setShowViewCtrl(true)} className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/[0.15] backdrop-blur-md text-white/90 border border-white/20 shadow-[0_2px_12px_rgba(0,0,0,0.4)] [text-shadow:0_0_8px_rgba(255,255,255,0.6)] transition-opacity duration-300 opacity-[0.18] hover:opacity-100">Show View Controls</button>}
+            {!showFreq     && <button onClick={() => setShowFreq(true)}     className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/[0.15] backdrop-blur-md text-white/90 border border-white/20 shadow-[0_2px_12px_rgba(0,0,0,0.4)] [text-shadow:0_0_8px_rgba(255,255,255,0.6)] transition-opacity duration-300 opacity-[0.18] hover:opacity-100">Show Frequency</button>}
           </div>
         )}
         {/* XYZ gizmo */}
@@ -805,16 +1295,16 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
         </div>
         {/* Frequency picker */}
         {showFreq && (
-          <div className="absolute top-16 right-3 w-32 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-white/20 flex flex-col z-10">
-            <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800">Frequency (MHz)</span>
-              <button onClick={() => setShowFreq(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+          <div className="absolute top-16 right-3 w-32 bg-white/[0.15] backdrop-blur-md rounded-lg border border-white/20 flex flex-col z-10 shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-opacity duration-300 opacity-[0.18] hover:opacity-100">
+            <div className="px-3 py-2 border-b border-white/15 flex items-center justify-between">
+              <span className="text-xs font-bold text-white drop-shadow-[0_0_6px_rgba(255,255,255,0.7)]">Frequency (MHz)</span>
+              <button onClick={() => setShowFreq(false)} className="text-white/60 hover:text-white"><X className="h-3 w-3" /></button>
             </div>
             <div className="overflow-y-auto max-h-[300px]">
               {derived.eigenmode.modes.map((m, i) => (
                 <button key={i} onClick={() => setSelectedMode(i)}
                   className={cn("w-full text-left px-3 py-1.5 text-xs font-mono",
-                    selectedMode === i ? "bg-accent text-white font-semibold" : "text-slate-700 hover:bg-slate-100")}>
+                    selectedMode === i ? "bg-accent/80 text-white font-semibold" : "text-white/80 hover:bg-white/10 [text-shadow:0_0_6px_rgba(255,255,255,0.4)]")}>
                   {(m.f_GHz * 1000).toFixed(2)}
                 </button>
               ))}
