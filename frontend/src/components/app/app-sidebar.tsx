@@ -100,7 +100,7 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
   {
     label: "Settings",
     items: [
-      { title: "Users & Teams", url: "/team", icon: Users, locked: true },
+      { title: "Users & Teams", url: "/team", icon: Users },
       { title: "Integrations", url: "/integrations", icon: Plug, locked: true },
       { title: "Billing", url: "/billing", icon: CreditCard },
       { title: "Settings", url: "/settings", icon: Settings },
@@ -114,6 +114,9 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const { user, signOut } = useAuth();
   const { activeProject } = useProject();
+
+  // Admins bypass all nav locks — they can access every section
+  const isAdmin = user?.role === "admin";
 
   return (
     <Sidebar
@@ -145,8 +148,8 @@ export function AppSidebar() {
                 {group.items.map((item) => {
                   const isActive = pathname === item.url;
 
-                  // ── Locked items: not navigable, dimmed, shows a "coming soon" notice ──
-                  if (item.locked) {
+                  // ── Locked items: not navigable for non-admins ──
+                  if (item.locked && !isAdmin) {
                     return (
                       <SidebarMenuItem key={item.url}>
                         <SidebarMenuButton

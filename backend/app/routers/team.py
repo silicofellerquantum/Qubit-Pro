@@ -283,15 +283,25 @@ async def remove_member(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove an active team member."""
+    """
+    Remove an active team member.
+    
+    The member's account is downgraded to the free plan — their projects,
+    designs, and all work are fully preserved (not deleted). Access to
+    paid features is locked at the free-tier limits until they purchase
+    their own subscription or are re-invited to a team.
+    """
     result = await db.execute(select(User).where(User.id == member_id, User.team_owner_id == current_user.id))
     member = result.scalar_one_or_none()
     
     if not member:
         raise HTTPException(status_code=404, detail="Team member not found.")
-        
+
+    # Preserve all work — only revoke the team license.
+    # subscription_status = "locked" signals that the account has been
+    # downgraded from a team seat; projects are retained in read-only/free mode.
     member.team_owner_id = None
     member.plan = "free"
-    member.subscription_status = None
+    member.subscription_status = "locked"
     await db.commit()
-    return {"status": "success"}
+    return {"status": "success", "message": "Member removed. Their work is preserved and locked at the free tier."}

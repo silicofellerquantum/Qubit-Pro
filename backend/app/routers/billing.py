@@ -49,8 +49,8 @@ router = APIRouter(prefix="/api/billing", tags=["billing"])
 # For Subscriptions the plan amount lives in the Razorpay Dashboard plan object;
 # these amounts are kept here for reference / future order-based billing.
 PLAN_PRICES_CENTS: dict[str, dict[str, int]] = {
-    "basic":    {"monthly": 19900, "annual": 16900},  # $199/mo | $169/mo
-    "pro":      {"monthly": 24900, "annual": 20900},  # $249/mo | $209/mo
+    "basic":    {"monthly": 19900, "annual": 16900},  # $199/mo | $169/mo (Professional)
+    "pro":      {"monthly": 49900, "annual": 42400},  # $499/mo | $424/mo (Team)
     "test_usd": {"monthly": 200, "annual": 200},      # $2 test
     "test_inr": {"monthly": 200, "annual": 200},      # ₹2 test
 }

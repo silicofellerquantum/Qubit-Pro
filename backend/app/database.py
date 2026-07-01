@@ -103,10 +103,12 @@ async def init_db() -> None:
             log.warning(f"Could not update Postgres enum types: {e}")
 
     try:
-        from app.models import User, UserRole
+        from app.models import User, UserRole, Subscription, TeamInvite
         from app.auth import hash_password
         from sqlalchemy import select
         async with AsyncSessionLocal() as session:
+
+            # ── 1. Core demo users ──────────────────────────────────────────
             result = await session.execute(select(User).where(User.email == "admin@silicofeller.com"))
             if not result.scalar_one_or_none():
                 demo_users = [
@@ -119,6 +121,8 @@ async def init_db() -> None:
                         organization="Silicofeller Labs",
                         is_verified=True,
                         is_premium=True,
+                        plan="pro",
+                        subscription_status="active",
                     ),
                     User(
                         id="u_org_manager",
@@ -144,6 +148,92 @@ async def init_db() -> None:
                 session.add_all(demo_users)
                 await session.commit()
                 log.info("Demo users seeded successfully.")
+
+            # ── 2. Demo subscriptions: 10 Professional + 10 Team for admin ──
+            sub_result = await session.execute(
+                select(Subscription).where(Subscription.owner_id == "u_admin")
+            )
+            if not sub_result.scalars().first():
+                demo_subscriptions = [
+                    Subscription(
+                        id="sub_demo_basic",
+                        owner_id="u_admin",
+                        razorpay_subscription_id="rzp_demo_basic_10",
+                        plan="basic",          # Professional plan
+                        billing_cycle="monthly",
+                        quantity=10,           # 10 Professional licenses purchased
+                        status="active",
+                    ),
+                    Subscription(
+                        id="sub_demo_pro",
+                        owner_id="u_admin",
+                        razorpay_subscription_id="rzp_demo_pro_10",
+                        plan="pro",            # Team plan
+                        billing_cycle="monthly",
+                        quantity=10,           # 10 Team licenses purchased
+                        status="active",
+                    ),
+                ]
+                session.add_all(demo_subscriptions)
+                await session.commit()
+                log.info("Demo subscriptions seeded (10 Professional + 10 Team).")
+
+            # ── 3. Demo team members: 3 on Professional + 3 on Team ─────────
+            member_check = await session.execute(
+                select(User).where(User.team_owner_id == "u_admin")
+            )
+            if not member_check.scalars().first():
+                # 3 Professional (basic) plan members
+                professional_members = [
+                    User(
+                        id=f"u_pro_member_{i}",
+                        name=name,
+                        email=email,
+                        hashed_password=hash_password("password"),
+                        role=UserRole.engineer,
+                        organization="Silicofeller Labs",
+                        is_verified=True,
+                        is_premium=True,
+                        plan="basic",
+                        billing_cycle="monthly",
+                        subscription_status="managed",
+                        team_owner_id="u_admin",
+                    )
+                    for i, (name, email) in enumerate([
+                        ("Alice Chen",    "alice.chen@silicofeller.com"),
+                        ("Bob Martinez",  "bob.martinez@silicofeller.com"),
+                        ("Carol Singh",   "carol.singh@silicofeller.com"),
+                    ])
+                ]
+                # 3 Team (pro) plan members
+                team_members = [
+                    User(
+                        id=f"u_team_member_{i}",
+                        name=name,
+                        email=email,
+                        hashed_password=hash_password("password"),
+                        role=UserRole.engineer,
+                        organization="Silicofeller Labs",
+                        is_verified=True,
+                        is_premium=True,
+                        plan="pro",
+                        billing_cycle="monthly",
+                        subscription_status="managed",
+                        team_owner_id="u_admin",
+                    )
+                    for i, (name, email) in enumerate([
+                        ("David Kim",     "david.kim@silicofeller.com"),
+                        ("Eva Rossi",     "eva.rossi@silicofeller.com"),
+                        ("Frank Okafor",  "frank.okafor@silicofeller.com"),
+                    ])
+                ]
+                session.add_all(professional_members + team_members)
+                await session.commit()
+                log.info(
+                    "Demo team members seeded: 3 Professional + 3 Team "
+                    "(7/10 Professional seats, 4/10 Team seats used including admin)."
+                )
+
     except Exception as e:
         log.warning(f"Seeding skipped or failed: {e}")
 

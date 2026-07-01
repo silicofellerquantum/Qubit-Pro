@@ -68,7 +68,7 @@ interface AuthContextType {
   hydrated: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
-  signInAs: (role: UserRole) => void;
+  signInAs: (role: UserRole) => Promise<void>;
   signUp: (
     name: string,
     email: string,
@@ -204,9 +204,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { ok: true };
   }, []);
 
-  // Quick demo login (bypasses real auth — development convenience only)
-  const signInAs = useCallback((role: UserRole) => {
+  // Quick demo login — logs in against the real backend to get a proper JWT token.
+  // Falls back to local-only session if the backend is offline.
+  const signInAs = useCallback(async (role: UserRole) => {
     const demo = DEMO_ACCOUNTS.find((a) => a.role === role) ?? DEMO_ACCOUNTS[0];
+
+    // Always attempt real backend login first so apiFetch gets a valid token
+    try {
+      const data = await loginUser(demo.email, "password");
+      if (data?.access_token) {
+        const serverUser = data.user;
+        const loggedInUser: User = {
+          id: serverUser?.id ?? `u_${demo.role}`,
+          name: serverUser?.name ?? demo.name,
+          email: serverUser?.email ?? demo.email,
+          role: (serverUser?.role ?? demo.role) as UserRole,
+          organization: serverUser?.organization ?? demo.organization,
+          initials: serverUser?.initials ?? _makeInitials(demo.name),
+          isPremium: serverUser?.isPremium ?? (demo.role !== "engineer"),
+        };
+        setStorageItem(TOKEN_KEY, data.access_token);
+        setStorageItem(USER_KEY, JSON.stringify(loggedInUser));
+        setUser(loggedInUser);
+        return;
+      }
+    } catch {
+      // Backend offline — fall through to local-only session
+    }
+
+    // Offline fallback: set user state without a token
     const newUser: User = {
       id: `u_${demo.role}`,
       name: demo.name,

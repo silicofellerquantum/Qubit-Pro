@@ -73,7 +73,7 @@ export const Route = createFileRoute("/_app/billing")({
       {
         name: "description",
         content:
-          "Manage your Quantum Studio subscription — Free, Basic, or Pro with collaborative chip design.",
+          "Manage your Quantum Studio subscription — Free, Professional, or Team with collaborative chip design.",
       },
     ],
   }),
@@ -157,19 +157,18 @@ const PLANS: {
     accentClass: "text-slate-500",
     ringClass: "border-border",
     features: [
-      { icon: Layers, text: "2 active chip designs" },
-      { icon: Cpu, text: "Quantum Editor access" },
-      { icon: FileCheck, text: "Basic DRC checks" },
+      { icon: Layers, text: "1 project · 1 AI design (lifetime)" },
+      { icon: Cpu, text: "Basic component library & DRC" },
+      { icon: GitBranch, text: "30-day version history" },
       { icon: Microscope, text: "Community support" },
-      { icon: GitBranch, text: "Version control" },
-      { icon: Users, text: "Collaborative mode", muted: true },
+      { icon: Users, text: "Multi-user collaboration", muted: true },
     ],
-    cta: "Current Plan",
+    cta: "Free Plan",
     ctaVariant: "ghost",
   },
   {
     key: "basic",
-    name: "Basic",
+    name: "Professional",
     price: { monthly: 199, annual: 169 },
     tagline: "For engineers working on real projects.",
     designs: 5,
@@ -177,33 +176,33 @@ const PLANS: {
     accentClass: "text-violet-500",
     ringClass: "border-violet-500/60",
     features: [
-      { icon: Layers, text: "5 active chip designs" },
-      { icon: Cpu, text: "Full Quantum Editor + QCLang" },
-      { icon: FileCheck, text: "Advanced DRC + fabrication rules" },
-      { icon: Microscope, text: "Physics analysis & simulations" },
-      { icon: GitBranch, text: "Version control + branch history" },
-      { icon: Users, text: "Collaborative mode", muted: true },
+      { icon: Layers, text: "Unlimited projects & AI designs" },
+      { icon: Cpu, text: "Full component library + advanced DRC" },
+      { icon: GitBranch, text: "Unlimited version history · Auto Save" },
+      { icon: Sparkles, text: "Advanced AI Assistant" },
+      { icon: LifeBuoy, text: "Priority email support" },
+      { icon: Users, text: "Shared workspace collaboration", muted: true },
     ],
-    cta: "Upgrade to Basic",
+    cta: "Upgrade to Professional",
     ctaVariant: "default",
   },
   {
     key: "pro",
-    name: "Pro",
-    price: { monthly: 249, annual: 209 },
+    name: "Team",
+    price: { monthly: 499, annual: 424 },
     tagline: "Build together. Ship faster. Go quantum.",
     designs: 10,
     accentClass: "text-fuchsia-500",
     ringClass: "border-fuchsia-500/60",
     features: [
-      { icon: Layers, text: "10 active chip designs (2× Basic)" },
-      { icon: Cpu, text: "Everything in Basic" },
-      { icon: FileCheck, text: "Priority DRC queue" },
-      { icon: Microscope, text: "Advanced EM simulations" },
-      { icon: GitBranch, text: "Full version control history" },
-      { icon: Users, text: "Real-time collaborative mode ✦" },
+      { icon: Users, text: "Up to 10 users · real-time collaboration" },
+      { icon: Cpu, text: "Full + custom component library" },
+      { icon: Sparkles, text: "Highest AI priority · private Discord" },
+      { icon: ShieldCheck, text: "Advanced RBAC · team permissions" },
+      { icon: Database, text: "Team analytics & org dashboard" },
+      { icon: Server, text: "Full API access · advanced integrations" },
     ],
-    cta: "Upgrade to Pro",
+    cta: "Upgrade to Team",
     ctaVariant: "default",
   },
 ];
@@ -250,54 +249,36 @@ const CUSTOM_PLANS: {
   ctaVariant: "ghost" | "outline" | "default";
 }[] = [
   {
-    key: "academic",
-    name: "Academic",
-    price: { monthly: null, annual: null },
-    tagline: "For research institutions and universities. Contact us for special discounts.",
-    designs: 20,
-    accentClass: "text-teal-500",
-    ringClass: "border-teal-500/60",
-    features: [
-      { icon: Tag, text: "Special academic pricing" },
-      { icon: Users, text: "Discounted multi-seat licenses" },
-      { icon: LifeBuoy, text: "Dedicated research support" },
-    ],
-    cta: "Contact Us",
-    ctaVariant: "outline",
-  },
-  {
     key: "enterprise",
     name: "Enterprise",
     price: { monthly: null, annual: null },
-    tagline: "For large organizations scaling quantum. Contact us for custom volume discounts.",
+    tagline: "Custom pricing for large organizations scaling quantum.",
     designs: 50,
     accentClass: "text-rose-500",
     ringClass: "border-rose-500/60",
     features: [
-      { icon: Tag, text: "Custom volume discounts" },
-      { icon: Briefcase, text: "Tailored enterprise pricing" },
-      { icon: ShieldCheck, text: "Priority dedicated support" },
+      { icon: Tag, text: "Custom volume pricing & discounts" },
+      { icon: ShieldCheck, text: "SSO · Audit logs · On-prem option" },
+      { icon: LifeBuoy, text: "Dedicated success manager · 99.9% SLA" },
     ],
     cta: "Contact Us",
     ctaVariant: "outline",
   },
   {
-    key: "onpremise",
-    name: "On-Premise",
+    key: "academic",
+    name: "Academic",
     price: { monthly: null, annual: null },
-    tagline:
-      "Complete control and security on your servers. Contact us for custom volume discounts.",
-    designs: 100,
-    badge: "Maximum Security",
-    accentClass: "text-slate-800 dark:text-slate-200",
-    ringClass: "border-slate-800/60 dark:border-slate-200/60",
+    tagline: "50% discount for research institutions and universities.",
+    designs: 20,
+    accentClass: "text-teal-500",
+    ringClass: "border-teal-500/60",
     features: [
-      { icon: Tag, text: "Custom enterprise pricing" },
-      { icon: Percent, text: "Volume-based discounts" },
-      { icon: Server, text: "Dedicated deployment team" },
+      { icon: Tag, text: "50% academic discount on all plans" },
+      { icon: Users, text: "Unlimited campus users (faculty + students)" },
+      { icon: LifeBuoy, text: "Priority support & university branding" },
     ],
     cta: "Contact Us",
-    ctaVariant: "default",
+    ctaVariant: "outline",
   },
 ];
 
@@ -394,17 +375,43 @@ function DesignDots({ total, used }: { total: number; used: number }) {
   );
 }
 
+// ─── Plan display name helper ─────────────────────────────────────────────────
+
+function planDisplayName(planKey: string): string {
+  const MAP: Record<string, string> = {
+    free: "Free",
+    basic: "Professional",
+    pro: "Team",
+    test_usd: "Test USD",
+    test_inr: "Test INR",
+  };
+  return MAP[planKey] ?? planKey.charAt(0).toUpperCase() + planKey.slice(1);
+}
+
+const PLAN_RANK: Record<string, number> = {
+  free: 0,
+  basic: 1,
+  pro: 2,
+  // Test plans and contact plans are always independently purchasable — exclude from rank comparison
+  test_inr: -1,
+  test_usd: -1,
+};
+
 // ─── Plan Card ────────────────────────────────────────────────────────────────
 
 function PlanCard({
   plan,
   isCurrentPlan,
+  currentPlanKey,
+  ownedSeats,
   annual,
   onUpgrade,
   upgrading,
 }: {
   plan: (typeof PLANS)[0];
   isCurrentPlan: boolean;
+  currentPlanKey: string;
+  ownedSeats: number;        // total seats already owned for this plan (0 = none)
   annual: boolean;
   onUpgrade: (planKey: PlanKey, cycle: BillingCycle) => Promise<void>;
   upgrading: boolean;
@@ -412,15 +419,49 @@ function PlanCard({
   const price = annual ? plan.price.annual : plan.price.monthly;
   const isPro = plan.key === "pro";
   const isFree = plan.key === "free";
+  const isTestPlan = plan.key.startsWith("test");
+  // Test plans and contact-us plans are never considered "lower tier" —
+  // they sit outside the main upgrade hierarchy and are always clickable.
+  const isLowerTier = !isTestPlan && PLAN_RANK[plan.key] !== undefined
+    ? PLAN_RANK[plan.key] !== -1 && PLAN_RANK[plan.key] < PLAN_RANK[currentPlanKey]
+    : false;
+  const hasOwnedSeats = ownedSeats > 0;
+
+  // Contact Us cards (price === null) are always enabled — they redirect to contact.
+  // Test plans are always enabled — they bypass tier logic.
+  // Free is never actionable as an upgrade target.
+  const isActionable = !isFree && !isLowerTier;
+  const isDisabled = !isActionable || upgrading;
+
+  // "Buy More Seats" is available whenever the admin owns seats of this plan,
+  // it has a price, and it's not free — regardless of current plan status.
+  const canBuyMoreSeats = hasOwnedSeats && !isFree && price !== null;
 
   const handleClick = async () => {
+    if (isFree || isLowerTier || upgrading) return;
     if (price === null) {
       window.location.href = "/#contact";
       return;
     }
-    if (isCurrentPlan || isFree) return;
     await onUpgrade(plan.key as PlanKey, annual ? "annual" : "monthly");
   };
+
+  const handleBuyMoreSeats = async () => {
+    if (upgrading || price === null) return;
+    await onUpgrade(plan.key as PlanKey, annual ? "annual" : "monthly");
+  };
+
+  // CTA label logic:
+  //  - current plan with existing seats  → "Current Plan · Buy More Seats"  (two buttons)
+  //  - current plan no seats             → "Current Plan"
+  //  - lower tier                        → show plan name greyed out
+  //  - free                              → show plan name greyed out
+  //  - otherwise                         → upgrade / buy CTA
+  const primaryLabel = isCurrentPlan
+    ? "Current Plan"
+    : isLowerTier || isFree
+      ? plan.name
+      : plan.cta;
 
   return (
     <motion.div
@@ -451,12 +492,12 @@ function PlanCard({
           </div>
         )}
 
-        {/* Collab badge for Pro */}
+        {/* Team badge for the Team plan */}
         {isPro && (
           <div className="absolute left-5 top-5">
             <span className="flex items-center gap-1 rounded-full bg-fuchsia-100 px-2.5 py-0.5 text-[11px] font-semibold text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300">
               <Users className="h-3 w-3" />
-              Collaborative
+              Team
             </span>
           </div>
         )}
@@ -486,15 +527,22 @@ function PlanCard({
                 <span className="text-sm text-muted-foreground">
                   /{plan.key.startsWith("test") ? "week" : "month"}
                 </span>
-                {annual && (
-                  <span className="ml-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                    Save 15%
-                  </span>
+                {annual && plan.price.monthly && plan.price.annual && (
+                  <>
+                    <span className="ml-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      Save {Math.round(((plan.price.monthly - plan.price.annual) / plan.price.monthly) * 100)}%
+                    </span>
+                  </>
                 )}
               </>
             )}
           </div>
           <p className="mt-1.5 text-sm text-muted-foreground">{plan.tagline}</p>
+          {annual && plan.price.annual && (
+            <p className="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+              Billed annually — ${plan.price.annual * 12}/yr
+            </p>
+          )}
         </div>
 
         {/* Design dots */}
@@ -503,6 +551,16 @@ function PlanCard({
             total={plan.designs}
             used={isFree ? 1 : plan.key === "basic" ? 2 : plan.key === "pro" ? 4 : 1}
           />
+        )}
+
+        {/* Owned seats badge */}
+        {hasOwnedSeats && (
+          <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-muted/50 px-3 py-1.5">
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              <strong className="text-foreground">{ownedSeats}</strong> seat{ownedSeats !== 1 ? "s" : ""} owned
+            </span>
+          </div>
         )}
 
         {/* Divider */}
@@ -537,27 +595,41 @@ function PlanCard({
           ))}
         </ul>
 
-        {/* CTA */}
+        {/* CTA — primary */}
         <Button
           id={`plan-cta-${plan.key}`}
           className={cn(
             "mt-7 h-11 w-full rounded-full text-sm font-semibold",
-            isCurrentPlan && "cursor-default opacity-60",
-            isPro &&
-              !isCurrentPlan &&
+            (isCurrentPlan || isLowerTier || isFree) && "cursor-default opacity-50",
+            isPro && isActionable && !isCurrentPlan &&
               "bg-gradient-to-r from-fuchsia-600 to-violet-600 text-white hover:from-fuchsia-500 hover:to-violet-500",
-            plan.key === "basic" &&
-              !isCurrentPlan &&
+            plan.key === "basic" && isActionable && !isCurrentPlan &&
               "bg-foreground text-background hover:bg-foreground/90",
           )}
-          variant={isCurrentPlan ? "outline" : plan.ctaVariant}
-          disabled={isCurrentPlan || isFree || upgrading}
+          variant={isCurrentPlan || isLowerTier || isFree ? "outline" : plan.ctaVariant}
+          disabled={isDisabled}
           onClick={handleClick}
         >
           {upgrading ? <RefreshCw className="mr-1.5 h-4 w-4 animate-spin" /> : null}
-          {isCurrentPlan ? "Current Plan" : plan.cta}
-          {!isCurrentPlan && !isFree && !upgrading && <ArrowRight className="ml-1.5 h-4 w-4" />}
+          {primaryLabel}
+          {isActionable && !isCurrentPlan && !upgrading && (
+            <ArrowRight className="ml-1.5 h-4 w-4" />
+          )}
         </Button>
+
+        {/* Buy More Seats — shown when admin owns seats of this plan */}
+        {canBuyMoreSeats && (
+          <Button
+            id={`plan-more-seats-${plan.key}`}
+            variant="outline"
+            className="mt-2 h-10 w-full rounded-full text-sm font-medium"
+            disabled={upgrading}
+            onClick={handleBuyMoreSeats}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Buy More Seats
+          </Button>
+        )}
       </Card>
     </motion.div>
   );
@@ -585,7 +657,7 @@ function CollabBanner({ onUpgrade }: { onUpgrade: () => void }) {
             </div>
             <div>
               <p className="text-sm font-semibold text-foreground">
-                Pro: Real-time collaborative chip design
+                Team: Real-time collaborative chip design
               </p>
               <p className="text-xs text-muted-foreground">
                 Invite teammates to co-design on the same quantum chip canvas simultaneously.
@@ -618,7 +690,7 @@ function CollabBanner({ onUpgrade }: { onUpgrade: () => void }) {
 // ─── Usage Snapshot ────────────────────────────────────────────────────────────
 
 function UsageSnapshot({ plan }: { plan: PlanKey }) {
-  const planLabel = plan.charAt(0).toUpperCase() + plan.slice(1);
+  const planLabel = planDisplayName(plan);
   const designSlots = plan === "free" ? 2 : plan === "basic" ? 5 : 10;
   const designsUsed = plan === "free" ? 1 : 1;
 
@@ -697,16 +769,20 @@ const COMPARE_ROWS: {
   basic: string | boolean;
   pro: string | boolean;
 }[] = [
-  { feature: "Active designs", free: "2", basic: "5", pro: "10" },
-  { feature: "Quantum Editor", free: true, basic: true, pro: true },
-  { feature: "QCLang compiler", free: false, basic: true, pro: true },
-  { feature: "DRC checks", free: "Basic", basic: "Full", pro: "Full + Priority" },
-  { feature: "EM simulation", free: false, basic: true, pro: "Advanced" },
-  { feature: "Physics analysis", free: false, basic: true, pro: true },
-  { feature: "Version control", free: false, basic: true, pro: true },
-  { feature: "Export (GDSII, SPICE)", free: false, basic: true, pro: true },
-  { feature: "Collaborative mode", free: false, basic: false, pro: true },
-  { feature: "Priority support", free: false, basic: false, pro: true },
+  { feature: "Price", free: "Free", basic: "$199/month", pro: "$499/month" },
+  { feature: "Users", free: "1", basic: "1", pro: "Up to 10" },
+  { feature: "Projects & AI Designs", free: "1 project · 1 lifetime", basic: "Unlimited", pro: "Unlimited" },
+  { feature: "Component Library", free: "Basic", basic: "Full", pro: "Full + Custom" },
+  { feature: "DRC Checks", free: "Basic", basic: "Advanced", pro: "Advanced + Highest Priority" },
+  { feature: "Version History", free: "30 Days", basic: "Unlimited", pro: "Unlimited" },
+  { feature: "Auto Save", free: false, basic: true, pro: true },
+  { feature: "AI Assistant", free: "Basic", basic: "Advanced", pro: "Advanced + Private Discord" },
+  { feature: "Priority AI Queue", free: false, basic: "Standard", pro: "Highest" },
+  { feature: "Email Support", free: "Community", basic: "Priority", pro: "Priority" },
+  { feature: "Multi-user Collaboration", free: false, basic: false, pro: "Shared Workspace" },
+  { feature: "Team Permissions / RBAC", free: false, basic: false, pro: "Advanced RBAC" },
+  { feature: "Usage Analytics", free: false, basic: "Basic", pro: "Team Analytics" },
+  { feature: "API Access", free: false, basic: "Standard", pro: "Full" },
 ];
 
 function CompareValue({ val }: { val: string | boolean }) {
@@ -728,10 +804,10 @@ function CompareTable() {
               Free
             </th>
             <th className="py-3.5 text-center text-xs font-semibold uppercase tracking-wider text-violet-500">
-              Basic
+              Professional
             </th>
             <th className="py-3.5 pr-5 text-center text-xs font-semibold uppercase tracking-wider text-fuchsia-500">
-              Pro
+              Team
             </th>
           </tr>
         </thead>
@@ -1034,7 +1110,7 @@ function BillingPage() {
         key: rzpKeyId,
         subscription_id: sub.id as string,
         name: "Silicofeller Quantum Studio",
-        description: `${pendingPlan.charAt(0).toUpperCase() + pendingPlan.slice(1)} Plan — ${pendingCycle}`,
+        description: `${planDisplayName(pendingPlan)} Plan — ${pendingCycle}`,
         currency: pendingPlan === "test_inr" ? "INR" : "USD",
         prefill: {
           name: user?.name,
@@ -1066,7 +1142,7 @@ function BillingPage() {
                 subscription_status: result.subscription_status,
               }));
               toast.success(
-                `🎉 Upgraded to ${result.plan.charAt(0).toUpperCase() + result.plan.slice(1)}! Welcome aboard.`,
+                `🎉 Upgraded to ${planDisplayName(result.plan)}! Welcome aboard.`,
               );
             } else {
               toast.error("Payment verification failed. Contact support.");
@@ -1106,7 +1182,7 @@ function BillingPage() {
         body: JSON.stringify({ plan }),
       });
       if (res.status === "success") {
-        toast.success(`Switched active plan to ${plan}`);
+        toast.success(`Switched active plan to ${planDisplayName(plan)}`);
         fetchBilling();
       }
     } catch (err: unknown) {
@@ -1195,7 +1271,7 @@ function BillingPage() {
               <>
                 You're on the{" "}
                 <strong className={currentPlan === "pro" ? "text-fuchsia-600" : "text-violet-600"}>
-                  {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} plan
+                  {planDisplayName(currentPlan)} plan
                 </strong>
                 {billingState.subscription_status === "halted" && (
                   <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600 dark:bg-red-900/30 dark:text-red-400">
@@ -1230,7 +1306,7 @@ function BillingPage() {
         </section>
 
         {/* ── Plan picker ── */}
-        <section className="mb-10">
+        <section id="choose-plans" className="mb-10">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold text-foreground">Choose a Plan</h2>
@@ -1267,16 +1343,23 @@ function BillingPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            {PLANS.map((plan) => (
-              <PlanCard
-                key={plan.key}
-                plan={plan}
-                isCurrentPlan={plan.key === currentPlan}
-                annual={annual}
-                onUpgrade={handleUpgrade}
-                upgrading={upgrading && pendingPlan === plan.key}
-              />
-            ))}
+            {PLANS.map((plan) => {
+              const ownedSeats = ownedSubscriptions
+                .filter((s) => s.plan === plan.key && s.status === "active")
+                .reduce((sum, s) => sum + s.quantity, 0);
+              return (
+                <PlanCard
+                  key={plan.key}
+                  plan={plan}
+                  isCurrentPlan={plan.key === currentPlan}
+                  currentPlanKey={currentPlan}
+                  ownedSeats={ownedSeats}
+                  annual={annual}
+                  onUpgrade={handleUpgrade}
+                  upgrading={upgrading && pendingPlan === plan.key}
+                />
+              );
+            })}
           </div>
 
           {/* Custom Plans Grid */}
@@ -1286,6 +1369,8 @@ function BillingPage() {
                 key={plan.key}
                 plan={plan as any}
                 isCurrentPlan={false}
+                currentPlanKey={currentPlan}
+                ownedSeats={0}
                 annual={annual}
                 onUpgrade={handleUpgrade}
                 upgrading={false}
@@ -1295,16 +1380,23 @@ function BillingPage() {
 
           {/* Test Plans Grid */}
           <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {TEST_PLANS.map((plan) => (
-              <PlanCard
-                key={plan.key}
-                plan={plan as any}
-                isCurrentPlan={plan.key === currentPlan}
-                annual={annual}
-                onUpgrade={handleUpgrade}
-                upgrading={upgrading && pendingPlan === plan.key}
-              />
-            ))}
+            {TEST_PLANS.map((plan) => {
+              const ownedSeats = ownedSubscriptions
+                .filter((s) => s.plan === plan.key && s.status === "active")
+                .reduce((sum, s) => sum + s.quantity, 0);
+              return (
+                <PlanCard
+                  key={plan.key}
+                  plan={plan as any}
+                  isCurrentPlan={plan.key === currentPlan}
+                  currentPlanKey={currentPlan}
+                  ownedSeats={ownedSeats}
+                  annual={annual}
+                  onUpgrade={handleUpgrade}
+                  upgrading={upgrading && pendingPlan === plan.key}
+                />
+              );
+            })}
           </div>
 
           {/* Compare toggle */}
@@ -1438,49 +1530,59 @@ function BillingPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {ownedSubscriptions.map((sub) => (
-                    <div
-                      key={sub.id}
-                      className="flex items-center gap-4 rounded-xl border border-border bg-muted/20 px-5 py-4"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#072654]">
-                        <CreditCard className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-foreground capitalize">
-                          {sub.plan} Subscription ({sub.quantity} seats)
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {sub.status === "active"
-                            ? "Active — auto-renews each billing cycle"
-                            : sub.status === "halted"
-                              ? "⚠ Halted — please update your payment method in Razorpay"
-                              : (sub.status ?? "Managed by Razorpay")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          className={cn(
-                            "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-                            sub.status === "active"
-                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300"
-                              : "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300",
-                          )}
-                        >
-                          {sub.status ?? "–"}
-                        </Badge>
-                        {currentPlan !== sub.plan && sub.status === "active" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleSwitchPlan(sub.plan)}
+                  {ownedSubscriptions.map((sub) => {
+                    const displayName = planDisplayName(sub.plan);
+                    // Only allow switching TO a higher-ranked plan
+                    const canSwitch =
+                      currentPlan !== sub.plan &&
+                      sub.status === "active" &&
+                      PLAN_RANK[sub.plan] > PLAN_RANK[currentPlan];
+                    return (
+                      <div
+                        key={sub.id}
+                        className="flex items-center gap-4 rounded-xl border border-border bg-muted/20 px-5 py-4"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#072654]">
+                          <CreditCard className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-foreground">
+                            {displayName} Subscription ({sub.quantity} seat{sub.quantity !== 1 ? "s" : ""})
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {sub.status === "active"
+                              ? "Active — auto-renews each billing cycle"
+                              : sub.status === "halted"
+                                ? "⚠ Halted — please update your payment method in Razorpay"
+                                : (sub.status ?? "Managed by Razorpay")}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={cn(
+                              "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                              sub.status === "active"
+                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300"
+                                : "bg-amber-100 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300",
+                            )}
                           >
-                            Switch to {sub.plan}
-                          </Button>
-                        )}
+                            {sub.status ?? "–"}
+                          </Badge>
+                          {/* Switch to — only upgrade, never downgrade */}
+                          {canSwitch && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="h-8 rounded-full"
+                              onClick={() => handleSwitchPlan(sub.plan)}
+                            >
+                              Switch to {displayName}
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </Card>
@@ -1506,7 +1608,7 @@ function BillingPage() {
                 </div>
                 <div>
                   <p className="text-base font-semibold text-foreground capitalize">
-                    {currentPlan === "free" ? "Free Plan" : `${currentPlan} Plan`}
+                    {planDisplayName(currentPlan)} Plan
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {currentPlan === "free"
