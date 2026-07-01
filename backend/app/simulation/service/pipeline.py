@@ -213,8 +213,6 @@ class PipelineManager:
             context.status = state_manager.state
             context.end_time = datetime.utcnow()
             
-            # Apply rollback policy on success
-            self._apply_rollback_policy(context, success=True)
             return parsed_results
 
         except asyncio.CancelledError:
@@ -230,7 +228,6 @@ class PipelineManager:
             except Exception as ce:
                 logger.error("Error during Palace runner cancellation: %s", ce)
                 
-            self._apply_rollback_policy(context, success=False)
             raise OrchestratorCancellationError("Simulation execution was cancelled.")
 
         except Exception as ex:
@@ -240,8 +237,6 @@ class PipelineManager:
             context.end_time = datetime.utcnow()
             context.errors.append(str(ex))
             
-            # Apply rollback policy on failure
-            self._apply_rollback_policy(context, success=False)
             raise
 
     async def _run_phase(

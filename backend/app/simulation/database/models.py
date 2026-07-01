@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     JSON,
+    LargeBinary,
     String,
     Text,
 )
@@ -116,6 +117,7 @@ class SimulationArtifact(Base):
     checksum: Mapped[str] = mapped_column(String(64))
     artifact_type: Mapped[str] = mapped_column(String(64))  # mesh | geometry | config | csv | plot | log
     retention_status: Mapped[str] = mapped_column(String(32), default="active")  # active | pruned
+    file_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
     # Relationships

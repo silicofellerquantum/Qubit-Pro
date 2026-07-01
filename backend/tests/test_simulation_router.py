@@ -529,6 +529,48 @@ class TestSimulationRouter:
         assert resp.read() == b"dummy mesh contents"
         assert resp.headers["content-disposition"] == 'attachment; filename="mesh.msh"'
 
+    async def test_artifact_download_from_database_blob(
+        self, client: AsyncClient, db_session: AsyncSession, seed_data: Dict[str, Any]
+    ):
+        """Tests downloading an artifact when it is stored directly in the database as a blob."""
+        proj = seed_data["project"]
+        sim_id = "sim_db_blob_123"
+
+        # Seed execution and artifact record with file_data blob
+        sim = Simulation(
+            id=sim_id,
+            project_id=proj.id,
+            solver="eigenmode",
+            status=SimulationStatus.completed,
+            config={},
+        )
+        execution = SimulationExecution(
+            id="exec_db_blob_123",
+            simulation_id=sim_id,
+            workspace_id="ws",
+            status="COMPLETED",
+        )
+        art_id = "art_db_blob_123"
+        artifact = SimulationArtifact(
+            id=art_id,
+            execution_id=execution.id,
+            file_name="result.csv",
+            path="/nonexistent/path/result.csv",  # File does not exist on disk
+            size=15,
+            checksum="def",
+            artifact_type="csv",
+            file_data=b"csv,data,values",
+            created_at=datetime.utcnow(),
+        )
+        db_session.add_all([sim, execution, artifact])
+        await db_session.commit()
+
+        # Download Artifact (streams from database file_data)
+        resp = await client.get(f"/api/simulations/{sim_id}/artifacts/{art_id}")
+        assert resp.status_code == 200
+        assert resp.read() == b"csv,data,values"
+        assert resp.headers["content-disposition"] == 'attachment; filename="result.csv"'
+
     async def test_delete_simulation_cascades(
         self, client: AsyncClient, db_session: AsyncSession, seed_data: Dict[str, Any]
     ):

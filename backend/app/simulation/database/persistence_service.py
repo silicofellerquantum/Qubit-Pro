@@ -29,6 +29,20 @@ from app.simulation.service.state_manager import PipelineState
 logger = logging.getLogger(__name__)
 
 
+def _read_file_bytes(filepath: str) -> Optional[bytes]:
+    """Read binary data from file path safely."""
+    try:
+        from pathlib import Path
+        p = Path(filepath)
+        if p.exists() and p.is_file():
+            with open(p, "rb") as f:
+                return f.read()
+    except Exception as e:
+        logger.warning("Failed to read file bytes for database storage from %s: %s", filepath, e)
+    return None
+
+
+
 class SimulationPersistenceService:
     """Orchestrates high-level, atomic database persistence for simulation runs."""
 
@@ -186,6 +200,7 @@ class SimulationPersistenceService:
             # 5. Index File Artifacts
             if artifacts_meta:
                 for file_key, meta in artifacts_meta.items():
+                    file_bytes = _read_file_bytes(meta["path"])
                     db_artifact = SimulationArtifact(
                         execution_id=execution.id,
                         file_name=meta["file_name"],
@@ -194,6 +209,7 @@ class SimulationPersistenceService:
                         checksum=meta["checksum"],
                         artifact_type=meta["artifact_type"],
                         retention_status="active",
+                        file_data=file_bytes,
                         created_at=datetime.fromisoformat(meta["created_at"].rstrip("Z")),
                     )
                     session.add(db_artifact)
@@ -202,14 +218,16 @@ class SimulationPersistenceService:
                 for filepath in summary.generated_files:
                     from pathlib import Path
                     p = Path(filepath)
+                    file_bytes = _read_file_bytes(filepath)
                     db_artifact = SimulationArtifact(
                         execution_id=execution.id,
                         file_name=p.name,
                         path=str(p),
-                        size=0,
+                        size=p.stat().st_size if p.exists() else 0,
                         checksum="N/A",
                         artifact_type=self._resolve_artifact_type(p.name),
                         retention_status="active",
+                        file_data=file_bytes,
                     )
                     session.add(db_artifact)
 

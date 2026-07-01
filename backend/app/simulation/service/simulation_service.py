@@ -177,6 +177,23 @@ class SimulationService:
         execution_err = None
         try:
             results = await task
+            
+            # Run automated validation rules on simulation results
+            if results and isinstance(results, dict):
+                eigenmode_data = results.get("eigenmode")
+                if eigenmode_data and isinstance(eigenmode_data, dict):
+                    modes_list = eigenmode_data.get("modes", [])
+                    from app.simulation.validator import validate_eigenmode_results
+                    val_report = validate_eigenmode_results(modes_list)
+                    
+                    # Append warnings and errors to context
+                    for err in val_report.get("errors", []):
+                        context.errors.append(err)
+                        logger.error("Simulation result error: %s", err)
+                    for wrn in val_report.get("warnings", []):
+                        context.warnings.append(wrn)
+                        logger.warning("Simulation result warning: %s", wrn)
+
             summary = self._compile_summary(context)
             response = SimulationResponse(results=results, summary=summary)
         except Exception as e:
@@ -205,6 +222,13 @@ class SimulationService:
                     logger.error("Failed to persist simulation run to database: %s", db_err)
                     if execution_err is None:
                         execution_err = db_err
+
+            # Apply rollback policy after database persistence has completed
+            success = (execution_err is None)
+            try:
+                self.pipeline_manager._apply_rollback_policy(context, success=success)
+            except Exception as rb_err:
+                logger.error("Failed to apply rollback policy in service: %s", rb_err)
 
             if execution_err is not None:
                 if isinstance(execution_err, OrchestratorCancellationError):

@@ -56,9 +56,17 @@ class EigenmodeMode(BaseModel):
     mode_index: int = Field(description="The index of the eigenmode (1-based).")
     frequency_ghz: float = Field(description="Resonant frequency of the mode in GHz.")
     quality_factor: float = Field(description="Quality factor (Q) of the mode.")
+    numerical_q: float = Field(
+        default=0.0,
+        description="Numerical/radiation quality factor (Q) of the mode calculated by Palace.",
+    )
     epr: Dict[str, float] = Field(
         default_factory=dict,
         description="Energy Participation Ratio (EPR) mapping for junctions/ports.",
+    )
+    label: str = Field(
+        default="physical",
+        description="Label indicating physical status: 'physical' or 'non-physical/numerical'.",
     )
 
 

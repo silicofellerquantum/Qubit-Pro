@@ -105,6 +105,7 @@ class ResultParser:
                         mode_index=m_val,
                         frequency_ghz=freq_val,
                         quality_factor=q_val,
+                        numerical_q=q_val,
                         epr={},
                     )
         except Exception as e:
@@ -146,7 +147,18 @@ class ResultParser:
             except Exception as e:
                 logger.warning("Failed to parse EPR file %s: %s (non-fatal, continuing without EPR)", epr_path, e)
 
-        return EigenmodeResults(modes=list(modes.values()))
+        # Sort modes strictly by ascending frequency_ghz
+        sorted_modes = sorted(modes.values(), key=lambda m: m.frequency_ghz)
+        
+        # Reassign 1-based mode indices and apply sanity filter for spurious high-frequency modes (> 500 GHz)
+        for idx, mode in enumerate(sorted_modes, start=1):
+            mode.mode_index = idx
+            if mode.frequency_ghz > 500.0:
+                mode.label = "non-physical/numerical"
+            else:
+                mode.label = "physical"
+                
+        return EigenmodeResults(modes=sorted_modes)
 
     @staticmethod
     def parse_electrostatic(

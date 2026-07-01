@@ -642,10 +642,10 @@ async def download_simulation_artifact(
     artifact_id: str,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
-) -> FileResponse:
+):
     """Downloads a specific file artifact by ID.
 
-    Supports range requests and sets proper MIME types natively using FastAPI FileResponse.
+    Supports streaming database blobs or falling back to local files.
     """
     # Verify authorization
     await _authorize_simulation(db, simulation_id, user.id)
@@ -664,11 +664,18 @@ async def download_simulation_artifact(
     if not artifact:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Artifact not found")
 
+    if artifact.file_data:
+        return StreamingResponse(
+            io.BytesIO(artifact.file_data),
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{artifact.file_name}"'}
+        )
+
     filepath = Path(artifact.path)
     if not filepath.exists():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Artifact file missing on disk (it may have been cleaned up based on retention policies)."
+            detail="Artifact file missing (both database blob and disk copy are unavailable)."
         )
 
     return FileResponse(
@@ -676,6 +683,7 @@ async def download_simulation_artifact(
         filename=artifact.file_name,
         media_type=None,  # Automatically inferred from file extension
     )
+
 
 
 @router.get("/{simulation_id}/logs", response_model=List[LogResponse])
