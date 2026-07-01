@@ -66,12 +66,16 @@ class BoundaryManager:
                 raise BoundaryDetectionError("Failed to resolve fragmented 3D volume tags for air or substrate.")
 
             # 2. Get the boundaries of all 3D volumes
-            # Any valid 2D surface must belong to this set to be on the exterior of the simulation domain.
+            # We need all boundaries (including internal interfaces at Z=0) to classify PEC, terminals, and ports
             all_vols = [(3, t) for t in air_vol_tags] + [(3, t) for t in sub_vol_tags]
-            boundary_surfs = gmsh.model.getBoundary(all_vols, combined=False, oriented=False, recursive=False)
-            valid_surface_tags = set(tag for dim, tag in boundary_surfs if dim == 2)
+            boundary_surfs_all = gmsh.model.getBoundary(all_vols, combined=False, oriented=False, recursive=False)
+            valid_surface_tags = set(tag for dim, tag in boundary_surfs_all if dim == 2)
 
-            logger.info("Total exterior boundary surfaces found: %d", len(valid_surface_tags))
+            # Get only the true exterior boundaries of the entire simulation domain (no internal interfaces)
+            boundary_surfs_ext = gmsh.model.getBoundary(all_vols, combined=True, oriented=False, recursive=False)
+            exterior_surface_tags = set(tag for dim, tag in boundary_surfs_ext if dim == 2)
+
+            logger.info("Total boundaries found: %d, Exterior boundaries: %d", len(valid_surface_tags), len(exterior_surface_tags))
 
             # 3. Classify boundaries with strict priority (mutual exclusivity)
             assigned_surfaces: Set[int] = set()
@@ -162,7 +166,7 @@ class BoundaryManager:
 
             # Prioritized Group D: Absorbing Outer Boundaries (Top, sides, bottom of air box/substrate) - attribute 4
             # Any valid exterior surface that is not yet assigned belongs to the outer boundaries.
-            absorbing_tags = valid_surface_tags - assigned_surfaces
+            absorbing_tags = exterior_surface_tags - assigned_surfaces
             if absorbing_tags:
                 boundary_groups["absorbing"] = (ABSORBING_SURFACE_TAG, list(absorbing_tags))
                 assigned_surfaces.update(absorbing_tags)

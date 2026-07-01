@@ -85,24 +85,20 @@ def apply_preset(plotter, preset: CameraPreset, focus_bounds: list[float] | None
     px, py, pz = preset.position
     fx, fy, fz = preset.focal_point
 
-    if focus_bounds is not None:
-        # Scale camera position/distance relative to the focus bounds size
-        span_x = bounds[1] - bounds[0]
-        span_y = bounds[3] - bounds[2]
-        span_z = bounds[5] - bounds[4]
-        max_span = max(span_x, span_y, span_z)
-        if max_span <= 0:
-            max_span = 1.0
-        
-        # The camera presets are designed for a unit bounding box.
-        # We scale the relative position by max_span to frame the components beautifully.
-        scale_factor = max_span * 1.1
-        plotter.camera.position = (cx + px * scale_factor, cy + py * scale_factor, cz + pz * scale_factor)
-        plotter.camera.focal_point = (cx + fx, cy + fy, cz + fz)
-    else:
-        # Standard full-scene framing
-        plotter.camera.position = (cx + px, cy + py, cz + pz)
-        plotter.camera.focal_point = (cx + fx, cy + fy, cz + fz)
+    # Scale camera position/distance relative to the bounds size
+    span_x = bounds[1] - bounds[0]
+    span_y = bounds[3] - bounds[2]
+    span_z = bounds[5] - bounds[4]
+    max_span = max(span_x, span_y, span_z)
+    if max_span <= 0:
+        max_span = 1.0
+    
+    # Scale factor frames the components beautifully. Use a slightly larger factor
+    # for full scene framing to avoid clipping.
+    scale_factor = max_span * 1.2
+    
+    plotter.camera.position = (cx + px * scale_factor, cy + py * scale_factor, cz + pz * scale_factor)
+    plotter.camera.focal_point = (cx + fx, cy + fy, cz + fz)
 
     plotter.camera.up = tuple(preset.up_vector)
     

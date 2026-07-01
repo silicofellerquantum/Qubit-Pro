@@ -17,6 +17,39 @@ class PalaceSolverType(str, Enum):
     DRIVEN = "driven"
 
 
+class DrivenSweepPoint(BaseModel):
+    """S-parameter values at a single frequency point from a driven simulation."""
+
+    frequency_ghz: float = Field(description="Frequency in GHz.")
+    s_params: Dict[str, float] = Field(
+        default_factory=dict,
+        description=(
+            "Flat map of S-parameter key to value. Keys use the convention "
+            "'mag_S{i}{j}' for magnitude (linear, not dB) and 'phase_S{i}{j}' "
+            "for phase in degrees. Example: {'mag_S11': 0.95, 'phase_S11': -12.3}."
+        ),
+    )
+
+
+class DrivenResults(BaseModel):
+    """Parsed driven-mode (frequency-domain) simulation results."""
+
+    port_names: List[str] = Field(
+        default_factory=list,
+        description="Ordered list of port names corresponding to S-parameter indices.",
+    )
+    sweep: List[DrivenSweepPoint] = Field(
+        default_factory=list,
+        description="Frequency sweep points with per-point S-parameter data.",
+    )
+    frequency_ghz_min: Optional[float] = Field(
+        default=None, description="Minimum frequency in the sweep (GHz)."
+    )
+    frequency_ghz_max: Optional[float] = Field(
+        default=None, description="Maximum frequency in the sweep (GHz)."
+    )
+
+
 class EigenmodeMode(BaseModel):
     """Represents a single parsed electromagnetic eigenmode."""
 
@@ -102,4 +135,5 @@ class ParsedSimulationResults(BaseModel):
     eigenmode: Optional[EigenmodeResults] = None
     electrostatic: Optional[ElectrostaticResults] = None
     magnetostatic: Optional[MagnetostaticResults] = None
+    driven: Optional[DrivenResults] = None
     qubit_parameters: Optional[Dict[str, QubitPhysicalParameters]] = None

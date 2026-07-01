@@ -76,6 +76,15 @@ class PalaceMeshParser:
                         
                         # Gmsh element type 4 represents a 4-node tetrahedron
                         if elm_type == 4:
+                            # Skip if physical group tag is 1 (air volume)
+                            if num_tags >= 1:
+                                try:
+                                    physical_tag = int(elem_line[3])
+                                    if physical_tag == 1:
+                                        continue
+                                except (ValueError, IndexError):
+                                    pass
+
                             # Node IDs start after the tag list
                             node_ids_str = elem_line[3 + num_tags:]
                             elem_nodes = []
@@ -209,6 +218,17 @@ def parse_palace_mesh(
     # If it is a MultiBlock dataset, combine it into an UnstructuredGrid
     if type(dataset).__name__ == "MultiBlock":
         dataset = dataset.combine()
+
+    # Filter out air box (usually tag 1) using thresholding
+    for possible_key in ["attribute", "gmsh:physical", "material_id"]:
+        if possible_key in dataset.cell_data:
+            try:
+                filtered = dataset.threshold(1.5, scalars=possible_key)
+                if filtered is not None and filtered.n_cells > 0:
+                    dataset = filtered
+            except Exception as e:
+                logger.warning("Failed to threshold dataset in parse_palace_mesh: %s", e)
+            break
 
     # 3. Extract vertices
     vertices = dataset.points.tolist()

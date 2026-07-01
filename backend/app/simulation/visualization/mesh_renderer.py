@@ -74,24 +74,46 @@ def render_mesh_to_png(
     style = style_map.get(display_mode, "surface")
     show_edges = display_mode == MeshDisplayMode.SURFACE_EDGES
 
-    # ── Clip to substrate (Z ≤ 0) to remove air box and expose chip surface ──
+    # ── Clip/Threshold to expose chip surface by removing air box ──
+    scalar_name = None
+    for possible_key in ["attribute", "gmsh:physical", "material_id"]:
+        if possible_key in dataset.cell_data:
+            scalar_name = possible_key
+            break
+
     try:
-        render_mesh = dataset.clip(normal="z", origin=(0, 0, 0), invert=True)
+        # If physical groups/attributes exist, filter out air box (usually tag 1) using thresholding
+        if scalar_name in ["attribute", "gmsh:physical"]:
+            render_mesh = dataset.threshold(1.5, scalars=scalar_name)
+        else:
+            # Fallback to Z-clipping to substrate (Z <= 0)
+            render_mesh = dataset.clip(normal="z", origin=(0, 0, 0), invert=True)
+        
         if render_mesh.n_points < 10:
             render_mesh = dataset
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to clip/threshold mesh, falling back to full dataset: %s", e)
         render_mesh = dataset
 
-    if material_ids and "material_id" in render_mesh.cell_data:
+    # Color the mesh by physical groups / attribute / material_id if available
+    if scalar_name is not None and scalar_name in render_mesh.cell_data:
+        title_map = {
+            "gmsh:physical": "Physical Group",
+            "attribute": "Attribute ID",
+            "material_id": "Material ID"
+        }
         plotter.add_mesh(
             render_mesh,
-            scalars="material_id",
+            scalars=scalar_name,
             cmap="tab20",
             style=style,
             show_edges=show_edges,
+            edge_color="#1a1a2e",
+            line_width=0.4,
             show_scalar_bar=True,
             opacity=request.opacity,
-            scalar_bar_args={"title": "Material ID", "color": "black"},
+            lighting=True,
+            scalar_bar_args={"title": title_map.get(scalar_name, "Material ID"), "color": "black"},
         )
     else:
         plotter.add_mesh(

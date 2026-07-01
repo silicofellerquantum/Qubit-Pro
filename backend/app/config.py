@@ -10,6 +10,7 @@ from __future__ import annotations
 import dotenv
 dotenv.load_dotenv()
 
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +23,18 @@ class Settings(BaseSettings):
     palace_mock_mode: bool = True
     keep_simulation_artifacts: bool = True
     gmsh_coarse_test: bool = False
+
+    # Simulation Job Queue Backend
+    # Set queue_backend="redis" or "rabbitmq" in .env to use a persistent queue in production.
+    # Defaults to "in_memory" to preserve zero-setup local dev behaviour.
+    queue_backend: Literal["in_memory", "redis", "rabbitmq"] = "in_memory"
+    # Maximum concurrent simulation jobs processed by the background worker.
+    # Increase via SIMULATION_MAX_CONCURRENCY env var on capable hardware.
+    simulation_max_concurrency: int = 2
+
+    # Compute backend for the Palace solver.
+    # Set compute_backend="aws_batch" in .env to offload to AWS Batch (requires AWSBatchRunner).
+    compute_backend: Literal["local", "aws_batch"] = "local"
 
     # Simulation Workspace Settings
     workspace_root: str = "tmp/simulations"

@@ -15,6 +15,7 @@ from app.simulation.geometry import GeometryBuilder
 from app.simulation.mesh import MeshGenerator
 from app.simulation.parser import ResultParser
 from app.simulation.runner import PalaceRunner
+from app.simulation.runner.aws_batch_runner import AWSBatchRunner
 from app.simulation.service.exceptions import (
     OrchestratorCancellationError,
     PipelinePhaseError,
@@ -41,7 +42,22 @@ class PipelineManager:
         self.geometry_builder = geometry_builder
         self.mesh_generator = mesh_generator
         self.config_generator = config_generator
-        self.palace_runner = palace_runner
+
+        # Select the compute backend at construction time based on settings.
+        # This avoids any branching inside execute() — the pipeline itself is backend-agnostic.
+        from app.config import settings
+        if settings.compute_backend == "aws_batch":
+            logger.info(
+                "PipelineManager: using AWSBatchRunner (compute_backend=aws_batch)"
+            )
+            self.palace_runner: PalaceRunner | AWSBatchRunner = AWSBatchRunner(
+                workspace_manager=workspace_manager,
+            )
+        else:
+            logger.info(
+                "PipelineManager: using PalaceRunner (compute_backend=local)"
+            )
+            self.palace_runner = palace_runner
 
     async def execute(
         self,

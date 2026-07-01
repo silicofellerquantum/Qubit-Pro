@@ -17,9 +17,9 @@ Simulation Request
  └─────┬─────┘
        │ WorkspaceMetadata
        ▼
- ┌───────────┐      ┌───────────────────┐
- │ Geometry  ├─────►│ Component Factory │ (Instantiates parts & local ports)
- │ Builder   │      └───────────────────┘
+ ┌───────────┐      ┌───────────────────────────────┐
+ │ Geometry  ├─────►│ QiskitMetalToPalaceConverter  │ (Extracts high-fidelity layouts & bounds)
+ │ Builder   │      └───────────────────────────────┘
  └─────┬─────┘      ┌───────────────────┐
        ├───────────►│ GeometryValidator│ (Checks overlaps, bounds & disconnects)
        │            └───────────────────┘
@@ -72,8 +72,7 @@ The `GeometryValidator` executes a multi-tiered validation suite before any file
 Adding a new quantum component is highly straightforward. Follow these steps:
 
 1. **Register the Kind**: Add the component identifier string to the `GeometryComponentKind` Enum in `geometry_models.py`.
-2. **Implement in Factory**: Open `component_factory.py` and implement the drawing parameters, local bounding box, and ports inside `ComponentFactory.create_component()`.
-   * *Example*: For a new Squid loop component, define its width/height, set a local bounding box `(-w/2, -h/2, w/2, h/2)`, and register a local excitation port in the center.
+2. **Add to Converter**: Update `QiskitMetalToPalaceConverter` in `app/services/geometry_converter.py` to support high-fidelity extraction of the component from the design graph or real Qiskit design layout.
 3. **Add Exporter Support**: In `geometry_exporter.py` under `_write_geo_script()`, add the GMSH script generator block to write the matching OCC commands (e.g. `Rectangle` or `Box`).
 
 ---

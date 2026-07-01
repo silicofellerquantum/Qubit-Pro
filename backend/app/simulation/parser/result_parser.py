@@ -26,6 +26,8 @@ from app.simulation.parser.exceptions import (
     ResultParserError,
 )
 from app.simulation.parser.parser_models import (
+    DrivenResults,
+    DrivenSweepPoint,
     EigenmodeMode,
     EigenmodeResults,
     ElectrostaticResults,
@@ -315,6 +317,163 @@ class ResultParser:
             raise InvalidFormatError(f"Failed to read/parse terminal-M.csv: {e}") from e
 
     @staticmethod
+    def parse_driven(
+        output_dir: Path,
+        port_names: Optional[List[str]] = None,
+    ) -> DrivenResults:
+        """Parse driven-mode (frequency-domain) S-parameter results from Palace output.
+
+        Palace writes driven-mode S-parameters to ``port-S.csv`` inside the ``out/``
+        directory.  The file schema is::
+
+            f (Hz), Re{S[1][1]}, Im{S[1][1]}, Re{S[2][1]}, Im{S[2][1]}, ...
+
+        Column headers are always present and case-insensitive.  Frequency is in Hz
+        and is converted to GHz on parse.  Magnitude and phase are derived from the
+        complex (Re, Im) pairs and stored under ``mag_S{i}{j}`` / ``phase_S{i}{j}``
+        keys inside each :class:`DrivenSweepPoint`.
+
+        Args:
+            output_dir: Path to the directory containing solver CSV outputs.
+            port_names: Optional ordered names of the lumped ports.  When supplied,
+                keys in :attr:`DrivenSweepPoint.s_params` use the readable name;
+                otherwise they use numeric indices (e.g. ``mag_S11``).
+
+        Returns:
+            A :class:`DrivenResults` model.
+
+        Raises:
+            FileMissingError: If ``port-S.csv`` is not found.
+            HeaderNotFoundError: If the frequency column cannot be identified.
+            InvalidFormatError: If the file contains malformed data.
+        """
+        logger.info("Parsing driven-mode (S-parameter) results from %s", output_dir)
+        s_path = Path(output_dir) / "port-S.csv"
+        if not s_path.exists():
+            raise FileMissingError(
+                f"Required driven-mode file 'port-S.csv' not found at: {s_path}"
+            )
+
+        try:
+            with open(s_path, mode="r", newline="", encoding="utf-8") as f:
+                reader = csv.reader(f)
+                raw_header = next(reader)
+                header = [col.strip() for col in raw_header]
+
+                # Locate frequency column — Palace uses "f (Hz)" or similar
+                try:
+                    idx_f = next(
+                        i for i, h in enumerate(header)
+                        if h.lower().startswith("f") and ("hz" in h.lower() or h.lower() == "f")
+                    )
+                except StopIteration:
+                    raise HeaderNotFoundError(
+                        f"Frequency column not found in port-S.csv headers: {header}"
+                    )
+
+                # Parse S-parameter column pairs.  Each pair is (Re{S[i][j]}, Im{S[i][j]}).
+                # We detect port count from the number of non-frequency columns.
+                s_col_pairs: List[Tuple[int, int, int, int]] = []  # (re_idx, im_idx, port_i, port_j)
+                non_f_cols = [(i, h) for i, h in enumerate(header) if i != idx_f]
+
+                # Attempt to find structured pairs via regex first
+                re_pattern = re.compile(
+                    r"re\{s\s*\[?(\d+)\]?\s*\[?(\d+)\]?\}",
+                    re.IGNORECASE,
+                )
+                im_pattern = re.compile(
+                    r"im\{s\s*\[?(\d+)\]?\s*\[?(\d+)\]?\}",
+                    re.IGNORECASE,
+                )
+                re_cols: Dict[Tuple[int, int], int] = {}  # (i,j) -> col idx
+                im_cols: Dict[Tuple[int, int], int] = {}  # (i,j) -> col idx
+                for col_idx, col_name in non_f_cols:
+                    m = re_pattern.search(col_name)
+                    if m:
+                        re_cols[(int(m.group(1)), int(m.group(2)))] = col_idx
+                        continue
+                    m = im_pattern.search(col_name)
+                    if m:
+                        im_cols[(int(m.group(1)), int(m.group(2)))] = col_idx
+
+                port_pairs_found = set(re_cols.keys()) & set(im_cols.keys())
+
+                if not port_pairs_found:
+                    # Fallback: assume alternating Re/Im pairs starting from col 1
+                    logger.warning(
+                        "Could not parse port-S.csv column names with regex; "
+                        "assuming alternating Re/Im column layout."
+                    )
+                    pair_count = len(non_f_cols) // 2
+                    num_ports = max(1, math.isqrt(pair_count)) if pair_count > 0 else 1
+                    for k in range(pair_count):
+                        re_idx = non_f_cols[k * 2][0]
+                        im_idx = non_f_cols[k * 2 + 1][0]
+                        port_i = k // num_ports + 1
+                        port_j = k % num_ports + 1
+                        re_cols[(port_i, port_j)] = re_idx
+                        im_cols[(port_i, port_j)] = im_idx
+                    port_pairs_found = set(re_cols.keys()) & set(im_cols.keys())
+
+                # Build sweep
+                sweep: List[DrivenSweepPoint] = []
+                for row in reader:
+                    if not row or not row[0].strip() or row[0].strip().startswith("#"):
+                        continue
+                    try:
+                        freq_hz = float(row[idx_f])
+                    except (ValueError, IndexError) as ve:
+                        raise InvalidFormatError(
+                            f"Failed to parse frequency in port-S.csv row {row}: {ve}"
+                        ) from ve
+
+                    freq_ghz = freq_hz / 1.0e9
+                    s_params: Dict[str, float] = {}
+
+                    for (pi, pj) in sorted(port_pairs_found):
+                        re_val = float(row[re_cols[(pi, pj)]])
+                        im_val = float(row[im_cols[(pi, pj)]])
+                        mag = math.sqrt(re_val**2 + im_val**2)
+                        phase_deg = math.degrees(math.atan2(im_val, re_val))
+
+                        # Use friendly port names when available
+                        if port_names and pi - 1 < len(port_names) and pj - 1 < len(port_names):
+                            name_i = port_names[pi - 1]
+                            name_j = port_names[pj - 1]
+                            key_base = f"S_{name_i}_{name_j}"
+                        else:
+                            key_base = f"S{pi}{pj}"
+
+                        s_params[f"mag_{key_base}"] = mag
+                        s_params[f"phase_{key_base}"] = phase_deg
+
+                    sweep.append(DrivenSweepPoint(frequency_ghz=freq_ghz, s_params=s_params))
+
+        except Exception as e:
+            if isinstance(e, ResultParserError):
+                raise e
+            raise InvalidFormatError(f"Failed to read/parse port-S.csv: {e}") from e
+
+        f_min = sweep[0].frequency_ghz if sweep else None
+        f_max = sweep[-1].frequency_ghz if sweep else None
+
+        logger.info(
+            "Parsed %d driven-mode sweep points (%.3f – %.3f GHz) with %d port pairs.",
+            len(sweep),
+            f_min or 0.0,
+            f_max or 0.0,
+            len(port_pairs_found),
+        )
+
+        return DrivenResults(
+            port_names=list(port_names) if port_names else [],
+            sweep=sweep,
+            frequency_ghz_min=f_min,
+            frequency_ghz_max=f_max,
+        )
+
+
+    @staticmethod
     def calculate_qubit_parameters(
         electrostatic: ElectrostaticResults,
         qubits: List[Dict[str, Any]],
@@ -509,5 +668,8 @@ class ResultParser:
                 parsed_obj.qubit_parameters = ResultParser.calculate_qubit_parameters(
                     parsed_obj.electrostatic, qubits, parsed_obj.magnetostatic
                 )
+
+        elif solver_str == PalaceSolverType.DRIVEN.value:
+            parsed_obj.driven = ResultParser.parse_driven(output_dir, port_names)
 
         return parsed_obj.model_dump()

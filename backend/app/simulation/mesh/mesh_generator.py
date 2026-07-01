@@ -226,6 +226,11 @@ class MeshGenerator:
                     GeometryComponentKind.FEEDLINE,
                 ):
                     tool_entities.append(entity_map[f"trace_{comp.id}"][0])
+                elif comp.kind == GeometryComponentKind.LAUNCHPAD:
+                    # Launchpad is a solid conductor (like a qubit pad) — must be
+                    # conformally embedded into the substrate/air volumes via fragment().
+                    # It is NOT added to the pocket/gap cutout loop above.
+                    tool_entities.append(entity_map[f"pad_{comp.id}"][0])
 
             # C. Execute OCC boolean fragment
             object_entities = [(3, sub_vol), (3, air_vol)]
@@ -253,6 +258,9 @@ class MeshGenerator:
                 elif comp.kind in (GeometryComponentKind.RESONATOR, GeometryComponentKind.COUPLER, GeometryComponentKind.FEEDLINE):
                     trace_ent = entity_map[f"trace_{comp.id}"][0]
                     refinement_surfaces.extend([t for d, t in out_map[inputs.index(trace_ent)] if d == 2])
+                elif comp.kind == GeometryComponentKind.LAUNCHPAD:
+                    pad_ent = entity_map[f"pad_{comp.id}"][0]
+                    refinement_surfaces.extend([t for d, t in out_map[inputs.index(pad_ent)] if d == 2])
 
             if refinement_surfaces:
                 # A. Distance field calculates distance to the active component surfaces

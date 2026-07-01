@@ -108,109 +108,228 @@ class QiskitMetalToPalaceConverter:
 
     def _extract_from_dict(self, design_dict: dict) -> None:
         """Extract components and estimated bounds from a dictionary/JSON payload."""
-        # 1. Parse Placements
-        placements = design_dict.get("placements", [])
-        if not placements and "design" in design_dict:
-            placements = design_dict["design"].get("placements", [])
+        v2_data = design_dict.get("v2", {})
+        graph_dict = v2_data.get("graph")
 
-        for pl in placements:
-            name = pl.get("name", "Unknown")
-            comp_class = pl.get("componentId", "QComponent")
-            x = float(pl.get("x", 0.0))
-            y = float(pl.get("y", 0.0))
-            params = pl.get("params", {})
+        if graph_dict:
+            # --- V2 Design Graph Flow ---
+            logger.info("Extracting components from V2 design graph payload...")
+            nodes = graph_dict.get("nodes", [])
+            for n in nodes:
+                name = n.get("id") or n.get("name") or "Unknown"
+                comp_class = n.get("qubit_type") or n.get("resonator_type") or n.get("coupler_type") or n.get("kind") or "QComponent"
+                x = float(n.get("x_mm", 0.0) if n.get("x_mm") is not None else 0.0)
+                y = float(n.get("y_mm", 0.0) if n.get("y_mm") is not None else 0.0)
+                params = n.get("design_options") or {}
 
-            # Parse dimensions to estimate bounding box
-            width_str = params.get("pocket_width") or params.get("pad_width") or params.get("readout_radius") or "1.0mm"
-            height_str = params.get("pocket_height") or params.get("pad_height") or params.get("readout_radius") or "1.0mm"
+                # Fallback to general params if empty
+                if not params:
+                    params = {k: v for k, v in n.items() if k not in ("id", "kind", "x_mm", "y_mm")}
 
-            def parse_val(s: Any) -> float:
-                if isinstance(s, (int, float)):
-                    return float(s)
-                s = str(s).strip().lower()
-                if s.endswith("um"):
-                    return float(s[:-2]) / 1000.0
-                if s.endswith("mm"):
-                    return float(s[:-2])
-                try:
-                    return float(s)
-                except ValueError:
-                    return 0.5
+                width_str = params.get("pocket_width_um") or params.get("pocket_width") or params.get("pad_width_um") or params.get("pad_width") or params.get("readout_radius") or "1.0mm"
+                height_str = params.get("pocket_height_um") or params.get("pocket_height") or params.get("pad_height_um") or params.get("pad_height") or params.get("readout_radius") or "1.0mm"
 
-            w = parse_val(width_str)
-            h = parse_val(height_str)
+                def parse_val(s: Any) -> float:
+                    if isinstance(s, (int, float)):
+                        return float(s)
+                    s = str(s).strip().lower()
+                    if s.endswith("um"):
+                        return float(s[:-2]) / 1000.0
+                    if s.endswith("mm"):
+                        return float(s[:-2])
+                    try:
+                        return float(s)
+                    except ValueError:
+                        return 0.5
 
-            # Center bounding box at placement coordinates
-            xmin = x - w/2
-            xmax = x + w/2
-            ymin = y - h/2
-            ymax = y + h/2
+                w = parse_val(width_str)
+                h = parse_val(height_str)
 
-            comp_type = self.identify_special_components(name, comp_class)
-            self.components.append({
-                "name": name,
-                "type": comp_type,
-                "bounds": (xmin, ymin, xmax, ymax),
-                "layer": int(params.get("layer", 1)),
-                "original_class": comp_class
-            })
+                xmin = x - w/2
+                xmax = x + w/2
+                ymin = y - h/2
+                ymax = y + h/2
 
-        # 2. Parse Connections (Routes)
-        connections = design_dict.get("connections", [])
-        if not connections and "design" in design_dict:
-            connections = design_dict["design"].get("connections", [])
+                comp_type = self.identify_special_components(name, comp_class)
+                self.components.append({
+                    "name": name,
+                    "type": comp_type,
+                    "bounds": (xmin, ymin, xmax, ymax),
+                    "layer": int(params.get("layer", 1) if params.get("layer") is not None else 1),
+                    "original_class": comp_class
+                })
 
-        for conn in connections:
-            name = conn.get("id", "Route")
-            comp_class = conn.get("routeComponentId", "RouteMeander")
+            # Parse edges / connections
+            edges = graph_dict.get("edges", [])
+            flat_connections = design_dict.get("design", {}).get("connections", [])
+            flat_conn_map = {}
+            for conn in flat_connections:
+                cid = conn.get("id") or ""
+                flat_conn_map[cid] = conn
+                from_placement = conn.get("from", {}).get("placementId", "")
+                to_placement = conn.get("to", {}).get("placementId", "")
+                flat_conn_map[f"{from_placement}->{to_placement}"] = conn
+                flat_conn_map[f"{to_placement}->{from_placement}"] = conn
 
-            # Attempt to extract bounding box from cached SVG polyline coordinates
-            svg = conn.get("cachedSvg", "")
-            xmin, ymin, xmax, ymax = 0.0, 0.0, 0.0, 0.0
-            points_found = False
+            for edge in edges:
+                name = edge.get("label") or f"conn_{edge.get('source_id')}_{edge.get('target_id')}"
+                comp_class = "RouteMeander"
+                
+                # Try to find matching flat connection for cachedSvg
+                matching_conn = flat_conn_map.get(name) or flat_conn_map.get(f"{edge.get('source_id')}->{edge.get('target_id')}")
+                svg = matching_conn.get("cachedSvg", "") if matching_conn else ""
+                xmin, ymin, xmax, ymax = 0.0, 0.0, 0.0, 0.0
+                points_found = False
 
-            if svg:
-                import re
-                pts_matches = re.findall(r'points="([^"]+)"', svg)
-                all_pts = []
-                for pm in pts_matches:
-                    for pair in pm.strip().split():
-                        parts = pair.split(",")
-                        if len(parts) == 2:
-                            try:
-                                # SVG coords are scaled by 1000.0 (um), divide to get mm
-                                all_pts.append((float(parts[0]) / 1000.0, float(parts[1]) / 1000.0))
-                            except ValueError:
-                                pass
-                if all_pts:
-                    xs = [pt[0] for pt in all_pts]
-                    ys = [pt[1] for pt in all_pts]
-                    xmin, xmax = min(xs), max(xs)
-                    ymin, ymax = min(ys), max(ys)
-                    points_found = True
+                if svg:
+                    import re
+                    pts_matches = re.findall(r'points="([^"]+)"', svg)
+                    all_pts = []
+                    for pm in pts_matches:
+                        for pair in pm.strip().split():
+                            parts = pair.split(",")
+                            if len(parts) == 2:
+                                try:
+                                    all_pts.append((float(parts[0]) / 1000.0, float(parts[1]) / 1000.0))
+                                except ValueError:
+                                    pass
+                    if all_pts:
+                        xs = [pt[0] for pt in all_pts]
+                        ys = [pt[1] for pt in all_pts]
+                        xmin, xmax = min(xs), max(xs)
+                        ymin, ymax = min(ys), max(ys)
+                        points_found = True
 
-            if not points_found:
-                # Fallback: span bounds between the connected placements
-                from_pl_id = conn.get("from", {}).get("placementId")
-                to_pl_id = conn.get("to", {}).get("placementId")
-                from_pl = next((p for p in placements if p.get("id") == from_pl_id), None)
-                to_pl = next((p for p in placements if p.get("id") == to_pl_id), None)
-                if from_pl and to_pl:
-                    fx, fy = float(from_pl.get("x", 0.0)), float(from_pl.get("y", 0.0))
-                    tx, ty = float(to_pl.get("x", 0.0)), float(to_pl.get("y", 0.0))
-                    xmin, xmax = min(fx, tx), max(fx, tx)
-                    ymin, ymax = min(fy, ty), max(fy, ty)
-                else:
-                    xmin, ymin, xmax, ymax = -1.0, -1.0, 1.0, 1.0
+                if not points_found:
+                    src_id = edge.get("source_id")
+                    tgt_id = edge.get("target_id")
+                    src_node = next((n for n in nodes if n.get("id") == src_id), None)
+                    tgt_node = next((n for n in nodes if n.get("id") == tgt_id), None)
+                    if src_node and tgt_node:
+                        fx = float(src_node.get("x_mm", 0.0) if src_node.get("x_mm") is not None else 0.0)
+                        fy = float(src_node.get("y_mm", 0.0) if src_node.get("y_mm") is not None else 0.0)
+                        tx = float(tgt_node.get("x_mm", 0.0) if tgt_node.get("x_mm") is not None else 0.0)
+                        ty = float(tgt_node.get("y_mm", 0.0) if tgt_node.get("y_mm") is not None else 0.0)
+                        xmin, xmax = min(fx, tx), max(fx, tx)
+                        ymin, ymax = min(fy, ty), max(fy, ty)
+                    else:
+                        xmin, ymin, xmax, ymax = -1.0, -1.0, 1.0, 1.0
 
-            comp_type = "cpw"
-            self.components.append({
-                "name": name,
-                "type": comp_type,
-                "bounds": (xmin, ymin, xmax, ymax),
-                "layer": 1,
-                "original_class": comp_class
-            })
+                comp_type = "cpw"
+                self.components.append({
+                    "name": name,
+                    "type": comp_type,
+                    "bounds": (xmin, ymin, xmax, ymax),
+                    "layer": 1,
+                    "original_class": comp_class
+                })
+
+        else:
+            # --- Legacy Fallback Flow ---
+            placements = design_dict.get("placements", [])
+            if not placements and "design" in design_dict:
+                placements = design_dict["design"].get("placements", [])
+
+            for pl in placements:
+                name = pl.get("name") or pl.get("instanceId") or pl.get("id") or "Unknown"
+                comp_class = pl.get("componentId", "QComponent")
+                x = float(pl.get("x", 0.0) if pl.get("x") is not None else 0.0)
+                y = float(pl.get("y", 0.0) if pl.get("y") is not None else 0.0)
+                params = pl.get("params", {})
+
+                # Parse dimensions to estimate bounding box
+                width_str = params.get("pocket_width") or params.get("pad_width") or params.get("readout_radius") or "1.0mm"
+                height_str = params.get("pocket_height") or params.get("pad_height") or params.get("readout_radius") or "1.0mm"
+
+                def parse_val(s: Any) -> float:
+                    if isinstance(s, (int, float)):
+                        return float(s)
+                    s = str(s).strip().lower()
+                    if s.endswith("um"):
+                        return float(s[:-2]) / 1000.0
+                    if s.endswith("mm"):
+                        return float(s[:-2])
+                    try:
+                        return float(s)
+                    except ValueError:
+                        return 0.5
+
+                w = parse_val(width_str)
+                h = parse_val(height_str)
+
+                # Center bounding box at placement coordinates
+                xmin = x - w/2
+                xmax = x + w/2
+                ymin = y - h/2
+                ymax = y + h/2
+
+                comp_type = self.identify_special_components(name, comp_class)
+                self.components.append({
+                    "name": name,
+                    "type": comp_type,
+                    "bounds": (xmin, ymin, xmax, ymax),
+                    "layer": int(params.get("layer", 1) if params.get("layer") is not None else 1),
+                    "original_class": comp_class
+                })
+
+            # 2. Parse Connections (Routes)
+            connections = design_dict.get("connections", [])
+            if not connections and "design" in design_dict:
+                connections = design_dict["design"].get("connections", [])
+
+            for conn in connections:
+                name = conn.get("id", "Route")
+                comp_class = conn.get("routeComponentId", "RouteMeander")
+
+                # Attempt to extract bounding box from cached SVG polyline coordinates
+                svg = conn.get("cachedSvg", "")
+                xmin, ymin, xmax, ymax = 0.0, 0.0, 0.0, 0.0
+                points_found = False
+
+                if svg:
+                    import re
+                    pts_matches = re.findall(r'points="([^"]+)"', svg)
+                    all_pts = []
+                    for pm in pts_matches:
+                        for pair in pm.strip().split():
+                            parts = pair.split(",")
+                            if len(parts) == 2:
+                                try:
+                                    # SVG coords are scaled by 1000.0 (um), divide to get mm
+                                    all_pts.append((float(parts[0]) / 1000.0, float(parts[1]) / 1000.0))
+                                except ValueError:
+                                    pass
+                    if all_pts:
+                        xs = [pt[0] for pt in all_pts]
+                        ys = [pt[1] for pt in all_pts]
+                        xmin, xmax = min(xs), max(xs)
+                        ymin, ymax = min(ys), max(ys)
+                        points_found = True
+
+                if not points_found:
+                    # Fallback: span bounds between the connected placements
+                    from_pl_id = conn.get("from", {}).get("placementId")
+                    to_pl_id = conn.get("to", {}).get("placementId")
+                    from_pl = next((p for p in placements if p.get("id") == from_pl_id or p.get("instanceId") == from_pl_id or p.get("name") == from_pl_id), None)
+                    to_pl = next((p for p in placements if p.get("id") == to_pl_id or p.get("instanceId") == to_pl_id or p.get("name") == to_pl_id), None)
+                    if from_pl and to_pl:
+                        fx = float(from_pl.get("x", 0.0) if from_pl.get("x") is not None else 0.0)
+                        fy = float(from_pl.get("y", 0.0) if from_pl.get("y") is not None else 0.0)
+                        tx = float(to_pl.get("x", 0.0) if to_pl.get("x") is not None else 0.0)
+                        ty = float(to_pl.get("y", 0.0) if to_pl.get("y") is not None else 0.0)
+                        xmin, xmax = min(fx, tx), max(fx, tx)
+                        ymin, ymax = min(fy, ty), max(fy, ty)
+                    else:
+                        xmin, ymin, xmax, ymax = -1.0, -1.0, 1.0, 1.0
+
+                comp_type = "cpw"
+                self.components.append({
+                    "name": name,
+                    "type": comp_type,
+                    "bounds": (xmin, ymin, xmax, ymax),
+                    "layer": 1,
+                    "original_class": comp_class
+                })
 
     def extract_components_from_design(self) -> None:
         """Coordinate geometry extraction based on input type (QDesign vs Dict)."""
