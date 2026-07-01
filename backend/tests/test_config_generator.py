@@ -177,12 +177,12 @@ def test_generate_config_eigenmode_success(workspace_manager, config_generator, 
     ports_sorted = sorted(ports, key=lambda p: p.index)
     assert ports_sorted[0].index == 1
     assert ports_sorted[0].attributes == [100]  # port_q0
-    assert ports_sorted[0].l == 12.5              # From design payload (q0 L_nH)
+    assert ports_sorted[0].l == pytest.approx(12.5e-9)  # From design payload (q0 L_nH) converted to H
     assert ports_sorted[0].r == 0.0
 
     assert ports_sorted[1].index == 2
     assert ports_sorted[1].attributes == [101]  # port_q1
-    assert ports_sorted[1].l == 10.5              # From design payload (q1 L_nH)
+    assert ports_sorted[1].l == pytest.approx(10.5e-9)  # From design payload (q1 L_nH) converted to H
 
     # Solver specific settings
     assert config.solver.eigenmode is not None

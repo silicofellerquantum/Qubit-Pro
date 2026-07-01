@@ -421,47 +421,26 @@ class MeshGenerator:
             # we can parse the raw nodes list of the graph dict directly!
             nodes = graph_dict.get("nodes", [])
             
-            # Group nodes by kind
-            qubits = [n for n in nodes if n.get("kind") == "qubit"]
-            resonators = [n for n in nodes if n.get("kind") == "resonator"]
-            couplers = [n for n in nodes if n.get("kind") == "coupler"]
-            feedlines = [n for n in nodes if n.get("kind") == "feedline"]
-            launchpads = [n for n in nodes if n.get("kind") == "launchpad"]
-            
             # Map kinds to kind Enum
             from app.simulation.geometry.geometry_models import GeometryComponentKind
             
-            for n in qubits:
+            for n in nodes:
+                kind_str = n.get("kind")
+                if kind_str == "qubit":
+                    kind = GeometryComponentKind.QUBIT
+                elif kind_str == "resonator":
+                    kind = GeometryComponentKind.RESONATOR
+                elif kind_str == "coupler":
+                    kind = GeometryComponentKind.COUPLER
+                elif kind_str == "feedline":
+                    kind = GeometryComponentKind.FEEDLINE
+                elif kind_str == "launchpad":
+                    kind = GeometryComponentKind.LAUNCHPAD
+                else:
+                    kind = GeometryComponentKind.COUPLER
+                
                 components.append(GeometryComponent(
-                    id=n["id"], kind=GeometryComponentKind.QUBIT,
-                    x_mm=float(n.get("x_mm", 0.0)), y_mm=float(n.get("y_mm", 0.0)),
-                    orientation_deg=float(n.get("orientation_deg", 0.0)),
-                    layer="metal", material="aluminum", params=n.get("design_options") or n
-                ))
-            for n in resonators:
-                components.append(GeometryComponent(
-                    id=n["id"], kind=GeometryComponentKind.RESONATOR,
-                    x_mm=float(n.get("x_mm", 0.0)), y_mm=float(n.get("y_mm", 0.0)),
-                    orientation_deg=float(n.get("orientation_deg", 0.0)),
-                    layer="metal", material="aluminum", params=n.get("design_options") or n
-                ))
-            for n in couplers:
-                components.append(GeometryComponent(
-                    id=n["id"], kind=GeometryComponentKind.COUPLER,
-                    x_mm=float(n.get("x_mm", 0.0)), y_mm=float(n.get("y_mm", 0.0)),
-                    orientation_deg=float(n.get("orientation_deg", 0.0)),
-                    layer="metal", material="aluminum", params=n.get("design_options") or n
-                ))
-            for n in feedlines:
-                components.append(GeometryComponent(
-                    id=n["id"], kind=GeometryComponentKind.FEEDLINE,
-                    x_mm=float(n.get("x_mm", 0.0)), y_mm=float(n.get("y_mm", 0.0)),
-                    orientation_deg=float(n.get("orientation_deg", 0.0)),
-                    layer="metal", material="aluminum", params=n.get("design_options") or n
-                ))
-            for n in launchpads:
-                components.append(GeometryComponent(
-                    id=n["id"], kind=GeometryComponentKind.LAUNCHPAD,
+                    id=n["id"], kind=kind,
                     x_mm=float(n.get("x_mm", 0.0)), y_mm=float(n.get("y_mm", 0.0)),
                     orientation_deg=float(n.get("orientation_deg", 0.0)),
                     layer="metal", material="aluminum", params=n.get("design_options") or n

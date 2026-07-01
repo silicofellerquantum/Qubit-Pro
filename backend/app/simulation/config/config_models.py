@@ -95,8 +95,8 @@ class LumpedPortBlock(BaseModel):
     index: int = Field(..., serialization_alias="Index", ge=1)
     attributes: List[int] = Field(..., serialization_alias="Attributes")
     r: float = Field(0.0, serialization_alias="R", ge=0.0, description="Resistance in Ohms.")
-    l: float = Field(0.0, serialization_alias="L", ge=0.0, description="Inductance in nH (converted to Henries in solver if needed).")
-    c: float = Field(0.0, serialization_alias="C", ge=0.0, description="Capacitance in fF.")
+    l: float = Field(0.0, serialization_alias="L", ge=0.0, description="Inductance in Henries.")
+    c: float = Field(0.0, serialization_alias="C", ge=0.0, description="Capacitance in Farads.")
     direction: str = Field("+X", serialization_alias="Direction")
 
 

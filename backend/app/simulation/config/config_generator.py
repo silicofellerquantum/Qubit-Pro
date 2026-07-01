@@ -221,7 +221,7 @@ class PalaceConfigGenerator:
                                 index=port_idx,
                                 attributes=[tag],
                                 r=DEFAULT_JUNCTION_R_OHM,
-                                l=l_val,
+                                l=l_val * 1e-9,
                                 c=0.0,
                                 direction="+X",
                             )
