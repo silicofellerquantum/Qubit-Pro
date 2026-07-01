@@ -68,36 +68,35 @@ const NAV: { label: string | null; items: NavItem[] }[] = [
     label: "Design",
     items: [
       { title: "Projects", url: "/projects", icon: FolderKanban },
-      { title: "Design Copilot", url: "/designer", icon: Sparkles, locked: true },
-      { title: "Architecture Explorer", url: "/architecture-explorer", icon: Network, locked: true },
+      { title: "Design Copilot", url: "/designer", icon: Sparkles },
+      { title: "Architecture Explorer", url: "/architecture-explorer", icon: Network },
       { title: "Schematic Editor", url: "/schematic-editor", icon: PenSquare },
-      { title: "Layout Viewer", url: "/layout-viewer", icon: LayoutTemplate, locked: true },
+      { title: "Layout Viewer", url: "/layout-viewer", icon: LayoutTemplate },
       { title: "Component Library", url: "/component-library", icon: Library },
     ],
   },
   {
     label: "Simulation & Analysis",
     items: [
-      { title: "Verification", url: "/verification", icon: CheckCircle2, locked: true },
+      { title: "Verification", url: "/verification", icon: CheckCircle2 },
       { title: "Simulations", url: "/simulations", icon: PlayCircle },
-      { title: "Physics Analysis", url: "/physics-analysis", icon: Atom, locked: true },
-      { title: "Fault Tolerance Studio", url: "/fault-tolerance", icon: Shield, locked: true },
-      
+      { title: "Physics Analysis", url: "/physics-analysis", icon: Atom },
+      { title: "Fault Tolerance Studio", url: "/fault-tolerance", icon: Shield },
     ],
   },
   {
     label: "Data & Management",
     items: [
-      { title: "Results", url: "/results", icon: BarChart3, locked: true },
-      { title: "Version Control", url: "/version-control", icon: GitBranch, locked: true },
-      { title: "Reports", url: "/reports", icon: FileText, locked: true },
+      { title: "Results", url: "/results", icon: BarChart3 },
+      { title: "Version Control", url: "/version-control", icon: GitBranch },
+      { title: "Reports", url: "/reports", icon: FileText },
     ],
   },
   {
     label: "Settings",
     items: [
-      { title: "Users & Teams", url: "/team", icon: Users, locked: true },
-      { title: "Integrations", url: "/integrations", icon: Plug, locked: true },
+      { title: "Users & Teams", url: "/team", icon: Users },
+      { title: "Integrations", url: "/integrations", icon: Plug },
       { title: "Billing", url: "/billing", icon: CreditCard },
       { title: "Settings", url: "/settings", icon: Settings },
     ],

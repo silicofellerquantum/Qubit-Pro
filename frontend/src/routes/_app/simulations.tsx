@@ -457,7 +457,7 @@ function CenterPane({ solver, activeTab, setActiveTab, derived, runner, showDock
         <div className="flex-1 min-h-0 overflow-auto">
           <motion.div key={`${solver}:${activeTab}`}
             initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}
-            className="px-6 py-5 space-y-5">
+            className="px-6 py-5 space-y-5 h-full flex flex-col">
             <SolverContent solver={solver} tab={activeTab} derived={derived} />
             {showDock && (
               <BottomDock
@@ -1240,20 +1240,31 @@ function Q3DMatrix({ derived, kind }: { derived: DerivedAll; kind: "c"|"l"|"r"|"
   const m = derived.q3d.matrix;
   const max = Math.max(...m.flat().map(Math.abs));
   return (
-    <Card className="p-4 border-slate-200 rounded-xl shadow-sm">
-      <div className="text-xs font-bold text-slate-700 mb-3">{labels[kind]} matrix</div>
-      <div className="overflow-x-auto">
-        <table className="text-[11px]">
-          <thead><tr><th className="px-2 py-1"></th>
-            {derived.q3d.netNames.map(n => <th key={n} className="px-2 py-1 font-mono text-slate-500">{n}</th>)}
-          </tr></thead>
+    <Card className="w-full flex-1 p-6 border-slate-200 rounded-xl shadow-sm">
+      <div className="text-sm font-bold text-slate-700 mb-5">{labels[kind]} matrix</div>
+      <div className="overflow-x-auto w-full">
+        <table className="w-full text-sm border-separate border-spacing-0">
+          <thead>
+            <tr>
+              <th className="px-4 py-2"></th>
+              {derived.q3d.netNames.map(n => (
+                <th key={n} className="px-4 py-2 font-mono font-semibold text-slate-500 text-center">{n}</th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
             {m.map((row, i) => (
-              <tr key={i}><td className="px-2 py-1 font-mono text-slate-500">{derived.q3d.netNames[i]}</td>
+              <tr key={i}>
+                <td className="px-4 py-2 font-mono font-semibold text-slate-500">{derived.q3d.netNames[i]}</td>
                 {row.map((v, j) => {
                   const val = v * scale;
                   const intensity = Math.abs(val) / (max * scale);
-                  return <td key={j} className="px-2 py-1 font-mono text-center" style={{ background: `rgba(124,58,237,${intensity*0.35})` }}>{val.toFixed(2)}</td>;
+                  return (
+                    <td key={j} className="px-4 py-2.5 font-mono text-center text-slate-800 rounded"
+                      style={{ background: `rgba(124,58,237,${intensity * 0.35})` }}>
+                      {val.toFixed(2)}
+                    </td>
+                  );
                 })}
               </tr>
             ))}
