@@ -137,7 +137,7 @@ export function AppSidebar() {
         {NAV.map((group, gi) => (
           <SidebarGroup key={gi} className="px-0 py-1.5">
             {group.label && !collapsed && (
-              <SidebarGroupLabel className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-sidebar-foreground/80 px-5 mb-1.5">
+              <SidebarGroupLabel className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-400 px-5 mb-1.5">
                 {group.label}
               </SidebarGroupLabel>
             )}
@@ -177,15 +177,15 @@ export function AppSidebar() {
                         asChild
                         isActive={isActive}
                         tooltip={item.title}
-                        className={`h-9 rounded-lg transition-colors ${
+                        className={`h-9 rounded-lg transition-all duration-150 transform-gpu ${
                           isActive
-                            ? "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground font-semibold shadow-sm shadow-sidebar-primary/20"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
+                            ? "bg-accent/10 text-accent font-semibold border border-accent/30 shadow-sm"
+                            : "text-slate-600 hover:bg-accent/10 hover:text-accent hover:shadow-sm hover:scale-[1.02] font-medium group"
                         }`}
                       >
                         <Link to={item.url} className="flex items-center gap-3 w-full">
                           <item.icon
-                            className={`h-4 w-4 shrink-0 ${isActive ? "text-sidebar-primary-foreground" : "text-sidebar-foreground/75"}`}
+                            className={`h-4 w-4 shrink-0 transition-colors duration-150 ${isActive ? "text-accent" : "text-slate-500 group-hover:text-accent"}`}
                           />
                           {!collapsed && (
                             <>
@@ -195,8 +195,8 @@ export function AppSidebar() {
                               {item.badge && (
                                 <span
                                   className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                                    isActive
-                                      ? "bg-white/20 text-white"
+                                  isActive
+                                      ? "bg-accent/20 text-accent"
                                       : "bg-accent/20 text-violet-300"
                                   }`}
                                 >
@@ -224,14 +224,14 @@ export function AppSidebar() {
                     asChild
                     isActive={pathname === "/admin"}
                     tooltip="Admin"
-                    className={`h-9 rounded-lg ${
+                    className={`h-9 rounded-lg transition-all duration-150 transform-gpu ${
                       pathname === "/admin"
-                        ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground font-medium"
+                        ? "bg-accent/10 text-accent font-semibold border border-accent/30 shadow-sm"
+                        : "text-slate-600 hover:bg-accent/10 hover:text-accent hover:shadow-sm hover:scale-[1.02] font-medium group"
                     }`}
                   >
                     <Link to="/admin" className="flex items-center gap-3">
-                      <ShieldCheck className="h-4 w-4 shrink-0 text-sidebar-foreground/75" />
+                      <ShieldCheck className={`h-4 w-4 shrink-0 transition-colors duration-150 ${pathname === "/admin" ? "text-accent" : "text-slate-500 group-hover:text-accent"}`} />
                       {!collapsed && <span className="text-[13px]">Admin Console</span>}
                     </Link>
                   </SidebarMenuButton>
