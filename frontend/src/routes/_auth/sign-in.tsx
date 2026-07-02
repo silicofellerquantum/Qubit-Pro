@@ -11,6 +11,7 @@ import { PasswordInput } from "@/components/auth/password-input";
 import { SocialButton } from "@/components/auth/social-button";
 import { QuantumHero } from "@/components/auth/quantum-hero";
 import { DEMO_ACCOUNTS, useAuth, type Role } from "@/lib/auth/auth-context";
+import { initiateGithubLogin } from "@/lib/api/backend";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
 export const Route = createFileRoute("/_auth/sign-in")({
@@ -33,7 +34,7 @@ export const Route = createFileRoute("/_auth/sign-in")({
 
 function SignInPage() {
   const navigate = useNavigate();
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, signInAs } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -170,6 +171,11 @@ function SignInPage() {
                   width="100%"
                 />
               </GoogleOAuthProvider>
+              <SocialButton
+                provider="github"
+                label="Continue with GitHub"
+                onClick={initiateGithubLogin}
+              />
             </div>
           </AuthCard>
         </div>

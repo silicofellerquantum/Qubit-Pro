@@ -11,6 +11,7 @@ import { PasswordInput } from "@/components/auth/password-input";
 import { SocialButton } from "@/components/auth/social-button";
 import { QuantumHero } from "@/components/auth/quantum-hero";
 import { useAuth } from "@/lib/auth/auth-context";
+import { initiateGithubLogin } from "@/lib/api/backend";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
 export const Route = createFileRoute("/_auth/sign-up")({
@@ -245,6 +246,11 @@ function SignUpPage() {
                 width="100%"
               />
             </GoogleOAuthProvider>
+            <SocialButton
+              provider="github"
+              label="Sign up with GitHub"
+              onClick={initiateGithubLogin}
+            />
           </div>
         </AuthCard>
       </section>

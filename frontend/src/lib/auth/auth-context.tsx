@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { loginUser, registerUser, loginWithGoogle } from "@/lib/api/backend";
+import { loginUser, registerUser, loginWithGoogle, getCurrentUser } from "@/lib/api/backend";
 
 export type UserRole = "admin" | "org_manager" | "engineer";
 
@@ -79,25 +79,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Rehydrate from localStorage on mount — but validate the stored JWT is still present
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      const token = localStorage.getItem("qs_token");
-      if (stored && token) {
-        // Both user profile and JWT present — restore session
-        setUser(JSON.parse(stored));
-      } else {
-        // No valid session — clear stale profile if JWT is gone
-        if (stored && !token) {
-          localStorage.removeItem(LOCAL_STORAGE_KEY);
+    const hydrate = async () => {
+      try {
+        const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const token = localStorage.getItem("qs_token");
+        if (stored && token) {
+          // Both user profile and JWT present — restore session
+          setUser(JSON.parse(stored));
+        } else if (token && !stored) {
+          // We have a token but no user profile (e.g., after OAuth callback)
+          try {
+            const serverUser = await getCurrentUser(token);
+            const newUser: User = {
+              id: serverUser.id ?? `u_${Date.now()}`,
+              name: serverUser.name ?? "User",
+              email: serverUser.email ?? "",
+              role: (serverUser.role as UserRole) ?? "engineer",
+              organization: serverUser.organization ?? "Independent",
+              initials: serverUser.initials ?? _makeInitials(serverUser.name ?? "User"),
+            };
+            setUser(newUser);
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newUser));
+          } catch (e) {
+            console.error("Failed to fetch user with token", e);
+            localStorage.removeItem("qs_token");
+          }
+        } else {
+          // No valid session — clear stale profile if JWT is gone
+          if (stored && !token) {
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+          }
         }
+      } catch {
+        // Corrupted storage — clear everything
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+        localStorage.removeItem("qs_token");
+      } finally {
+        setHydrated(true);
       }
-    } catch {
-      // Corrupted storage — clear everything
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-      localStorage.removeItem("qs_token");
-    } finally {
-      setHydrated(true);
-    }
+    };
+    hydrate();
   }, []);
 
   // ── signIn: calls the real backend /api/auth/token ──────────────────────
@@ -294,6 +315,7 @@ export const useAuth = () => {
       hydrated: false,
       signIn: async () => ({ ok: false, error: "Auth not ready" }),
       signInAs: async () => {},
+      signInWithGoogle: async () => ({ ok: false, error: "Auth not ready" }),
       signUp: async () => ({ ok: false, error: "Auth not ready" }),
       signOut: async () => {},
     };

@@ -21,6 +21,7 @@ import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as AuthSignUpRouteImport } from './routes/_auth/sign-up'
 import { Route as AuthSignInRouteImport } from './routes/_auth/sign-in'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth/forgot-password'
+import { Route as AuthCallbackRouteImport } from './routes/_auth/callback'
 import { Route as AppVersionControlRouteImport } from './routes/_app/version-control'
 import { Route as AppVerificationRouteImport } from './routes/_app/verification'
 import { Route as AppTeamRouteImport } from './routes/_app/team'
@@ -100,6 +101,11 @@ const AuthSignInRoute = AuthSignInRouteImport.update({
 const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
   getParentRoute: () => AuthRoute,
 } as any)
 const AppVersionControlRoute = AppVersionControlRouteImport.update({
@@ -241,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/team': typeof AppTeamRoute
   '/verification': typeof AppVerificationRoute
   '/version-control': typeof AppVersionControlRoute
+  '/callback': typeof AuthCallbackRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/sign-in': typeof AuthSignInRoute
   '/sign-up': typeof AuthSignUpRoute
@@ -274,6 +281,7 @@ export interface FileRoutesByTo {
   '/team': typeof AppTeamRoute
   '/verification': typeof AppVerificationRoute
   '/version-control': typeof AppVersionControlRoute
+  '/callback': typeof AuthCallbackRoute
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/sign-in': typeof AuthSignInRoute
   '/sign-up': typeof AuthSignUpRoute
@@ -311,6 +319,7 @@ export interface FileRoutesById {
   '/_app/team': typeof AppTeamRoute
   '/_app/verification': typeof AppVerificationRoute
   '/_app/version-control': typeof AppVersionControlRoute
+  '/_auth/callback': typeof AuthCallbackRoute
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/sign-in': typeof AuthSignInRoute
   '/_auth/sign-up': typeof AuthSignUpRoute
@@ -347,6 +356,7 @@ export interface FileRouteTypes {
     | '/team'
     | '/verification'
     | '/version-control'
+    | '/callback'
     | '/forgot-password'
     | '/sign-in'
     | '/sign-up'
@@ -380,6 +390,7 @@ export interface FileRouteTypes {
     | '/team'
     | '/verification'
     | '/version-control'
+    | '/callback'
     | '/forgot-password'
     | '/sign-in'
     | '/sign-up'
@@ -416,6 +427,7 @@ export interface FileRouteTypes {
     | '/_app/team'
     | '/_app/verification'
     | '/_app/version-control'
+    | '/_auth/callback'
     | '/_auth/forgot-password'
     | '/_auth/sign-in'
     | '/_auth/sign-up'
@@ -517,6 +529,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof AuthForgotPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/callback': {
+      id: '/_auth/callback'
+      path: '/callback'
+      fullPath: '/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_app/version-control': {
@@ -729,12 +748,14 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
   AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthSignInRoute: typeof AuthSignInRoute
   AuthSignUpRoute: typeof AuthSignUpRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
   AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthSignInRoute: AuthSignInRoute,
   AuthSignUpRoute: AuthSignUpRoute,

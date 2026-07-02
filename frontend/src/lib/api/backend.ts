@@ -472,11 +472,9 @@ export async function resendOTP(email: string): Promise<{ detail: string }> {
 }
 
 export async function loginWithGoogle(idToken: string): Promise<AuthResponse> {
-  // Use relative URL so the request goes through Vite's dev proxy as a
-  // same-origin request — this bypasses CORS, ad-blockers, and Private
-  // Network Access restrictions that block cross-origin requests.
-  const url = `/api/auth/google`;
-  console.log("[API] loginWithGoogle: POST", url, "(via Vite proxy)");
+  // Use absolute URL since Vite might not be configured to proxy /api
+  const url = `${BACKEND_URL}/api/auth/google`;
+  console.log("[API] loginWithGoogle: POST", url);
   console.log("[API] loginWithGoogle: idToken length =", idToken?.length ?? 0);
   let res: Response;
   try {
