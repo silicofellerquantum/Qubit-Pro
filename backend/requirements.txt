@@ -4,35 +4,69 @@ uvicorn[standard]==0.32.1
 pydantic==2.10.3
 pydantic-settings==2.7.0
 
-# ── Database ─────────────────────────────────────────────────────────────
+# ── Database ──────────────────────────────────────────────────────────────────
 sqlalchemy==2.0.36
 alembic==1.14.0
-aiosqlite==0.20.0          # SQLite async driver (dev default)
-asyncpg==0.31.0            # Postgres async driver (production)
-greenlet>=3.2.5            # Required by SQLAlchemy sync session bridge (missing = RuntimeError)
+aiosqlite==0.20.0
+asyncpg==0.31.0
+greenlet>=3.2.5
 
-# ── Auth ──────────────────────────────────────────────────────────────
+# ── Auth ──────────────────────────────────────────────────────────────────────
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-bcrypt==5.0.0              # Direct pin — passlib delegates to it; missing = ModuleNotFoundError
+bcrypt==5.0.0
 python-multipart==0.0.20
 
-# ── HTTP / Utils ──────────────────────────────────────────────────────────
+# ── HTTP / Utils ──────────────────────────────────────────────────────────────
 httpx==0.28.1
 aiofiles==24.1.0
 python-dotenv==1.0.1
 razorpay==1.4.1
 
-# ── Physics / ML ──────────────────────────────────────────────────────────
+# ── Numerics ──────────────────────────────────────────────────────────────────
+numpy==1.24.2
+scipy==1.10.0
+contourpy==1.0.7
+matplotlib==3.7.0
+pandas==1.5.3
+
+# ── Quantum Physics Simulation ────────────────────────────────────────────────
+scqubits==3.1.0
+qutip==4.7.1
+
+# ── Quantum Chip Design ───────────────────────────────────────────────────────
 networkx==3.2.1
-shapely==2.0.4             # Geometric footprint/obstacle polygons for layout engine (LAYOUT-003)
-ortools==9.7.2996          # CP-SAT constraint solver for Auto Layout (LAYOUT-010)
-qiskit-metal
-# torch>=2.0.0             # Optional — large dep, not installed in CI; code falls back to regex intent
+shapely==2.0.1
+ortools==9.7.2996
 
-# ── AI Assistant ──────────────────────────────────────────────────────────
-anthropic==0.39.0          # Optional — falls back to rule-based responses if no API key; 0.40+ requires Python>=3.10
+# ── qiskit-metal all declared deps (pre-installed so qiskit-metal --no-deps works) ──
+geopandas==0.12.2
+pyproj==3.4.1
+fiona==1.9.6
+addict==2.4.0
+descartes==1.1.0
+gdspy==1.6.12
+ipython==8.10.0
+pint==0.20.1
+pyEPR-quantum==0.8.5.7
+pygments==2.14.0
+pyside2==5.15.2.1
+qdarkstyle==3.1
+pyyaml==6.0
 
-# ── Testing ───────────────────────────────────────────────────────────
+# ── Ansys EM Simulation ───────────────────────────────────────────────────────
+# pyaedt==0.6.79 and gmsh==4.11.1 are intentionally listed in requirements-ansys.txt
+# and installed BEFORE qiskit-metal. See install.py for why.
+gmsh==4.11.1
+pyaedt==0.6.79
+
+# ── SQuADDS Dataset ───────────────────────────────────────────────────────────
+huggingface-hub>=0.20
+
+# ── AI Assistant ──────────────────────────────────────────────────────────────
+anthropic==0.39.0
+# torch>=2.0.0   # Optional — ML intent classifier; falls back to regex if absent
+
+# ── Testing ───────────────────────────────────────────────────────────────────
 pytest==8.3.4
 pytest-asyncio==0.24.0
