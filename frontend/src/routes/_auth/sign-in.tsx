@@ -169,6 +169,7 @@ function SignInPage() {
                   theme="outline"
                   shape="pill"
                   width="100%"
+                  logo_alignment="center"
                 />
               </GoogleOAuthProvider>
               <SocialButton
