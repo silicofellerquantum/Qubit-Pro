@@ -172,10 +172,13 @@ async def run_simulation(
 
             if solver_type == SolverType.EIGENMODE:
                 eig_csv = postpro_dir / "eig.csv"
-                epr_csv = postpro_dir / "epr.csv"
-                eigenmodes = parser.parse_eigenmodes(eig_csv, epr_csv if epr_csv.exists() else None)
+                epr_csv = postpro_dir / "port-EPR.csv"
+                eigenmodes = parser.parse_eigenmodes(
+                    eig_csv=eig_csv,
+                    epr_csv=epr_csv if epr_csv.exists() else None,
+                )
             elif solver_type == SolverType.ELECTROSTATIC:
-                cap_csv = postpro_dir / "cap.csv"
+                cap_csv = postpro_dir / "terminal-C.csv"
                 if not cap_csv.exists():
                     cap_csv = postpro_dir / "capacitance.csv"
                 capacitance = parser.parse_capacitance(cap_csv)
@@ -242,3 +245,56 @@ async def get_simulation(
     if not sim:
         raise HTTPException(status_code=404, detail="Simulation not found")
     return _sim_out(sim)
+
+
+@router.get("/{sim_id}/results/full")
+async def get_simulation_full_results(
+    sim_id: str,
+    result_path: str = "",   # optional override: direct path to run folder
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """
+    Fetch full parsed Palace outputs for sim_id.
+
+    Query param `result_path` is a temporary workaround until Simulation model
+    has a `result_dir` column populated by PalaceRunner.
+
+    Example:
+      GET /api/simulations/abc123/results/full?result_path=backend/test_data/simulation_results/sim_abc7d49230ed4258_eigenmode
+
+    Returns PalaceSimulationOutputs.dict().
+    """
+    # Verify ownership
+    result = await db.execute(
+        select(Simulation)
+        .join(Project, Simulation.project_id == Project.id)
+        .where(Simulation.id == sim_id, Project.owner_id == user.id)
+    )
+    sim = result.scalar_one_or_none()
+    if not sim:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+
+    # Resolve result_dir
+    if result_path:
+        run_dir = Path(result_path)
+    else:
+        # Default heuristic: backend/test_data/simulation_results/sim_{sim_id}_{solver}
+        run_dir = Path("backend/test_data/simulation_results") / f"sim_{sim_id}_{sim.solver}"
+
+    if not run_dir.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Palace result directory not found: {run_dir}. "
+                   "Provide ?result_path=<path> or ensure Simulation.result_dir is set."
+        )
+
+    # Parse
+    try:
+        from app.services.palace.result_parser import PalaceResultParser
+        parser = PalaceResultParser()
+        outputs = parser.parse_run(run_dir)
+        return outputs.dict()
+    except Exception as e:
+        logger.exception("Failed to parse Palace results from %s", run_dir)
+        raise HTTPException(status_code=500, detail=f"Parse error: {e}") from e

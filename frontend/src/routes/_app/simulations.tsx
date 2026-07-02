@@ -1,10 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   PlayCircle, Clock, Download, Sparkles, Bell, ChevronDown, ChevronLeft,
-  Info, Search, Eye, EyeOff, Move, Hand, ZoomIn, Maximize2, Camera,
+  Info, Search, Eye, EyeOff, Move, Hand, ZoomIn, Maximize2, Minimize2, Camera,
   ChevronRight, X, CheckCircle2, AlertTriangle, FileText, Loader2, Square,
 } from "lucide-react";
 import {
@@ -29,6 +29,7 @@ import { DESIGN_RULES, INDUSTRY_BENCHMARKS } from "@/lib/simulator/parameter-cat
 import {
   defaultSeedFromDesign, deriveAll, type DerivedAll,
 } from "@/lib/simulator/derive-parameters";
+import { useProject } from "@/lib/project-context";
 
 export const Route = createFileRoute("/_app/simulations")({
   head: () => ({ meta: [{ title: "Simulations — Silicofeller Quantum Studio" }] }),
@@ -184,9 +185,10 @@ function SimulationsPage() {
   const [aiPillOpen,    setAiPillOpen]    = useState(true);
   const [showDock,      setShowDock]      = useState(false);
 
-  const designId   = "demo";
-  const numQubits  = 5;
-  const initial    = useMemo(() => deriveAll(defaultSeedFromDesign(designId, numQubits)), []);
+  const { activeProject } = useProject();
+  const designId  = activeProject?.id   ?? "demo";
+  const numQubits = activeProject?.num_qubits ?? 5;
+  const initial    = useMemo(() => deriveAll(defaultSeedFromDesign(designId, numQubits)), [designId, numQubits]);
   const runner     = useSimulationRunner(initial, designId, numQubits);
   const derived    = runner.derived;
 
@@ -203,7 +205,8 @@ function SimulationsPage() {
     <TooltipProvider delayDuration={200}>
       <div className="flex flex-col h-full w-full bg-slate-50 text-slate-800 overflow-hidden">
         <Topbar
-          projectName="Transmon_Processor_v2"
+          projectName={activeProject?.name ?? null}
+          onResetSolverTab={() => setActiveTab(SOLVER_TABS[solver][0].id)}
           solverLabel={SOLVER_LABEL[solver]}
           aiPillOpen={aiPillOpen}
           setAiPillOpen={setAiPillOpen}
@@ -244,8 +247,9 @@ function SimulationsPage() {
 }
 
 // ── Topbar ───────────────────────────────────────────────────────────────────
-function Topbar({ projectName, solverLabel, aiPillOpen, setAiPillOpen, status, progress, onRun, onCancel, onExport }: {
-  projectName: string; solverLabel: string;
+function Topbar({ projectName, solverLabel, onResetSolverTab, aiPillOpen, setAiPillOpen, status, progress, onRun, onCancel, onExport }: {
+  projectName: string | null; solverLabel: string;
+  onResetSolverTab: () => void;
   aiPillOpen: boolean; setAiPillOpen: (v: boolean) => void;
   status: RunStatus; progress: number;
   onRun: () => void; onCancel: () => void; onExport: () => void;
@@ -254,11 +258,21 @@ function Topbar({ projectName, solverLabel, aiPillOpen, setAiPillOpen, status, p
   return (
     <div className="h-14 px-5 flex items-center justify-between bg-white border-b border-slate-200 shrink-0">
       <div className="flex items-center gap-2 text-sm">
-        <span className="text-slate-500 font-medium">Simulations</span>
+        <Link to="/dashboard"
+          className="text-slate-500 font-medium hover:text-accent transition-colors cursor-pointer">
+          Simulations
+        </Link>
         <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-        <span className="text-slate-700 font-semibold">{solverLabel}</span>
-        <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-        <span className="text-slate-900 font-bold">{projectName}</span>
+        <button onClick={onResetSolverTab}
+          className="text-slate-700 font-semibold hover:text-accent transition-colors cursor-pointer">
+          {solverLabel}
+        </button>
+        {projectName ? (
+          <>
+            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-slate-900 font-bold">{projectName}</span>
+          </>
+        ) : null}
         <span className={cn("inline-flex items-center gap-1.5 ml-3 px-2 py-0.5 rounded-md text-xs font-medium border",
           status === "completed" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
           status === "running"   ? "bg-violet-50 text-violet-700 border-violet-200" :
@@ -626,15 +640,17 @@ function SolverContent({ solver, tab, derived }: { solver: SolverId; tab: string
     if (tab === "q")        return <QFactorBars modes={derived.eigenmode.modes} />;
     if (tab === "energy")   return <EnergyBars modes={derived.eigenmode.modes} />;
     if (tab === "modes")    return <PlaceholderPanel title="Mode shape gallery" subtitle="3D field renderings per eigenmode" />;
-    return <PlaceholderPanel title="Adaptive mesh" subtitle="Tetrahedral mesh statistics" />;
+    return <MeshView />;
   }
   if (solver === "driven_modal") {
     if (tab === "s") return <SParamChart data={derived.hfss.sweep} />;
+    if (tab === "mesh") return <MeshView />;
     return <PlaceholderPanel title={tab} subtitle="HFSS driven-modal output" />;
   }
   if (solver === "hfss_em") {
     if (tab === "e" || tab === "h" || tab === "j") return <EigenmodeFieldView derived={derived} variant={tab as "e"|"h"|"j"} />;
     if (tab === "loss") return <LossBreakdown derived={derived} />;
+    if (tab === "mesh") return <MeshView />;
     return <PlaceholderPanel title={tab} subtitle="HFSS full-wave output" />;
   }
   if (solver === "q3d") {
@@ -717,17 +733,33 @@ function FieldHeatmapSVG({ selectedMode }: { selectedMode: number }) {
   );
 }
 
+// ── Shared glass-panel style constants ───────────────────────────────────────
+const GLASS_PANEL  = "bg-slate-900/25 backdrop-blur-[3px] rounded-lg shadow-lg border border-white/10 text-xs z-10";
+const GLASS_HEADER = "flex items-center justify-between px-3 py-2 border-b border-white/10";
+const GLASS_TITLE  = "font-bold text-white/90";
+const GLASS_CLOSE  = "text-white/50 hover:text-white transition-colors";
+
 function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; variant?: "e"|"h"|"j" }) {
-  const [selectedMode, setSelectedMode] = useState(0);
-  const [layers, setLayers] = useState<Record<string,boolean>>({
+  const [selectedMode,  setSelectedMode]  = useState(0);
+  const [layers,        setLayers]        = useState<Record<string,boolean>>({
     Metal_1: true, Metal_2: true, Josephson_Junction: true,
     Dielectric_1: true, Dielectric_2: true, Substrate: true, Air_Box: false, Ports: true,
   });
-  const [showLayers,  setShowLayers]  = useState(true);
+  const [showLayers,   setShowLayers]   = useState(true);
   const [showViewCtrl, setShowViewCtrl] = useState(true);
-  const [showFreq,    setShowFreq]    = useState(true);
-  const [tool, setTool] = useState<"move"|"pan"|"rotate"|"zoom"|"fit">("move");
-  const [zoom, setZoom] = useState(1);
+  const [showFreq,     setShowFreq]     = useState(true);
+  const [tool,  setTool]  = useState<"move"|"pan"|"rotate"|"zoom"|"fit">("move");
+  const [zoom,  setZoom]  = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Escape key + body-scroll lock
+  useEffect(() => {
+    if (!isFullscreen) return;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", onKey); };
+  }, [isFullscreen]);
 
   const viewTools = [
     { id: "move"   as const, Icon: Move,     label: "Move" },
@@ -739,9 +771,15 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
 
   const label = variant === "h" ? "| Total H | (dBA/m)" : variant === "j" ? "| Total J | (dBA/m²)" : "| Total E | (dBV/m)";
 
+  const canvasH = isFullscreen ? "flex-1 h-[calc(100%-45px)]" : "h-[460px]";
+
   return (
-    <Card className="overflow-hidden border-slate-200 rounded-xl shadow-sm">
-      <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-white">
+    <Card className={cn(
+      "overflow-hidden border-slate-200 rounded-xl shadow-sm flex flex-col",
+      isFullscreen && "fixed inset-3 z-[100] shadow-2xl"
+    )}>
+      {/* ── Header ── */}
+      <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
         <div className="text-xs font-bold text-slate-700">{label}</div>
         <div className="flex items-center gap-2">
           <button onClick={() => toast.success("Snapshot captured")}
@@ -756,9 +794,24 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
           }} className="h-7 w-7 rounded hover:bg-slate-100 inline-flex items-center justify-center text-slate-500">
             <Download className="h-3.5 w-3.5" />
           </button>
+          <button onClick={() => setIsFullscreen(f => !f)}
+            className="h-7 w-7 rounded hover:bg-slate-100 inline-flex items-center justify-center text-slate-500"
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
         </div>
       </div>
-      <div className="relative bg-gradient-to-br from-slate-900 to-slate-950 h-[460px] overflow-hidden">
+
+      {/* ── Canvas ── */}
+      <div className={cn("relative bg-gradient-to-br from-slate-900 to-slate-950 overflow-hidden", canvasH)}>
+        {/* Floating ✕ close button (fullscreen only) */}
+        {isFullscreen && (
+          <button onClick={() => setIsFullscreen(false)}
+            className="absolute top-3 right-3 z-[110] h-8 w-8 rounded-full bg-slate-900/60 backdrop-blur-sm border border-white/10 inline-flex items-center justify-center text-white/70 hover:text-white hover:bg-slate-900/80 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        )}
+
         {/* Colorbar */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2 w-2/3 z-10">
           <div className="h-3 rounded-sm" style={{ background: "linear-gradient(to right, #1e3a8a, #2563eb, #06b6d4, #10b981, #84cc16, #facc15, #f97316, #ef4444)" }} />
@@ -766,34 +819,37 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
             {["164","180","196","211","219","234"].map(v => <span key={v}>{v}</span>)}
           </div>
         </div>
+
         <FieldHeatmapSVG selectedMode={selectedMode} />
+
         {/* Layers panel */}
         {showLayers && (
-          <div className="absolute top-16 left-3 w-52 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-white/20 text-xs z-10">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
-              <span className="font-bold text-slate-800">Layers</span>
-              <button onClick={() => setShowLayers(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+          <div className={cn("absolute top-16 left-3 w-52", GLASS_PANEL)}>
+            <div className={GLASS_HEADER}>
+              <span className={GLASS_TITLE}>Layers</span>
+              <button onClick={() => setShowLayers(false)} className={GLASS_CLOSE}><X className="h-3 w-3" /></button>
             </div>
             <div className="p-2 space-y-1">
               {Object.entries(layers).map(([name, on]) => (
                 <button key={name} onClick={() => setLayers(s => ({ ...s, [name]: !s[name] }))}
-                  className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-slate-100">
+                  className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded hover:bg-white/10 transition-colors">
                   <div className="flex items-center gap-2">
                     <span className={cn("h-3 w-3 rounded-sm shrink-0", LAYER_COLORS[name] || "bg-slate-400")} />
-                    <span className="text-slate-700">{name}</span>
+                    <span className="text-white/80">{name}</span>
                   </div>
-                  {on ? <Eye className="h-3 w-3 text-slate-500" /> : <EyeOff className="h-3 w-3 text-slate-300" />}
+                  {on ? <Eye className="h-3 w-3 text-white/50" /> : <EyeOff className="h-3 w-3 text-white/25" />}
                 </button>
               ))}
             </div>
           </div>
         )}
+
         {/* View controls */}
         {showViewCtrl && (
-          <div className="absolute top-[280px] left-3 w-52 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-white/20 z-10">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200">
-              <span className="text-xs font-bold text-slate-800">View Controls</span>
-              <button onClick={() => setShowViewCtrl(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+          <div className={cn("absolute top-[280px] left-3 w-52", GLASS_PANEL)}>
+            <div className={GLASS_HEADER}>
+              <span className={GLASS_TITLE}>View Controls</span>
+              <button onClick={() => setShowViewCtrl(false)} className={GLASS_CLOSE}><X className="h-3 w-3" /></button>
             </div>
             <div className="flex items-center gap-1 p-2">
               {viewTools.map(({ id, Icon, label: lbl }) => (
@@ -802,22 +858,24 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
                   if (id === "zoom") setZoom(z => Math.min(z + 0.2, 3));
                   else if (id === "fit") setZoom(1);
                   toast.success(lbl);
-                }} className={cn("h-7 w-7 inline-flex items-center justify-center rounded hover:bg-slate-100",
-                  tool === id ? "bg-accent/10 text-accent" : "text-slate-600")}>
+                }} className={cn("h-7 w-7 inline-flex items-center justify-center rounded transition-colors",
+                  tool === id ? "bg-accent/20 text-accent" : "text-white/60 hover:bg-white/10 hover:text-white/90")}>
                   <Icon className="h-3.5 w-3.5" />
                 </button>
               ))}
             </div>
           </div>
         )}
+
         {/* Restore chips */}
         {(!showLayers || !showViewCtrl || !showFreq) && (
           <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-1.5">
-            {!showLayers   && <button onClick={() => setShowLayers(true)}   className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/90 text-slate-700 shadow hover:bg-white">Show Layers</button>}
-            {!showViewCtrl && <button onClick={() => setShowViewCtrl(true)} className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/90 text-slate-700 shadow hover:bg-white">Show View Controls</button>}
-            {!showFreq     && <button onClick={() => setShowFreq(true)}     className="text-[10px] font-semibold px-2 py-1 rounded-md bg-white/90 text-slate-700 shadow hover:bg-white">Show Frequency</button>}
+            {!showLayers   && <button onClick={() => setShowLayers(true)}   className="text-[10px] font-semibold px-2 py-1 rounded-md bg-slate-900/40 backdrop-blur-sm border border-white/10 text-white/90 hover:bg-slate-900/60 transition-colors">Show Layers</button>}
+            {!showViewCtrl && <button onClick={() => setShowViewCtrl(true)} className="text-[10px] font-semibold px-2 py-1 rounded-md bg-slate-900/40 backdrop-blur-sm border border-white/10 text-white/90 hover:bg-slate-900/60 transition-colors">Show View Controls</button>}
+            {!showFreq     && <button onClick={() => setShowFreq(true)}     className="text-[10px] font-semibold px-2 py-1 rounded-md bg-slate-900/40 backdrop-blur-sm border border-white/10 text-white/90 hover:bg-slate-900/60 transition-colors">Show Frequency</button>}
           </div>
         )}
+
         {/* XYZ gizmo */}
         <div className="absolute bottom-4 left-6 z-10">
           <svg width="60" height="60" viewBox="0 0 60 60">
@@ -832,18 +890,19 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
             </defs>
           </svg>
         </div>
+
         {/* Frequency picker */}
         {showFreq && (
-          <div className="absolute top-16 right-3 w-32 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-white/20 flex flex-col z-10">
-            <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800">Frequency (MHz)</span>
-              <button onClick={() => setShowFreq(false)} className="text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>
+          <div className={cn("absolute top-16 right-3 w-32 flex flex-col", GLASS_PANEL)}>
+            <div className={GLASS_HEADER}>
+              <span className={GLASS_TITLE}>Frequency (MHz)</span>
+              <button onClick={() => setShowFreq(false)} className={GLASS_CLOSE}><X className="h-3 w-3" /></button>
             </div>
             <div className="overflow-y-auto max-h-[300px]">
               {derived.eigenmode.modes.map((m, i) => (
                 <button key={i} onClick={() => setSelectedMode(i)}
-                  className={cn("w-full text-left px-3 py-1.5 text-xs font-mono",
-                    selectedMode === i ? "bg-accent text-white font-semibold" : "text-slate-700 hover:bg-slate-100")}>
+                  className={cn("w-full text-left px-3 py-1.5 text-xs font-mono transition-colors",
+                    selectedMode === i ? "bg-accent text-white font-semibold" : "text-white/70 hover:bg-white/10")}>
                   {(m.f_GHz * 1000).toFixed(2)}
                 </button>
               ))}
@@ -855,7 +914,170 @@ function EigenmodeFieldView({ derived, variant = "e" }: { derived: DerivedAll; v
   );
 }
 
-// ── Bottom dock ──────────────────────────────────────────────────────────────
+// ── Mesh view ─────────────────────────────────────────────────────────────────
+function MeshView() {
+  const [showStats,    setShowStats]    = useState(true);
+  const [showViewCtrl, setShowViewCtrl] = useState(true);
+  const [tool,         setTool]         = useState<"move"|"pan"|"rotate"|"zoom"|"fit">("move");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Escape key + body-scroll lock
+  useEffect(() => {
+    if (!isFullscreen) return;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsFullscreen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { document.body.style.overflow = ""; window.removeEventListener("keydown", onKey); };
+  }, [isFullscreen]);
+
+  const viewTools = [
+    { id: "move"   as const, Icon: Move,     label: "Move" },
+    { id: "pan"    as const, Icon: Hand,     label: "Pan" },
+    { id: "rotate" as const, Icon: Hand,     label: "Rotate" },
+    { id: "zoom"   as const, Icon: ZoomIn,   label: "Zoom in" },
+    { id: "fit"    as const, Icon: Maximize2, label: "Fit to view" },
+  ];
+
+  const canvasH = isFullscreen ? "flex-1 h-[calc(100%-45px)]" : "h-[460px]";
+
+  // Placeholder mesh stats (real values wired up in Phase 4)
+  const stats = [
+    ["Nodes",      "48 312"],
+    ["Tetrahedra", "184 320"],
+    ["Triangles",  "12 048"],
+    ["DOF",        "2 451 680"],
+    ["Min quality","0.312"],
+    ["Max quality","0.998"],
+    ["Mean quality","0.741"],
+  ];
+
+  return (
+    <Card className={cn(
+      "overflow-hidden border-slate-200 rounded-xl shadow-sm flex flex-col",
+      isFullscreen && "fixed inset-3 z-[100] shadow-2xl"
+    )}>
+      {/* ── Header ── */}
+      <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+        <div className="text-xs font-bold text-slate-700">Mesh Statistics</div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => toast.success("Snapshot captured")}
+            className="h-7 w-7 rounded hover:bg-slate-100 inline-flex items-center justify-center text-slate-500">
+            <Camera className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => setIsFullscreen(f => !f)}
+            className="h-7 w-7 rounded hover:bg-slate-100 inline-flex items-center justify-center text-slate-500"
+            title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Canvas ── */}
+      <div className={cn("relative bg-gradient-to-br from-slate-900 to-slate-950 overflow-hidden", canvasH)}>
+        {/* Floating ✕ (fullscreen only) */}
+        {isFullscreen && (
+          <button onClick={() => setIsFullscreen(false)}
+            className="absolute top-3 right-3 z-[110] h-8 w-8 rounded-full bg-slate-900/60 backdrop-blur-sm border border-white/10 inline-flex items-center justify-center text-white/70 hover:text-white hover:bg-slate-900/80 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        )}
+
+        {/* Wireframe mesh SVG */}
+        <svg viewBox="0 0 900 460" className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid meet">
+          <rect width="900" height="460" fill="#0c1330" />
+          <defs>
+            <pattern id="mesh-grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#3b82f6" strokeWidth="0.4" opacity="0.25" />
+            </pattern>
+          </defs>
+          <rect width="900" height="460" fill="url(#mesh-grid)" />
+          {/* Chip outline */}
+          <rect x="80" y="60" width="740" height="340" fill="none" stroke="#7C3AED" strokeWidth="1.5" opacity="0.7" rx="4" />
+          {/* Tet mesh lines */}
+          {Array.from({length: 18}, (_,row) => Array.from({length: 24}, (_,col) => {
+            const x1 = 80 + col * 32, y1 = 60 + row * 19;
+            const x2 = x1 + 32,       y2 = y1 + 19;
+            return [
+              <line key={`h-${row}-${col}`} x1={x1} y1={y1} x2={x2} y2={y1} stroke="#22d3ee" strokeWidth="0.3" opacity="0.3" />,
+              <line key={`d-${row}-${col}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#a78bfa" strokeWidth="0.3" opacity="0.2" />,
+            ];
+          }).flat())}
+          {/* Quality heat spots */}
+          <ellipse cx="310" cy="200" rx="80" ry="50" fill="#ef4444" opacity="0.08" />
+          <ellipse cx="600" cy="270" rx="60" ry="40" fill="#facc15" opacity="0.08" />
+          <ellipse cx="450" cy="170" rx="100" ry="60" fill="#10b981" opacity="0.07" />
+          {/* Axis labels */}
+          <text x="880" y="460" fill="#ef4444" fontSize="11" fontWeight="bold" opacity="0.6">X</text>
+          <text x="80"  y="48"  fill="#06b6d4" fontSize="11" fontWeight="bold" opacity="0.6">Z</text>
+        </svg>
+
+        {/* Mesh statistics panel */}
+        {showStats && (
+          <div className={cn("absolute top-16 left-3 w-52", GLASS_PANEL)}>
+            <div className={GLASS_HEADER}>
+              <span className={GLASS_TITLE}>Mesh Statistics</span>
+              <button onClick={() => setShowStats(false)} className={GLASS_CLOSE}><X className="h-3 w-3" /></button>
+            </div>
+            <div className="p-3 space-y-1.5">
+              {stats.map(([k, v]) => (
+                <div key={k} className="flex justify-between">
+                  <span className="text-white/60">{k}</span>
+                  <span className="font-mono text-white/90 font-semibold">{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* View controls */}
+        {showViewCtrl && (
+          <div className={cn("absolute top-[320px] left-3 w-52", GLASS_PANEL)}>
+            <div className={GLASS_HEADER}>
+              <span className={GLASS_TITLE}>View Controls</span>
+              <button onClick={() => setShowViewCtrl(false)} className={GLASS_CLOSE}><X className="h-3 w-3" /></button>
+            </div>
+            <div className="flex items-center gap-1 p-2">
+              {viewTools.map(({ id, Icon, label: lbl }) => (
+                <button key={id} title={lbl} onClick={() => {
+                  setTool(id);
+                  toast.success(lbl);
+                }} className={cn("h-7 w-7 inline-flex items-center justify-center rounded transition-colors",
+                  tool === id ? "bg-accent/20 text-accent" : "text-white/60 hover:bg-white/10 hover:text-white/90")}>
+                  <Icon className="h-3.5 w-3.5" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Restore chips */}
+        {(!showStats || !showViewCtrl) && (
+          <div className="absolute bottom-4 right-4 z-10 flex flex-col gap-1.5">
+            {!showStats    && <button onClick={() => setShowStats(true)}    className="text-[10px] font-semibold px-2 py-1 rounded-md bg-slate-900/40 backdrop-blur-sm border border-white/10 text-white/90 hover:bg-slate-900/60 transition-colors">Show Statistics</button>}
+            {!showViewCtrl && <button onClick={() => setShowViewCtrl(true)} className="text-[10px] font-semibold px-2 py-1 rounded-md bg-slate-900/40 backdrop-blur-sm border border-white/10 text-white/90 hover:bg-slate-900/60 transition-colors">Show View Controls</button>}
+          </div>
+        )}
+
+        {/* XYZ gizmo */}
+        <div className="absolute bottom-4 left-6 z-10">
+          <svg width="60" height="60" viewBox="0 0 60 60">
+            <circle cx="20" cy="40" r="4" fill="#10b981" />
+            <line x1="20" y1="40" x2="50" y2="40" stroke="#ef4444" strokeWidth="2" markerEnd="url(#mx)" />
+            <line x1="20" y1="40" x2="20" y2="10" stroke="#06b6d4" strokeWidth="2" markerEnd="url(#mz)" />
+            <text x="52" y="44" fill="#ef4444" fontSize="10" fontWeight="bold">X</text>
+            <text x="14" y="10" fill="#06b6d4" fontSize="10" fontWeight="bold">Z</text>
+            <defs>
+              <marker id="mx" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><polygon points="0 0,6 3,0 6" fill="#ef4444" /></marker>
+              <marker id="mz" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><polygon points="0 0,6 3,0 6" fill="#06b6d4" /></marker>
+            </defs>
+          </svg>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ── Bottom dock ───────────────────────────────────────────────────────────────
 function BottomDock({ derived, solver, liveLogs, progress, status, onClose }: {
   derived: DerivedAll; solver: SolverId;
   liveLogs: LogLine[]; progress: number; status: RunStatus;
