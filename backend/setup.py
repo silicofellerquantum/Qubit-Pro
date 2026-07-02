@@ -45,13 +45,22 @@ else:
 # Install requirements (skip pip self-upgrade to avoid Windows lock issue)
 run(f'"{venv_pip}" install -r requirements.txt')
 
-# Create .env file if it doesn't exist
+# Create .env file for backend if it doesn't exist
 if not os.path.exists(".env") and os.path.exists(".env.example"):
-    print("\n>>> Creating .env from .env.example")
+    print("\n>>> Creating backend .env from .env.example")
     shutil.copy(".env.example", ".env")
-    print(">>> IMPORTANT: Please edit .env to add your Razorpay keys and other secrets.")
+    print(">>> IMPORTANT: Please edit backend/.env to add your Razorpay keys and other secrets.")
 elif os.path.exists(".env"):
-    print("\n>>> .env file already exists, skipping creation")
+    print("\n>>> backend/.env file already exists, skipping creation")
+
+# Create .env file for frontend if it doesn't exist
+frontend_env = os.path.join("..", "frontend", ".env")
+frontend_example = os.path.join("..", "frontend", ".env.example")
+if not os.path.exists(frontend_env) and os.path.exists(frontend_example):
+    print("\n>>> Creating frontend .env from .env.example")
+    shutil.copy(frontend_example, frontend_env)
+elif os.path.exists(frontend_env):
+    print("\n>>> frontend/.env file already exists, skipping creation")
 
 print("\n[OK] Setup complete!")
 print("\nTo start the backend:")

@@ -44,7 +44,7 @@ export const DEMO_ACCOUNTS = [
 export function canAccess(role: UserRole, resource: string): boolean {
   if (role === "admin") return true;
   if (resource === "admin") return false;
-  if (resource === "team" || resource === "billing") {
+  if (resource === "team") {
     return role === "org_manager";
   }
   return true;
