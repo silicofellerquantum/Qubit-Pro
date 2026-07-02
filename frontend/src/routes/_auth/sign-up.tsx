@@ -11,6 +11,7 @@ import { PasswordInput } from "@/components/auth/password-input";
 import { SocialButton } from "@/components/auth/social-button";
 import { QuantumHero } from "@/components/auth/quantum-hero";
 import { useAuth } from "@/lib/auth/auth-context";
+import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 
 export const Route = createFileRoute("/_auth/sign-up")({
   head: () => ({
@@ -44,7 +45,7 @@ interface FormState {
 
 function SignUpPage() {
   const navigate = useNavigate();
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
   const [form, setForm] = useState<FormState>({
     fullName: "",
     organization: "",
@@ -223,16 +224,27 @@ function SignUpPage() {
           </div>
 
           <div className="grid gap-2.5">
-            <SocialButton
-              provider="google"
-              label="Sign up with Google"
-              onClick={() => toast("Demo only")}
-            />
-            <SocialButton
-              provider="github"
-              label="Sign up with GitHub"
-              onClick={() => toast("Demo only")}
-            />
+            <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
+              <GoogleLogin
+                onSuccess={async (credentialResponse) => {
+                  if (credentialResponse.credential) {
+                    const res = await signInWithGoogle(credentialResponse.credential);
+                    if (!res.ok) {
+                      toast.error(res.error ?? "Google sign in failed");
+                      return;
+                    }
+                    toast.success("Signed in with Google!");
+                    navigate({ to: "/dashboard" });
+                  }
+                }}
+                onError={() => {
+                  toast.error("Google sign in failed");
+                }}
+                theme="outline"
+                shape="pill"
+                width="100%"
+              />
+            </GoogleOAuthProvider>
           </div>
         </AuthCard>
       </section>

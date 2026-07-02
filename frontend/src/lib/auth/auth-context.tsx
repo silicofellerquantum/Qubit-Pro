@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { loginUser, registerUser } from "@/lib/api/backend";
+import { loginUser, registerUser, loginWithGoogle } from "@/lib/api/backend";
 
 export type UserRole = "admin" | "org_manager" | "engineer";
 
@@ -54,6 +54,7 @@ interface AuthContextType {
   user: User | null;
   hydrated: boolean;
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signInWithGoogle: (idToken: string) => Promise<{ ok: boolean; error?: string }>;
   signInAs: (role: UserRole) => Promise<void>;
   signUp: (name: string, email: string, password: string, org: string, role?: UserRole) => Promise<{ ok: boolean; error?: string }>;
   signOut: () => Promise<void>;
@@ -136,6 +137,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (msg.includes("422")) return { ok: false, error: "Invalid credentials format" };
       // Backend offline — fall back to demo account matching
       return _signInOffline(email);
+    }
+  };
+
+  const signInWithGoogle = async (idToken: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const data = await loginWithGoogle(idToken);
+      const serverUser = (data as { user?: Record<string, string> }).user;
+      if (serverUser) {
+        const newUser: User = {
+          id: serverUser.id ?? `u_${Date.now()}`,
+          name: serverUser.name ?? "Google User",
+          email: serverUser.email ?? "",
+          role: (serverUser.role as UserRole) ?? "engineer",
+          organization: serverUser.organization ?? "Independent",
+          initials: serverUser.initials ?? _makeInitials(serverUser.name ?? "Google User"),
+        };
+        setUser(newUser);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newUser));
+        return { ok: true };
+      }
+      return { ok: false, error: "Invalid server response" };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Google login failed";
+      return { ok: false, error: msg };
     }
   };
 
@@ -255,7 +280,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, hydrated, signIn, signInAs, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, hydrated, signIn, signInWithGoogle, signInAs, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );
