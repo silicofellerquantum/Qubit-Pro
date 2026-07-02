@@ -177,9 +177,10 @@ function useSimulationRunner(initial: DerivedAll, designId: string, numQubits: n
 // ── Main page ────────────────────────────────────────────────────────────────
 function SimulationsPage() {
   const [solver,        setSolver]        = useState<SolverId>("eigenmode");
-  const [activeTab,     setActiveTab]     = useState<string>("field");
-  const [railCollapsed, setRailCollapsed] = useState(false);
-  const [paramsTab,     setParamsTab]     = useState<"setup" | "advanced">("setup");
+  const [activeTab,     setActiveTab]     = useState<string>("overview");
+  const [railCollapsed,   setRailCollapsed]   = useState(false);
+  const [paramsCollapsed, setParamsCollapsed] = useState(false);
+  const [paramsTab,       setParamsTab]       = useState<"setup" | "advanced">("setup");
   const [aiPillOpen,    setAiPillOpen]    = useState(true);
   const [showDock,      setShowDock]      = useState(false);
 
@@ -232,6 +233,9 @@ function SimulationsPage() {
             setParamsTab={setParamsTab}
             onRun={() => { setShowDock(true); runner.run(solver); }}
             status={runner.status}
+            collapsed={paramsCollapsed}
+            onCollapse={() => setParamsCollapsed(true)}
+            onExpand={() => setParamsCollapsed(false)}
           />
         </div>
       </div>
@@ -347,9 +351,9 @@ function SolverRail({ solver, setSolver, collapsed, setCollapsed }: {
                 const active = solver === item.id;
                 return (
                   <button key={item.label} onClick={() => setSolver(item.id)}
-                    className={cn("w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs transition-colors",
-                      active ? "bg-accent/10 text-accent font-semibold" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900")}>
-                    <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-accent" : "text-slate-400")} />
+                    className={cn("w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-left text-xs transition-all duration-150 transform-gpu group",
+                      active ? "bg-accent/10 text-accent font-semibold" : "text-slate-600 hover:bg-accent/10 hover:text-accent hover:scale-[1.02] hover:shadow-sm")}>
+                    <Icon className={cn("h-3.5 w-3.5 shrink-0 transition-colors duration-150", active ? "text-accent" : "text-slate-400 group-hover:text-accent")} />
                     <span className="truncate">{item.label}</span>
                   </button>
                 );
@@ -363,8 +367,8 @@ function SolverRail({ solver, setSolver, collapsed, setCollapsed }: {
             {OPTIMIZATION_GROUP.items.map((item, i) => {
               const Icon = item.icon;
               return (
-                <button key={i} className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100">
-                  <Icon className="h-3.5 w-3.5 text-slate-400" />
+                <button key={i} className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-accent/10 hover:text-accent hover:scale-[1.02] hover:shadow-sm transition-all duration-150 transform-gpu group">
+                  <Icon className="h-3.5 w-3.5 text-slate-400 group-hover:text-accent transition-colors duration-150" />
                   <span>{item.label}</span>
                 </button>
               );
@@ -378,9 +382,9 @@ function SolverRail({ solver, setSolver, collapsed, setCollapsed }: {
               const Icon = item.icon;
               const badge = "badge" in item ? (item as { badge?: number }).badge : undefined;
               return (
-                <button key={item.label} className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-slate-100">
+                <button key={item.label} className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-slate-600 hover:bg-accent/10 hover:text-accent hover:scale-[1.02] hover:shadow-sm transition-all duration-150 transform-gpu group">
                   <div className="flex items-center gap-2.5">
-                    <Icon className="h-3.5 w-3.5 text-slate-400" />
+                    <Icon className="h-3.5 w-3.5 text-slate-400 group-hover:text-accent transition-colors duration-150" />
                     <span>{item.label}</span>
                   </div>
                   {badge != null && (
@@ -441,7 +445,6 @@ function CenterPane({ solver, activeTab, setActiveTab, derived, runner, showDock
             </PopoverContent>
           </Popover>
         </div>
-        <MetricStrip solver={solver} derived={derived} />
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="px-6 border-b border-slate-200 shrink-0 bg-white">
@@ -589,8 +592,34 @@ function MetricStrip({ solver, derived }: { solver: SolverId; derived: DerivedAl
   );
 }
 
+// ── Overview panel ───────────────────────────────────────────────────────────
+function OverviewPanel({ solver, derived }: { solver: SolverId; derived: DerivedAll }) {
+  const kpis = getKpis(solver, derived);
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      {kpis.map((k, i) => (
+        <motion.div key={k.label} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.04, duration: 0.18 }}>
+          <Card className="border-slate-200 px-4 py-3 shadow-sm rounded-xl">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 truncate">{k.label}</div>
+            <div className="flex items-center gap-1.5">
+              <div className={cn("text-lg font-black tracking-tight truncate",
+                k.accent === "emerald" ? "text-emerald-600" : "text-slate-900")}>
+                {k.value}
+              </div>
+              {k.accent === "emerald" && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />}
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5 truncate">{k.sub}</div>
+          </Card>
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
 // ── Solver content router ────────────────────────────────────────────────────
 function SolverContent({ solver, tab, derived }: { solver: SolverId; tab: string; derived: DerivedAll }) {
+  if (tab === "overview") return <OverviewPanel solver={solver} derived={derived} />;
   if (solver === "eigenmode") {
     if (tab === "field")    return <EigenmodeFieldView derived={derived} />;
     if (tab === "spectrum") return <SpectrumChart data={derived.eigenmode.modes.map(m => ({ f: m.f_GHz, Q: m.Q_loaded }))} />;
@@ -952,17 +981,29 @@ function BottomDock({ derived, solver, liveLogs, progress, status, onClose }: {
 }
 
 // ── Parameters rail ──────────────────────────────────────────────────────────
-function ParametersRail({ solver, paramsTab, setParamsTab, onRun, status }: {
+function ParametersRail({ solver, paramsTab, setParamsTab, onRun, status, collapsed, onCollapse, onExpand }: {
   solver: SolverId; paramsTab: "setup"|"advanced"; setParamsTab: (v: "setup"|"advanced") => void;
   onRun: () => void; status: RunStatus;
+  collapsed: boolean; onCollapse: () => void; onExpand: () => void;
 }) {
   const running = status === "running";
+
+  if (collapsed) {
+    return (
+      <div className="w-10 bg-white border-l border-slate-200 flex flex-col items-center pt-3 shrink-0">
+        <button onClick={onExpand} className="h-8 w-8 rounded hover:bg-slate-100 inline-flex items-center justify-center">
+          <ChevronLeft className="h-4 w-4 text-slate-500" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="w-[320px] bg-white border-l border-slate-200 flex flex-col shrink-0 overflow-hidden">
       <div className="h-14 px-4 flex items-center justify-between border-b border-slate-200 shrink-0">
         <span className="text-sm font-bold text-slate-900">Parameters</span>
-        <button className="h-7 w-7 rounded hover:bg-slate-100 inline-flex items-center justify-center text-slate-500">
-          <Maximize2 className="h-3.5 w-3.5" />
+        <button onClick={onCollapse} className="h-7 w-7 rounded hover:bg-slate-100 inline-flex items-center justify-center text-slate-500">
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
       <div className="px-4 pt-3 shrink-0">

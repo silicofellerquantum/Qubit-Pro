@@ -79,15 +79,17 @@ export const SOLVER_LABEL: Record<SolverId, string> = {
 
 export type SolverTab = { id: string; label: string };
 
+const OV: SolverTab = { id: "overview", label: "Overview" };
+
 export const SOLVER_TABS: Record<SolverId, SolverTab[]> = {
-  eigenmode:    [{ id: "field", label: "Field View" }, { id: "modes", label: "Mode Shapes" }, { id: "spectrum", label: "Spectrum" }, { id: "q", label: "Q Factors" }, { id: "energy", label: "Energy" }, { id: "mesh", label: "Mesh" }],
-  driven_modal: [{ id: "s", label: "S-Parameters" }, { id: "smith", label: "Smith Chart" }, { id: "field", label: "Field View" }, { id: "z", label: "Impedance" }, { id: "delay", label: "Group Delay" }, { id: "mesh", label: "Mesh" }],
-  hfss_em:      [{ id: "e", label: "E Field" }, { id: "h", label: "H Field" }, { id: "j", label: "Current Density" }, { id: "power", label: "Power Flow" }, { id: "loss", label: "Loss Breakdown" }, { id: "mesh", label: "Mesh" }],
-  q3d:          [{ id: "c", label: "Capacitance Matrix" }, { id: "l", label: "Inductance Matrix" }, { id: "r", label: "Resistance Matrix" }, { id: "g", label: "Conductance Matrix" }, { id: "derived", label: "Derived Parameters" }],
-  physics:      [{ id: "levels", label: "Energy Levels" }, { id: "wave", label: "Wavefunctions" }, { id: "charge", label: "Charge Dispersion" }, { id: "ham", label: "Hamiltonian Matrix" }, { id: "coh", label: "Coherence" }],
-  epr:          [{ id: "part", label: "Participation Ratios" }, { id: "ham", label: "Hamiltonian Parameters" }, { id: "trans", label: "Transition Frequencies" }, { id: "coup", label: "Coupling" }, { id: "anh", label: "Anharmonicity" }],
-  hamiltonian:  [{ id: "states", label: "Bare vs Dressed States" }, { id: "diag", label: "Energy Diagram" }, { id: "disp", label: "Dispersive Map" }, { id: "conv", label: "Convergence" }],
-  noise:        [{ id: "psd", label: "PSD Spectrum" }, { id: "t1", label: "T₁ Budget" }, { id: "t2", label: "T₂ Budget" }, { id: "thermal", label: "Thermal" }, { id: "tls", label: "TLS Map" }],
-  coupling:     [{ id: "map", label: "Coupling Map" }, { id: "dist", label: "Distance Dependence" }, { id: "xt", label: "Crosstalk Matrix" }, { id: "zz", label: "ZZ Suppression" }],
-  purcell:      [{ id: "limit", label: "Purcell Limit vs Detuning" }, { id: "filter", label: "Filter Response" }, { id: "qe", label: "Q_e Sweep" }],
+  eigenmode:    [OV, { id: "field", label: "Field View" }, { id: "modes", label: "Mode Shapes" }, { id: "spectrum", label: "Spectrum" }, { id: "q", label: "Q Factors" }, { id: "energy", label: "Energy" }, { id: "mesh", label: "Mesh" }],
+  driven_modal: [OV, { id: "s", label: "S-Parameters" }, { id: "smith", label: "Smith Chart" }, { id: "field", label: "Field View" }, { id: "z", label: "Impedance" }, { id: "delay", label: "Group Delay" }, { id: "mesh", label: "Mesh" }],
+  hfss_em:      [OV, { id: "e", label: "E Field" }, { id: "h", label: "H Field" }, { id: "j", label: "Current Density" }, { id: "power", label: "Power Flow" }, { id: "loss", label: "Loss Breakdown" }, { id: "mesh", label: "Mesh" }],
+  q3d:          [OV, { id: "c", label: "Capacitance Matrix" }, { id: "l", label: "Inductance Matrix" }, { id: "r", label: "Resistance Matrix" }, { id: "g", label: "Conductance Matrix" }, { id: "derived", label: "Derived Parameters" }],
+  physics:      [OV, { id: "levels", label: "Energy Levels" }, { id: "wave", label: "Wavefunctions" }, { id: "charge", label: "Charge Dispersion" }, { id: "ham", label: "Hamiltonian Matrix" }, { id: "coh", label: "Coherence" }],
+  epr:          [OV, { id: "part", label: "Participation Ratios" }, { id: "ham", label: "Hamiltonian Parameters" }, { id: "trans", label: "Transition Frequencies" }, { id: "coup", label: "Coupling" }, { id: "anh", label: "Anharmonicity" }],
+  hamiltonian:  [OV, { id: "states", label: "Bare vs Dressed States" }, { id: "diag", label: "Energy Diagram" }, { id: "disp", label: "Dispersive Map" }, { id: "conv", label: "Convergence" }],
+  noise:        [OV, { id: "psd", label: "PSD Spectrum" }, { id: "t1", label: "T₁ Budget" }, { id: "t2", label: "T₂ Budget" }, { id: "thermal", label: "Thermal" }, { id: "tls", label: "TLS Map" }],
+  coupling:     [OV, { id: "map", label: "Coupling Map" }, { id: "dist", label: "Distance Dependence" }, { id: "xt", label: "Crosstalk Matrix" }, { id: "zz", label: "ZZ Suppression" }],
+  purcell:      [OV, { id: "limit", label: "Purcell Limit vs Detuning" }, { id: "filter", label: "Filter Response" }, { id: "qe", label: "Q_e Sweep" }],
 };
