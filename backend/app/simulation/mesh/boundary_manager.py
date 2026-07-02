@@ -155,6 +155,22 @@ class BoundaryManager:
                 for gr_entity in entity_map["ground"]:
                     pec_tags_raw.update(get_output_tags(2, gr_entity))
 
+            # Automatically detect substrate bottom surfaces (at the minimum Z of exterior boundaries)
+            # and assign them to the PEC ground plane (Attribute 3) to prevent unphysical energy leakage.
+            bottom_surface_tags = set()
+            if exterior_surface_tags:
+                try:
+                    z_min_domain = min(gmsh.model.getBoundingBox(2, tag)[2] for tag in exterior_surface_tags)
+                    for tag in exterior_surface_tags:
+                        xmin, ymin, zmin, xmax, ymax, zmax = gmsh.model.getBoundingBox(2, tag)
+                        if abs(zmin - z_min_domain) < 1e-4 and abs(zmax - z_min_domain) < 1e-4:
+                            bottom_surface_tags.add(tag)
+                    if bottom_surface_tags:
+                        pec_tags_raw.update(bottom_surface_tags)
+                        logger.info("Automatically detected %d bottom surfaces at Z=%.3f mm; assigning to PEC to eliminate leakage.", len(bottom_surface_tags), z_min_domain)
+                except Exception as e:
+                    logger.warning("Failed to automatically detect bottom boundary surfaces: %s", e)
+
             # Intersect with valid exterior surfaces and subtract assigned surfaces
             pec_tags = (pec_tags_raw & valid_surface_tags) - assigned_surfaces
             if pec_tags:

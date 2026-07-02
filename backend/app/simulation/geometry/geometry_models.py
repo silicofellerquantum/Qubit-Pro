@@ -106,4 +106,8 @@ class GeometryMetadata(BaseModel):
         default=GEOMETRY_VERSION, 
         description="Geometry builder package version."
     )
+    center_shift: Tuple[float, float] = Field(
+        default=(0.0, 0.0),
+        description="Centering translation offset applied to the raw layout coordinates."
+    )
     created_at: str = Field(..., description="ISO 8601 creation timestamp.")

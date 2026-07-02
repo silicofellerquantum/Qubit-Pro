@@ -31,10 +31,7 @@ async def get_mesh_wireframe(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
-    """Parses and returns the 3D volume tetrahedral mesh wireframe for high-density rendering.
-
-    Finds the .msh file, extracts unique edges using PalaceMeshParser, and returns them for Three.js.
-    """
+    """Parses and returns the 3D volume tetrahedral mesh wireframe and 2D boundary surfaces for rendering."""
     # 1. Authorize access to the simulation
     sim = None
     try:
@@ -90,6 +87,34 @@ async def get_mesh_wireframe(
             if mesh_path:
                 break
 
+    # Path E: Read from SQLite Database SimulationArtifact if files do not exist (rollback_policy deleted workspace)
+    if not mesh_path:
+        from app.simulation.database.models import SimulationArtifact, SimulationExecution
+        from sqlalchemy import select
+        try:
+            stmt = select(SimulationArtifact).join(
+                SimulationExecution,
+                SimulationArtifact.execution_id == SimulationExecution.id
+            ).where(
+                SimulationExecution.simulation_id == job_id,
+                SimulationArtifact.file_name == "mesh.msh"
+            ).order_by(SimulationArtifact.created_at.desc()).limit(1)
+
+            res = await db.execute(stmt)
+            db_artifact = res.scalar_one_or_none()
+
+            if db_artifact and db_artifact.file_data:
+                import tempfile
+                temp_dir = _PROJECT_ROOT / "backend" / "tmp" / "db_mesh"
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                temp_mesh_file = temp_dir / f"{job_id}_mesh.msh"
+                with open(temp_mesh_file, "wb") as f:
+                    f.write(db_artifact.file_data)
+                mesh_path = temp_mesh_file
+                logger.info("Retrieved mesh from database artifact and saved to: %s", mesh_path)
+        except Exception as db_exc:
+            logger.warning("Failed to retrieve mesh from database artifacts: %s", db_exc)
+
     if not mesh_path:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -110,9 +135,9 @@ async def get_mesh_wireframe(
         total_vertices = len(parser.vertices)
         total_edges = len(parser.edges)
 
-        # Retrieve frequency if eigenmode solver
-        frequency_ghz = 4.5
-        if sim and sim.results:
+        # Retrieve frequency only if eigenmode solver
+        frequency_ghz = 0.0
+        if sim and sim.solver == "eigenmode" and sim.results:
             eigenmode_data = sim.results.get("eigenmode", {})
             modes_list = eigenmode_data.get("modes", [])
             if modes_list:
@@ -135,6 +160,7 @@ async def get_mesh_wireframe(
             "vertices": data["vertices"],
             "edges": data["edges"],
             "bounds": data["bounds"],
+            "surfaces": data.get("surfaces", {}),
             "metadata": metadata,
         }
 

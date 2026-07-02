@@ -18,8 +18,21 @@ DEFAULT_LINEAR_TOLERANCE = 1.0e-8
 DEFAULT_LINEAR_MAX_ITS = 100
 
 # Solver-specific defaults
-DEFAULT_EIGENMODE_N = 5
-DEFAULT_EIGENMODE_TARGET_GHZ = 5.0
+DEFAULT_EIGENMODE_N = 10
+# Target 3 GHz so eigenmode search sweeps from 3 GHz upward,
+# catching all transmon (4-6 GHz) and readout resonator (5-7 GHz) modes.
+DEFAULT_EIGENMODE_TARGET_GHZ = 3.0
+# Save 5 mode field files by default to export fields to ParaView for key modes
+# while keeping runtime fast (doesn't export full 26 modes).
+DEFAULT_EIGENMODE_SAVE = 5
+
+
+# Absorbing boundary order: order 1 is required for eigenmode simulations.
+# Order 2 introduces a frequency-dependent term that forces Palace to use the
+# nonlinear eigenvalue solver (NLEPS), which fails to converge (infinite loop).
+# Order 1 keeps the problem linear (EPS), ensuring fast 30-second convergence.
+DEFAULT_ABSORBING_ORDER = 1
+
 
 # Port and Junction defaults
 DEFAULT_JUNCTION_L_NH = 10.0

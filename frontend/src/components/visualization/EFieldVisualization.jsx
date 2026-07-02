@@ -216,7 +216,12 @@ export default function EFieldVisualization({
     for (let i = 0; i < values.length; i++) {
       const attr = attributes[i] || 0;
 
-      if (attr >= 10) {
+      if (attr >= 200) {
+        // Josephson Junction -> render as bright metallic gold/orange
+        colorsFlat[i * 3] = 1.0;
+        colorsFlat[i * 3 + 1] = 0.73;
+        colorsFlat[i * 3 + 2] = 0.2;
+      } else if (attr >= 10) {
         // Active component or connection -> render as very dark slate / charcoal
         colorsFlat[i * 3] = 0.06;
         colorsFlat[i * 3 + 1] = 0.06;
@@ -458,6 +463,10 @@ export default function EFieldVisualization({
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-[#111115] rounded-sm border border-slate-700" />
                   <span>Metallic PEC Traces (Qubits / CPW)</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-[#ffba33] rounded-sm border border-amber-500" />
+                  <span>Josephson Junctions (Gold)</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-red-600 rounded-sm border border-red-500" />

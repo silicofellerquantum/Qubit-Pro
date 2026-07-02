@@ -22,6 +22,8 @@ class PalaceMeshParser:
             "y": [0.0, 0.0],
             "z": [0.0, 0.0]
         }
+        self.physical_names: Dict[int, str] = {}    # physical tag -> name
+        self.surface_triangles: Dict[int, List[List[int]]] = {} # physical tag -> list of [v0, v1, v2]
 
     def read_mfem_mesh(self, filepath: str | Path) -> None:
         """Parses a Gmsh .msh file (version 2.2) and extracts vertices and tetrahedra.
@@ -37,12 +39,29 @@ class PalaceMeshParser:
         node_id_map: Dict[int, int] = {}
         vertices: List[List[float]] = []
         elements: List[List[int]] = []
+        self.physical_names = {}
+        self.surface_triangles = {}
 
         with open(filepath, "r") as f:
             line = f.readline()
             while line:
                 stripped = line.strip()
-                if stripped == "$Nodes":
+                if stripped == "$PhysicalNames":
+                    # First line after $PhysicalNames is the number of physical names
+                    num_names_str = f.readline().strip()
+                    if not num_names_str:
+                        break
+                    num_names = int(num_names_str)
+                    for _ in range(num_names):
+                        name_line = f.readline().strip().split(' ', 2)
+                        if not name_line or len(name_line) < 3:
+                            break
+                        # format: dimension tag "name"
+                        tag = int(name_line[1])
+                        name = name_line[2].strip('"')
+                        self.physical_names[tag] = name
+
+                elif stripped == "$Nodes":
                     # First line after $Nodes is the total number of nodes
                     num_nodes_str = f.readline().strip()
                     if not num_nodes_str:
@@ -96,6 +115,34 @@ class PalaceMeshParser:
                                     # Fallback in case of mapping issues
                                     elem_nodes.append(nid - 1)
                             elements.append(elem_nodes)
+
+                        # Gmsh element type 2 (triangle) or 3 (quad) representing boundary surfaces
+                        elif elm_type in (2, 3):
+                            if num_tags >= 1:
+                                try:
+                                    physical_tag = int(elem_line[3])
+                                except (ValueError, IndexError):
+                                    physical_tag = 0
+                            else:
+                                physical_tag = 0
+
+                            # We only care about boundary surfaces for components, ground, etc. (physical_tag >= 3)
+                            if physical_tag >= 3:
+                                node_ids_str = elem_line[3 + num_tags:]
+                                elem_nodes = []
+                                for nid_str in node_ids_str:
+                                    nid = int(nid_str)
+                                    if nid in node_id_map:
+                                        elem_nodes.append(node_id_map[nid])
+                                    else:
+                                        elem_nodes.append(nid - 1)
+
+                                if len(elem_nodes) == 3:
+                                    self.surface_triangles.setdefault(physical_tag, []).append(elem_nodes)
+                                elif len(elem_nodes) == 4:
+                                    # Split quad ABCD into two triangles ABC and ACD
+                                    self.surface_triangles.setdefault(physical_tag, []).append([elem_nodes[0], elem_nodes[1], elem_nodes[2]])
+                                    self.surface_triangles.setdefault(physical_tag, []).append([elem_nodes[0], elem_nodes[2], elem_nodes[3]])
                 
                 line = f.readline()
 
@@ -116,8 +163,8 @@ class PalaceMeshParser:
             self.bounds = {"x": [0.0, 0.0], "y": [0.0, 0.0], "z": [0.0, 0.0]}
 
         logger.info(
-            "Successfully parsed Gmsh mesh: %d vertices, %d tetrahedra", 
-            len(self.vertices), len(self.elements)
+            "Successfully parsed Gmsh mesh: %d vertices, %d tetrahedra, %d boundary surface groups", 
+            len(self.vertices), len(self.elements), len(self.surface_triangles)
         )
 
     def get_wireframe_edges(self) -> List[List[int]]:
@@ -151,15 +198,24 @@ class PalaceMeshParser:
         """Formats the mesh data into a dictionary suitable for JSON serialization.
 
         Returns:
-            Dictionary containing vertices, deduplicated edges, and domain bounds.
+            Dictionary containing vertices, deduplicated edges, domain bounds, and boundary surfaces.
         """
         if not self.edges:
             self.get_wireframe_edges()
 
+        surfaces_serialized = {}
+        for tag, triangles in self.surface_triangles.items():
+            name = self.physical_names.get(tag, f"attribute_{tag}")
+            surfaces_serialized[name] = {
+                "tag": tag,
+                "triangles": triangles
+            }
+
         return {
             "vertices": self.vertices,
             "edges": self.edges,
-            "bounds": self.bounds
+            "bounds": self.bounds,
+            "surfaces": surfaces_serialized
         }
 
 

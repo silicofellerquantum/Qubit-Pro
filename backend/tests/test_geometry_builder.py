@@ -309,7 +309,9 @@ def test_out_of_bounds_die_limit(geometry_builder, workspace_manager, valid_v2_p
 
     # Deep copy the payload to prevent mutating the shared fixture
     payload = copy.deepcopy(valid_v2_payload)
-    payload["v2"]["graph"]["nodes"][0]["x_mm"] = 6.0
+    # Move q0 far enough that even after centering, it exceeds the 10.0 mm chip width and triggers expansion
+    payload["v2"]["graph"]["nodes"][0]["x_mm"] = 12.0
+
 
     metadata = geometry_builder.build_geometry(sim_id, payload)
     # The chip width should have been expanded to accommodate Q0

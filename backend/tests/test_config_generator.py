@@ -162,11 +162,12 @@ def test_generate_config_eigenmode_success(workspace_manager, config_generator, 
     # 3 (ground) + 10 (q0) + 11 (q1) + 12 (r0) = [3, 10, 11, 12]
     assert sorted(pec.attributes) == [3, 10, 11, 12]
 
-    # Boundaries: Absorbing outer boundary
+    # Boundaries: Absorbing outer boundary — order 1 is required to keep eigenmode solver linear (EPS)
     absorbing = config.boundaries.absorbing
     assert absorbing is not None
     assert absorbing.attributes == [4]
     assert absorbing.order == 1
+
 
     # Boundaries: Lumped Ports (Josephson junctions)
     ports = config.boundaries.lumped_port
@@ -186,9 +187,17 @@ def test_generate_config_eigenmode_success(workspace_manager, config_generator, 
 
     # Solver specific settings
     assert config.solver.eigenmode is not None
-    assert config.solver.eigenmode.n == 7          # 2 ports + 3 terminals + 2 = 7, but user setting overrides or default is used
+    # 2 ports + 3 terminals + 2 = 7, but clamped up to DEFAULT_EIGENMODE_N=10
+    assert config.solver.eigenmode.n == 10
     # Target frequency calculated from design payload frequency plan: (5.1 + 5.3) / 2 = 5.2 GHz -> 5.2e9 Hz
     assert pytest.approx(config.solver.eigenmode.target) == 5.2e9
+    # Save=5 by default to save 3D fields for the first 5 modes for ParaView
+    assert config.solver.eigenmode.save == 5
+
+
+    # Port direction: q0 and q1 have no orientation in mock, so orientation_deg=0 -> +Y
+    assert ports_sorted[0].direction == "+Y"
+    assert ports_sorted[1].direction == "+Y"
 
     # Verify files are written
     config_file = Path(ws.config_path) / EXPORT_CONFIG_FILENAME
@@ -392,7 +401,7 @@ def test_end_to_end_pipeline_integration(workspace_manager, geometry_builder, me
     # Ports mapped to LumpedPorts
     assert config.boundaries.lumped_port is not None
     assert len(config.boundaries.lumped_port) == 1
-    assert config.boundaries.lumped_port[0].attributes == [100]  # port_q0 tag is 100
+    assert config.boundaries.lumped_port[0].attributes == [200]  # port_q0 tag is 200
 
     # Output file exists in sandboxed config/ directory
     ws = workspace_manager.get_workspace(sim_id)

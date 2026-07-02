@@ -124,6 +124,11 @@ class MeshGenerator:
         try:
             gmsh.option.setNumber("General.Terminal", 0)  # Suppress GMSH stdout noise
             gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)  # Force MSH 2.2 format for MFEM compatibility
+            gmsh.option.setNumber("Geometry.ToleranceBoolean", 1e-6)
+            gmsh.option.setNumber("Geometry.OCCFixDegenerated", 1)
+            gmsh.option.setNumber("Geometry.OCCFixSmallEdges", 1)
+            gmsh.option.setNumber("Geometry.OCCFixSmallFaces", 1)
+            gmsh.option.setNumber("Geometry.OCCSewFaces", 1)
             gmsh.logger.start()  # Start capturing GMSH internal logs
 
             # Create a fresh GMSH model
@@ -173,26 +178,42 @@ class MeshGenerator:
                     entity_map[f"gap_{comp.id}"] = [(2, surfaces[idx + 1])]
                     idx += 2
                 elif comp.kind == GeometryComponentKind.LAUNCHPAD:
-                    # Launchpad draws: pad (1 surface)
-                    if idx >= len(surfaces):
+                    # Launchpad draws: pocket, pad (2 surfaces)
+                    if idx + 1 >= len(surfaces):
                         raise MeshGenerationError(f"Mesh mapping error: Insufficient surfaces for Launchpad '{comp.id}'")
-                    entity_map[f"pad_{comp.id}"] = [(2, surfaces[idx])]
-                    idx += 1
+                    entity_map[f"pocket_{comp.id}"] = [(2, surfaces[idx])]
+                    entity_map[f"pad_{comp.id}"] = [(2, surfaces[idx + 1])]
+                    idx += 2
 
             # 7. Construct 3D dielectric substrate and vacuum air volumes
             # Read bounding box limits from metadata, default to 10x10 mm
             bbox = geom_meta.get("bounding_box", (-5.0, -5.0, 5.0, 5.0))
             xmin, ymin, xmax, ymax = bbox
-            W = xmax - xmin
-            H = ymax - ymin
-            
+
+            # Symmetrize: force the simulation domain to be centred at (0,0).
+            # The raw bounding box can be asymmetric (e.g. X: -8.29 to +9.15 mm)
+            # because individual components extend unevenly. We take the maximum
+            # half-extent on each axis so the chip sits exactly at the centre of
+            # the domain, matching the design schematic view.
+            half_x = max(abs(xmin), abs(xmax))
+            half_y = max(abs(ymin), abs(ymax))
+            xmin_sym, xmax_sym = -half_x, half_x
+            ymin_sym, ymax_sym = -half_y, half_y
+            W = 2.0 * half_x
+            H = 2.0 * half_y
+
             H_sub = 0.5  # Substrate thickness (mm)
             H_air = 1.0  # Air box thickness (mm)
             
-            logger.info("Creating 3D volumes: Substrate (height=0.5mm), Air Box (height=1.0mm) for W=%.2f, H=%.2f", W, H)
+            logger.info(
+                "Creating symmetric 3D volumes: W=%.3f mm, H=%.3f mm "
+                "(original bbox X: %.3f..%.3f, symmetrized to ±%.3f mm)",
+                W, H, xmin, xmax, half_x,
+            )
             
-            sub_vol = gmsh.model.occ.addBox(xmin, ymin, -H_sub, W, H, H_sub)
-            air_vol = gmsh.model.occ.addBox(xmin, ymin, 0, W, H, H_air)
+            sub_vol = gmsh.model.occ.addBox(xmin_sym, ymin_sym, -H_sub, W, H, H_sub)
+            air_vol = gmsh.model.occ.addBox(xmin_sym, ymin_sym, 0, W, H, H_air)
+
 
             # 8. Conformal OCC Boolean Cut & Fragment
             # A. Subtract all ground pockets and line gaps from the ground plane
@@ -409,6 +430,19 @@ class MeshGenerator:
         except Exception as e:
             raise MeshImportError(f"Failed to load archived design file: {e}")
 
+        # Read center shift from geometry_metadata.json to harmonize coordinate centering
+        cx, cy = 0.0, 0.0
+        geom_meta_file = design_file.parent / "geometry_metadata.json"
+        if geom_meta_file.exists():
+            try:
+                with open(geom_meta_file, "r", encoding="utf-8") as f:
+                    meta_data = json.load(f)
+                    shift = meta_data.get("center_shift", [0.0, 0.0])
+                    cx, cy = float(shift[0]), float(shift[1])
+                    logger.info("Loaded coordinate center shift: cx=%.4f, cy=%.4f", cx, cy)
+            except Exception as e:
+                logger.warning("Could not read center_shift from geometry_metadata.json: %s", e)
+
         components: List[GeometryComponent] = []
 
         # 1. Parse V2 Design Graph
@@ -417,8 +451,6 @@ class MeshGenerator:
         if graph_dict:
             # We reconstruct components in the exact same order as GeometryBuilder:
             # Qubits, Resonators, Couplers, Feedlines, Launchpads.
-            # To avoid loading the entire DesignGraph type in the mesh generator (and keep it decoupled),
-            # we can parse the raw nodes list of the graph dict directly!
             nodes = graph_dict.get("nodes", [])
             
             # Map kinds to kind Enum
@@ -441,7 +473,8 @@ class MeshGenerator:
                 
                 components.append(GeometryComponent(
                     id=n["id"], kind=kind,
-                    x_mm=float(n.get("x_mm", 0.0)), y_mm=float(n.get("y_mm", 0.0)),
+                    x_mm=round(float(n.get("x_mm", 0.0)) - cx, 4),
+                    y_mm=round(float(n.get("y_mm", 0.0)) - cy, 4),
                     orientation_deg=float(n.get("orientation_deg", 0.0)),
                     layer="metal", material="aluminum", params=n.get("design_options") or n
                 ))
@@ -524,13 +557,19 @@ class MeshGenerator:
                         
                         path_points = _parse_svg_path_points(matching_conn.get("cachedSvg"))
                         if path_points:
-                            conn_params["path_points"] = path_points
+                            conn_params["path_points"] = [
+                                (round(pt[0] - cx, 4), round(pt[1] - cy, 4)) for pt in path_points
+                            ]
+                        elif "path_points" in conn_params:
+                            conn_params["path_points"] = [
+                                (round(pt[0] - cx, 4), round(pt[1] - cy, 4)) for pt in conn_params["path_points"]
+                            ]
 
                     components.append(GeometryComponent(
                         id=edge_id,
                         kind=kind,
-                        x_mm=round(mx, 4),
-                        y_mm=round(my, 4),
+                        x_mm=round(mx - cx, 4),
+                        y_mm=round(my - cy, 4),
                         orientation_deg=round(angle, 2),
                         layer="metal",
                         material="aluminum",
@@ -564,7 +603,6 @@ class MeshGenerator:
                 rot = float(p.get("rotation" or "orientation_deg", 0.0))
                 placement_map[inst_id] = (x, y)
                 
-                # Classify kind based on component ID name (exact same logic as GeometryBuilder)
                 inst_lower = inst_id.lower()
                 comp_lower = comp_id.lower()
                 
@@ -582,8 +620,8 @@ class MeshGenerator:
                 components.append(GeometryComponent(
                     id=inst_id,
                     kind=kind,
-                    x_mm=x,
-                    y_mm=y,
+                    x_mm=round(x - cx, 4),
+                    y_mm=round(y - cy, 4),
                     orientation_deg=rot,
                     layer="metal",
                     material="aluminum",
@@ -609,19 +647,25 @@ class MeshGenerator:
 
                     kind = GeometryComponentKind.RESONATOR
 
+                    conn_params = conn.get("params") or {
+                        "length_mm": dist,
+                        "cpw_width_um": 10.0,
+                        "cpw_gap_um": 5.0,
+                    }
+                    if "path_points" in conn_params:
+                        conn_params["path_points"] = [
+                            (round(pt[0] - cx, 4), round(pt[1] - cy, 4)) for pt in conn_params["path_points"]
+                        ]
+
                     components.append(GeometryComponent(
                         id=conn_id,
                         kind=kind,
-                        x_mm=round(mx, 4),
-                        y_mm=round(my, 4),
+                        x_mm=round(mx - cx, 4),
+                        y_mm=round(my - cy, 4),
                         orientation_deg=round(angle, 2),
                         layer="metal",
                         material="aluminum",
-                        params=conn.get("params") or {
-                            "length_mm": dist,
-                            "cpw_width_um": 10.0,
-                            "cpw_gap_um": 5.0,
-                        },
+                        params=conn_params,
                     ))
                 
             return components

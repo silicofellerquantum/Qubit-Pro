@@ -606,9 +606,7 @@ function SimulationHubPage() {
     },
   ];
 
-  if (sim?.solver === "eigenmode") {
-    TABS.push({ id: "volume_mesh", label: "3D Volume Mesh", icon: Rotate3d });
-  }
+  TABS.push({ id: "volume_mesh", label: "3D Volume Mesh", icon: Rotate3d });
 
   return (
     <div className="h-full overflow-y-auto bg-[#F8F9FB]">

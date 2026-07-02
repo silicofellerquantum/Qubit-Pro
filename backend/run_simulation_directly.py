@@ -72,7 +72,7 @@ async def main():
         user_id = user.id if user else "dummy-user-id"
 
         # 5. Build the SimulationRequest
-        # We use DELETE_ON_SUCCESS rollback policy so the workspace is kept if it fails,
+        # We use KEEP_ALL rollback policy so the workspace is kept,
         # but we also set coarse_mesh=True for speed.
         request = SimulationRequest(
             simulation_id=sim.id,
@@ -83,7 +83,7 @@ async def main():
             qubits=qubits,
             port_names=port_names,
             coarse_mesh=True,
-            rollback_policy=RollbackPolicy.DELETE_ON_SUCCESS
+            rollback_policy=RollbackPolicy.KEEP_ALL
         )
 
         print("\nStarting execution via SimulationService...")

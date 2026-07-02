@@ -32,7 +32,7 @@ class QiskitMetalToPalaceConverter:
         self.build_geometry_list()
 
     def identify_special_components(self, name: str, comp_class: str) -> str:
-        """Classify a component type as qubit, resonator, cpw, or coupler.
+        """Classify a component type as qubit, resonator, cpw, coupler, or launchpad.
 
         Args:
             name: Component instance name.
@@ -47,7 +47,9 @@ class QiskitMetalToPalaceConverter:
             return "resonator"
         elif "route" in class_lower or "meander" in class_lower or "cpw" in name_lower or name_lower.startswith("route") or name_lower.startswith("conn"):
             return "cpw"
-        elif "coupler" in class_lower or "launchpad" in class_lower or "port" in name_lower:
+        elif "launchpad" in class_lower or name_lower.startswith("t") or "launchpad" in name_lower:
+            return "launchpad"
+        elif "coupler" in class_lower or "port" in name_lower:
             return "coupler"
         else:
             return "coupler"  # Default fallback

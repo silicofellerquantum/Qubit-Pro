@@ -150,11 +150,18 @@ class ResultParser:
         # Sort modes strictly by ascending frequency_ghz
         sorted_modes = sorted(modes.values(), key=lambda m: m.frequency_ghz)
         
-        # Reassign 1-based mode indices and apply sanity filter for spurious high-frequency modes (> 500 GHz)
+        # Reassign 1-based mode indices and apply sanity labels for spurious modes.
+        # Physical modes for superconducting qubits are in the 1–20 GHz range.
+        # Any mode above 50 GHz is a numerical artifact (mesh resonance or
+        # degenerate eigenvector from the shift-and-invert iteration).
+        # Modes with Q < 5 are flagged as "lossy/spurious" — they represent
+        # energy leaking through the absorbing boundary, not real resonances.
         for idx, mode in enumerate(sorted_modes, start=1):
             mode.mode_index = idx
-            if mode.frequency_ghz > 500.0:
+            if mode.frequency_ghz > 50.0:
                 mode.label = "non-physical/numerical"
+            elif mode.quality_factor < 5.0:
+                mode.label = "lossy/spurious"
             else:
                 mode.label = "physical"
                 

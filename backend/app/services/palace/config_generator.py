@@ -143,7 +143,7 @@ class ConfigGenerator:
             elif solver_type == PalaceSolverType.EIGENMODE:
                 # Eigenmode simulation requires "LumpedPort" boundaries for EPR analysis
                 lumped_ports = []
-                curr_attr = 100
+                curr_attr = 200
                 for qubit in geometry.qubits:
                     # Josephson junctions are represented as lumped ports with inductance/resistance/capacitance
                     lumped_ports.append({
@@ -174,7 +174,7 @@ class ConfigGenerator:
                 solver["Eigenmode"] = {
                     "N": n_modes,  # Search modes
                     "Target": target_freq * 1.0e9,  # Convert GHz to Hz
-                    "Save": n_modes,  # Save all computed modes for 3D visualization
+                    "Save": 5,  # Save only 5 modes to save time and space
                 }
             elif solver_type == PalaceSolverType.ELECTROSTATIC:
                 solver["Electrostatic"] = {

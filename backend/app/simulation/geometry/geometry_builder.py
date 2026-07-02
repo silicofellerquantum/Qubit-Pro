@@ -339,6 +339,47 @@ class GeometryBuilder:
                 )
                 ports.extend([port_in, port_out])
 
+        # Center geometry so that the bounding box of active components is centered around (0, 0)
+        # This keeps the design in the center of the die and prevents 3D view clipping.
+        active_comps = [c for c in components if c.id != "die_substrate"]
+        if active_comps:
+            xs_min = [c.bounding_box[0] for c in active_comps if c.bounding_box]
+            xs_max = [c.bounding_box[2] for c in active_comps if c.bounding_box]
+            ys_min = [c.bounding_box[1] for c in active_comps if c.bounding_box]
+            ys_max = [c.bounding_box[3] for c in active_comps if c.bounding_box]
+            
+            if xs_min and ys_min:
+                g_xmin = min(xs_min)
+                g_xmax = max(xs_max)
+                g_ymin = min(ys_min)
+                g_ymax = max(ys_max)
+                
+                cx = (g_xmin + g_xmax) / 2.0
+                cy = (g_ymin + g_ymax) / 2.0
+                
+                logger.info("Centering geometry: shifting active area centered at (%.3f, %.3f) to (0,0)", cx, cy)
+                
+                # Shift components and their paths/bounds
+                for c in components:
+                    c.x_mm = round(c.x_mm - cx, 4)
+                    c.y_mm = round(c.y_mm - cy, 4)
+                    if c.bounding_box:
+                        c.bounding_box = (
+                            round(c.bounding_box[0] - cx, 4),
+                            round(c.bounding_box[1] - cy, 4),
+                            round(c.bounding_box[2] - cx, 4),
+                            round(c.bounding_box[3] - cy, 4),
+                        )
+                    if c.params and "path_points" in c.params:
+                        c.params["path_points"] = [
+                            (round(pt[0] - cx, 4), round(pt[1] - cy, 4)) for pt in c.params["path_points"]
+                        ]
+                
+                # Shift ports
+                for p in ports:
+                    p.x_mm = round(p.x_mm - cx, 4)
+                    p.y_mm = round(p.y_mm - cy, 4)
+
         # Dynamically expand chip die size to fit all components if needed
         max_x_extent = 0.0
         max_y_extent = 0.0
@@ -347,6 +388,7 @@ class GeometryBuilder:
                 xmin, ymin, xmax, ymax = c.bounding_box
                 max_x_extent = max(max_x_extent, abs(xmin), abs(xmax))
                 max_y_extent = max(max_y_extent, abs(ymin), abs(ymax))
+
 
         margin = 0.2
         required_width = max_x_extent * 2.0 + margin
@@ -385,6 +427,7 @@ class GeometryBuilder:
             chip_width_mm=chip_width_mm,
             chip_height_mm=chip_height_mm,
             raw_payload=design_payload,
+            center_shift=(cx, cy) if "cx" in locals() else (0.0, 0.0),
         )
 
         # 6. Touch the workspace to record the update

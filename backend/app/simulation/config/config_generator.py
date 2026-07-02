@@ -20,6 +20,8 @@ from app.simulation.config.constants import (
     DEFAULT_LINEAR_MAX_ITS,
     DEFAULT_EIGENMODE_N,
     DEFAULT_EIGENMODE_TARGET_GHZ,
+    DEFAULT_EIGENMODE_SAVE,
+    DEFAULT_ABSORBING_ORDER,
     DEFAULT_JUNCTION_L_NH,
     DEFAULT_JUNCTION_R_OHM,
 )
@@ -44,6 +46,78 @@ from app.simulation.config.config_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_port_direction(comp: dict, design_payload: dict) -> str:
+    """Determine the Palace lumped port excitation direction for a qubit junction.
+
+    Palace integrates the voltage across the port surface along the specified
+    direction vector. The sign matters: a wrong sign (e.g. +X instead of -X)
+    produces a negative EPR, breaking the physical energy participation ratio.
+
+    We read the component's orientation from the design payload and project
+    the orientation angle to the nearest principal axis (+X/-X/+Y/-Y).
+
+    Args:
+        comp: The component dict from the components_list in design.json.
+        design_payload: The raw design payload dict.
+
+    Returns:
+        One of "+X", "-X", "+Y", or "-Y" as a string.
+    """
+    import math
+
+    # Default to +Y — qubits in standard QiskitMetal orientation have their
+    # junction surfaces perpendicular to Y, so voltage integrates along Y.
+    orientation_deg = 0.0
+
+    # Try to read orientation from the component params dict directly
+    comp_id = comp.get("id") or comp.get("name", "")
+    params = comp.get("params", {}) or comp.get("design_options", {})
+
+    # Check orientation in component params
+    for key in ("orientation_deg", "rotation", "orientation", "angle_deg"):
+        if key in params:
+            try:
+                orientation_deg = float(params[key])
+                break
+            except (TypeError, ValueError):
+                pass
+
+    # Fall back to V2 graph node orientation
+    if orientation_deg == 0.0:
+        v2_data = design_payload.get("v2", {})
+        graph_dict = v2_data.get("graph", {})
+        if graph_dict:
+            for node in graph_dict.get("nodes", []):
+                if node.get("id") == comp_id:
+                    try:
+                        orientation_deg = float(node.get("orientation_deg") or 0.0)
+                    except (TypeError, ValueError):
+                        orientation_deg = 0.0
+                    break
+
+    # Normalize to [0, 360)
+    orientation_deg = orientation_deg % 360.0
+
+    # The GMSH junction rectangle is drawn with its long axis along +Y
+    # (pad_gap height in Y, junction width j_w in X), then rotated by orientation_deg.
+    # After rotation, the junction's long axis (originally Y = [0,1]) becomes:
+    #   [dx, dy] = [-sin(rad), cos(rad)]
+    # The Palace voltage integration direction should be parallel to this rotated Y axis.
+    # We project it to the nearest principal axis.
+    import math
+    angle_rad = math.radians(orientation_deg)
+    # Rotated Y axis components
+    dx = -math.sin(angle_rad)
+    dy =  math.cos(angle_rad)
+
+    if abs(dy) >= abs(dx):
+        # Dominant Y component
+        return "+Y" if dy >= 0 else "-Y"
+    else:
+        # Dominant X component
+        return "+X" if dx >= 0 else "-X"
 
 
 class PalaceConfigGenerator:
@@ -194,8 +268,11 @@ class PalaceConfigGenerator:
                 for name, tag in terminal_groups.items():
                     pec_attributes.append(tag)
                 
-                # 2. Outer boundary (attribute 4) is Absorbing
-                absorbing_block = AbsorbingBlock(attributes=[absorbing_tag], order=1)
+                # 2. Outer boundary (attribute 4) is Absorbing.
+                # Order 2 is used instead of order 1 to dramatically reduce
+                # energy leakage at the domain walls, fixing near-zero Q-factors.
+                absorbing_order = user_settings.get("absorbing_order", DEFAULT_ABSORBING_ORDER)
+                absorbing_block = AbsorbingBlock(attributes=[absorbing_tag], order=int(absorbing_order))
 
                 # 3. Ports (Josephson junctions, 100+) are mapped to LumpedPorts
                 if port_groups:
@@ -216,6 +293,12 @@ class PalaceConfigGenerator:
 
                         l_val = float(override_lj) if override_lj is not None else DEFAULT_JUNCTION_L_NH
 
+                        # Determine port excitation direction from component orientation.
+                        # Each qubit's junction surface normal is oriented along the qubit's
+                        # orientation_deg. We project that angle to the dominant axis (+X/-X/+Y/-Y)
+                        # so Palace knows which direction to integrate the voltage across.
+                        port_direction = _resolve_port_direction(comp, design_payload)
+
                         lumped_port_list.append(
                             LumpedPortBlock(
                                 index=port_idx,
@@ -223,7 +306,7 @@ class PalaceConfigGenerator:
                                 r=DEFAULT_JUNCTION_R_OHM,
                                 l=l_val * 1e-9,
                                 c=0.0,
-                                direction="+X",
+                                direction=port_direction,
                             )
                         )
                         port_idx += 1
@@ -310,7 +393,7 @@ class PalaceConfigGenerator:
                 eigenmode_block = EigenmodeSolverBlock(
                     n=int(n_modes),
                     target=float(target_ghz) * 1.0e9,  # Convert GHz to Hz
-                    save=int(n_modes),
+                    save=int(eig_opts.get("save", DEFAULT_EIGENMODE_SAVE)),
                 )
 
             elif solver_type_clean == "electrostatic":
@@ -345,6 +428,10 @@ class PalaceConfigGenerator:
                 solver_type=solver_type,
                 verbose=int(user_settings.get("verbose", 1)),
                 output="out",
+                # Enable ParaView volumetric field export by default per user request.
+                # Combined with save=5, this is highly efficient (takes ~2 minutes).
+                output_formats={"Paraview": bool(user_settings.get("enable_paraview", True))},
+
             )
             
             # Mesh path relative to config/ folder

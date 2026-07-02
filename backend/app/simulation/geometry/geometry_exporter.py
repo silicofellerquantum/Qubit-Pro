@@ -34,6 +34,7 @@ class GeometryExporter:
         chip_width_mm: float,
         chip_height_mm: float,
         raw_payload: Dict[str, Any],
+        center_shift: Tuple[float, float] = (0.0, 0.0),
     ) -> GeometryMetadata:
         """Export all geometry artifacts into the sandboxed workspace.
 
@@ -45,6 +46,7 @@ class GeometryExporter:
             chip_width_mm: Width of the chip.
             chip_height_mm: Height of the chip.
             raw_payload: The original design payload to archive.
+            center_shift: Translation offset applied for centering.
 
         Returns:
             The created GeometryMetadata model.
@@ -105,6 +107,7 @@ class GeometryExporter:
                 materials=active_materials,
                 coordinate_system="cartesian_mm",
                 generated_files=generated_files,
+                center_shift=center_shift,
                 created_at=timestamp_now(),
             )
 
@@ -201,49 +204,49 @@ class GeometryExporter:
                 g = GeometryExporter._to_float(p.get("cpw_gap_um") or p.get("cpw_gap"), 5.0) / 1000.0
 
                 if path_points and len(path_points) >= 2:
-                    lines.append(f"// Meandered path for line {c.id}")
-                    trace_segs = []
-                    gap_segs = []
+                    lines.append(f"// Continuous boundary polygon for line {c.id}")
+                    # Compute trace boundary polygon
+                    trace_poly = GeometryExporter._get_path_boundary(path_points, w / 2.0)
+                    trace_pts = []
+                    for idx_p, (px, py) in enumerate(trace_poly):
+                        pt_var = f"p_tr{suffix}_{idx_p}"
+                        lines.append(f"{pt_var} = newp; Point({pt_var}) = {{{px}, {py}, 0}};")
+                        trace_pts.append(pt_var)
                     
-                    for s_idx in range(len(path_points) - 1):
-                        p1 = path_points[s_idx]
-                        p2 = path_points[s_idx + 1]
+                    trace_lines = []
+                    n_tr = len(trace_pts)
+                    for idx_l in range(n_tr):
+                        p_start = trace_pts[idx_l]
+                        p_end = trace_pts[(idx_l + 1) % n_tr]
+                        line_var = f"l_tr{suffix}_{idx_l}"
+                        lines.append(f"{line_var} = newl; Line({line_var}) = {{{p_start}, {p_end}}};")
+                        trace_lines.append(line_var)
                         
-                        dx = p2[0] - p1[0]
-                        dy = p2[1] - p1[1]
-                        dist = math.sqrt(dx**2 + dy**2)
-                        if dist < 1e-6:
-                            continue
-                            
-                        mx = (p1[0] + p2[0]) / 2.0
-                        my = (p1[1] + p2[1]) / 2.0
-                        angle = math.atan2(dy, dx)
-                        
-                        seg_suffix = f"{suffix}_{s_idx}"
-                        trace_var = f"trace{seg_suffix}"
-                        gap_var = f"gap{seg_suffix}"
-                        trace_segs.append(trace_var)
-                        gap_segs.append(gap_var)
-                        
-                        lines.extend([
-                            f"{trace_var} = newreg; Rectangle({trace_var}) = {{{-dist/2}, {-w/2}, 0, {dist}, {w}}};",
-                            f"{gap_var} = newreg; Rectangle({gap_var}) = {{{-dist/2}, {-(w/2 + g)}, 0, {dist}, {w + 2*g}}};",
-                            f"Rotate {{{{0, 0, 1}}, {{0, 0, 0}}, {angle}}} {{ Surface{{{trace_var}, {gap_var}}}; }}",
-                            f"Translate {{{mx}, {my}, 0}} {{ Surface{{{trace_var}, {gap_var}}}; }}",
-                        ])
+                    loop_tr_var = f"loop_tr{suffix}"
+                    lines.append(f"{loop_tr_var} = newreg; Curve Loop({loop_tr_var}) = {{{', '.join(trace_lines)}}};")
+                    lines.append(f"trace{suffix} = newreg; Plane Surface(trace{suffix}) = {{{loop_tr_var}}};")
                     
-                    if len(trace_segs) >= 2:
-                        lines.extend([
-                            f"trace{suffix}[] = BooleanUnion{{ Surface{{{trace_segs[0]}}}; Delete; }}{{ Surface{{{', '.join(trace_segs[1:])}}}; Delete; }};",
-                            f"gap{suffix}[] = BooleanUnion{{ Surface{{{gap_segs[0]}}}; Delete; }}{{ Surface{{{', '.join(gap_segs[1:])}}}; Delete; }};",
-                            ""
-                        ])
-                    elif len(trace_segs) == 1:
-                        lines.extend([
-                            f"trace{suffix} = {trace_segs[0]};",
-                            f"gap{suffix} = {gap_segs[0]};",
-                            ""
-                        ])
+                    # Compute gap boundary polygon
+                    gap_poly = GeometryExporter._get_path_boundary(path_points, w / 2.0 + g)
+                    gap_pts = []
+                    for idx_p, (px, py) in enumerate(gap_poly):
+                        pt_var = f"p_gp{suffix}_{idx_p}"
+                        lines.append(f"{pt_var} = newp; Point({pt_var}) = {{{px}, {py}, 0}};")
+                        gap_pts.append(pt_var)
+                    
+                    gap_lines = []
+                    n_gp = len(gap_pts)
+                    for idx_l in range(n_gp):
+                        p_start = gap_pts[idx_l]
+                        p_end = gap_pts[(idx_l + 1) % n_gp]
+                        line_var = f"l_gp{suffix}_{idx_l}"
+                        lines.append(f"{line_var} = newl; Line({line_var}) = {{{p_start}, {p_end}}};")
+                        gap_lines.append(line_var)
+                        
+                    loop_gp_var = f"loop_gp{suffix}"
+                    lines.append(f"{loop_gp_var} = newreg; Curve Loop({loop_gp_var}) = {{{', '.join(gap_lines)}}};")
+                    lines.append(f"gap{suffix} = newreg; Plane Surface(gap{suffix}) = {{{loop_gp_var}}};")
+                    lines.append("")
                 else:
                     # Fallback to straight line
                     length_val = p.get("length_um") or p.get("length")
@@ -268,16 +271,115 @@ class GeometryExporter:
                 total_w = pad_w + 2.0 * pad_g
 
                 lines.extend([
-                    f"pad{suffix} = newreg; Rectangle(pad{suffix}) = {{{-pad_l/2}, {-total_w/2}, 0, {pad_l}, {total_w}}};",
+                    f"pocket{suffix} = newreg; Rectangle(pocket{suffix}) = {{{-pad_l/2}, {-total_w/2}, 0, {pad_l}, {total_w}}};",
+                    f"pad{suffix} = newreg; Rectangle(pad{suffix}) = {{{-pad_l/2}, {-pad_w/2}, 0, {pad_l}, {pad_w}}};",
                     f"// Transform Launchpad {c.id}",
-                    f"Rotate {{{{0, 0, 1}}, {{0, 0, 0}}, {math.radians(rot)}}} {{ Surface{{pad{suffix}}}; }}",
-                    f"Translate {{{x}, {y}, 0}} {{ Surface{{pad{suffix}}}; }}",
+                    f"Rotate {{{{0, 0, 1}}, {{0, 0, 0}}, {math.radians(rot)}}} {{ Surface{{pocket{suffix}, pad{suffix}}}; }}",
+                    f"Translate {{{x}, {y}, 0}} {{ Surface{{pocket{suffix}, pad{suffix}}}; }}",
                     "",
                 ])
 
         # Write to file
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
+
+    @staticmethod
+    def _get_path_boundary(points: List[List[float]], half_w: float) -> List[Tuple[float, float]]:
+        """Compute the closed polygon boundary points for a thickened path (miter joints)."""
+        # Clean input points to remove consecutive duplicates
+        cleaned = []
+        for pt in points:
+            if not cleaned:
+                cleaned.append(pt)
+            else:
+                prev = cleaned[-1]
+                if math.sqrt((pt[0] - prev[0])**2 + (pt[1] - prev[1])**2) > 1e-6:
+                    cleaned.append(pt)
+                    
+        n_pts = len(cleaned)
+        if n_pts < 2:
+            return []
+            
+        left_pts = []
+        right_pts = []
+        
+        for i in range(n_pts):
+            x, y = cleaned[i][0], cleaned[i][1]
+            if i == 0:
+                dx = cleaned[1][0] - cleaned[0][0]
+                dy = cleaned[1][1] - cleaned[0][1]
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 1e-9:
+                    dist = 1.0
+                nx = -dy / dist
+                ny = dx / dist
+                left_pts.append((x + half_w * nx, y + half_w * ny))
+                right_pts.append((x - half_w * nx, y - half_w * ny))
+            elif i == n_pts - 1:
+                dx = cleaned[-1][0] - cleaned[-2][0]
+                dy = cleaned[-1][1] - cleaned[-2][1]
+                dist = math.sqrt(dx**2 + dy**2)
+                if dist < 1e-9:
+                    dist = 1.0
+                nx = -dy / dist
+                ny = dx / dist
+                left_pts.append((x + half_w * nx, y + half_w * ny))
+                right_pts.append((x - half_w * nx, y - half_w * ny))
+            else:
+                # Miter joint
+                dx_prev = cleaned[i][0] - cleaned[i-1][0]
+                dy_prev = cleaned[i][1] - cleaned[i-1][1]
+                dist_prev = math.sqrt(dx_prev**2 + dy_prev**2)
+                if dist_prev < 1e-9:
+                    dist_prev = 1.0
+                nx_prev = -dy_prev / dist_prev
+                ny_prev = dx_prev / dist_prev
+                
+                dx_next = cleaned[i+1][0] - cleaned[i][0]
+                dy_next = cleaned[i+1][1] - cleaned[i][1]
+                dist_next = math.sqrt(dx_next**2 + dy_next**2)
+                if dist_next < 1e-9:
+                    dist_next = 1.0
+                nx_next = -dy_next / dist_next
+                ny_next = dx_next / dist_next
+                
+                # Average normal (miter direction)
+                mx = (nx_prev + nx_next) / 2.0
+                my = (ny_prev + ny_next) / 2.0
+                m_len2 = mx**2 + my**2
+                if m_len2 < 1e-6:
+                    # Collinear or sharp turn
+                    mx, my = nx_prev, ny_prev
+                    scale = 1.0
+                else:
+                    m_len = math.sqrt(m_len2)
+                    mx /= m_len
+                    my /= m_len
+                    cos_theta = mx * nx_prev + my * ny_prev
+                    scale = 1.0 / max(cos_theta, 0.1)
+                    scale = min(scale, 2.0)  # limit extreme miters
+                    
+                left_pts.append((x + half_w * scale * mx, y + half_w * scale * my))
+                right_pts.append((x - half_w * scale * mx, y - half_w * scale * my))
+                
+        raw_poly = left_pts + right_pts[::-1]
+        
+        # Deduplicate consecutive vertices in the output polygon
+        dedup_poly = []
+        for pt in raw_poly:
+            if not dedup_poly:
+                dedup_poly.append(pt)
+            else:
+                prev = dedup_poly[-1]
+                if math.sqrt((pt[0] - prev[0])**2 + (pt[1] - prev[1])**2) > 1e-6:
+                    dedup_poly.append(pt)
+        if len(dedup_poly) >= 3:
+            first = dedup_poly[0]
+            last = dedup_poly[-1]
+            if math.sqrt((last[0] - first[0])**2 + (last[1] - first[1])**2) <= 1e-6:
+                dedup_poly.pop()
+                
+        return dedup_poly
 
     @staticmethod
     def _generate_step_cad(
