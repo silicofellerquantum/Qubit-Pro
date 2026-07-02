@@ -381,11 +381,16 @@ export async function loginUser(email: string, password: string) {
   const formData = new FormData();
   formData.append("username", email);
   formData.append("password", password);
-  const res = await fetch(`${BACKEND_URL}/api/auth/token`, {
+  const url = `${BACKEND_URL}/api/auth/token`;
+  console.log("[API] loginUser: POST", url);
+  const res = await fetch(url, {
     method: "POST",
     body: formData,
   });
-  if (!res.ok) throw new Error("Login failed");
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Login failed" }));
+    throw new Error(body.detail ?? "Login failed");
+  }
   const data = await res.json();
   if (data.access_token && typeof window !== "undefined") {
     localStorage.setItem("qs_token", data.access_token);
@@ -399,14 +404,126 @@ export async function registerUser(
   password: string,
   organization: string,
   role?: string,
-) {
-  const data = await api("/api/auth/register", {
+): Promise<{ detail: string }> {
+  const url = `${BACKEND_URL}/api/auth/register`;
+  console.log("[API] registerUser: POST", url);
+  const res = await fetch(url, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, email, password, organization, role }),
   });
-  const d = data as { access_token?: string };
-  if (d.access_token && typeof window !== "undefined") {
-    localStorage.setItem("qs_token", d.access_token);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Registration failed" }));
+    throw new Error(body.detail ?? "Registration failed");
+  }
+  return res.json();
+}
+
+interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    organization: string;
+    initials: string;
+  };
+}
+
+export async function verifyOTP(email: string, otp: string): Promise<AuthResponse> {
+  const url = `${BACKEND_URL}/api/auth/verify-otp`;
+  console.log("[API] verifyOTP: POST", url);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, otp }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Verification failed" }));
+    throw new Error(body.detail ?? "Verification failed");
+  }
+  const data: AuthResponse = await res.json();
+  try {
+    if (data.access_token && typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("qs_token", data.access_token);
+      console.log("[API] verifyOTP: token stored in localStorage");
+    }
+  } catch (e) {
+    console.warn("[API] verifyOTP: failed to store token", e);
   }
   return data;
+}
+
+export async function resendOTP(email: string): Promise<{ detail: string }> {
+  const url = `${BACKEND_URL}/api/auth/resend-otp`;
+  console.log("[API] resendOTP: POST", url);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Failed to resend code" }));
+    throw new Error(body.detail ?? "Failed to resend code");
+  }
+  return res.json();
+}
+
+export async function loginWithGoogle(idToken: string): Promise<AuthResponse> {
+  // Use relative URL so the request goes through Vite's dev proxy as a
+  // same-origin request — this bypasses CORS, ad-blockers, and Private
+  // Network Access restrictions that block cross-origin requests.
+  const url = `/api/auth/google`;
+  console.log("[API] loginWithGoogle: POST", url, "(via Vite proxy)");
+  console.log("[API] loginWithGoogle: idToken length =", idToken?.length ?? 0);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: idToken }),
+    });
+  } catch (networkError) {
+    // This catches TypeError: Failed to fetch (network/CORS/blocked)
+    console.error("[API] loginWithGoogle: network error (Failed to fetch)", networkError);
+    throw new Error(
+      `Cannot reach backend. Make sure the backend server is running on port 5000.`
+    );
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: "Google login failed" }));
+    console.error("[API] loginWithGoogle: server error", res.status, body);
+    throw new Error(body.detail ?? "Google login failed");
+  }
+  const data: AuthResponse = await res.json();
+  try {
+    if (data.access_token && typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("qs_token", data.access_token);
+      console.log("[API] loginWithGoogle: token stored in localStorage");
+    }
+  } catch (e) {
+    console.warn("[API] loginWithGoogle: failed to store token", e);
+  }
+  return data;
+}
+
+export async function getCurrentUser(token: string): Promise<AuthResponse["user"]> {
+  const url = `${BACKEND_URL}/api/auth/me`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error("Session expired");
+  }
+  return res.json();
+}
+
+export function initiateGithubLogin(): void {
+  const backendUrl = (import.meta.env.VITE_BACKEND_URL ?? "http://localhost:5000").replace(
+    /\/$/,
+    "",
+  );
+  window.location.href = `${backendUrl}/api/auth/github/authorize`;
 }

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head><title>Google Auth Test</title></head>
+<body>
+<h1>Google Auth Debug Test</h1>
+<button id="testBtn">Test fetch to localhost:5000/api/auth/google</button>
+<pre id="output"></pre>
+<script>
+document.getElementById('testBtn').addEventListener('click', async () => {
+  const output = document.getElementById('output');
+  output.textContent = 'Sending request...\n';
+  
+  try {
+    const url = 'http://localhost:5000/api/auth/google';
+    output.textContent += `URL: ${url}\n`;
+    output.textContent += `Origin: ${window.location.origin}\n`;
+    
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'test-token-from-browser' }),
+    });
+    
+    output.textContent += `Status: ${res.status}\n`;
+    const body = await res.text();
+    output.textContent += `Body: ${body}\n`;
+    output.textContent += 'SUCCESS - fetch worked!\n';
+  } catch (err) {
+    output.textContent += `ERROR: ${err.name}: ${err.message}\n`;
+    output.textContent += 'This is the "Failed to fetch" error.\n';
+    output.textContent += 'Check browser DevTools > Console and Network tab for details.\n';
+  }
+});
+</script>
+</body>
+</html>
+</script>
+</body>
+</html>
